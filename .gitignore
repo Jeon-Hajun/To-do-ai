@@ -1,0 +1,48 @@
+# OS / Editor
+.DS_Store
+.vscode/
+.idea/
+
+# Env files
+.env
+.env.*
+backend/.env
+ai-backend/.env
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Node
+backend/node_modules/
+morpheus-react/node_modules/
+
+# Python
+ai-backend/venv/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Build artifacts (web/mobile)
+morpheus-react/web/dist/
+morpheus-react/web/.vite/
+
+# Android/Gradle build outputs
+morpheus-react/android/build/
+morpheus-react/android/app/build/
+.gradle/
+
+# SQLite / local databases
+backend/database/todo.db
+
+# Coverage / cache
+.coverage
+coverage/
+.pytest_cache/
+
+# Misc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
