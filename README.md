@@ -1,4 +1,6 @@
-# 프로젝트 템플릿
+# To-do-ai-agent
+
+To-do app + AI agent project by team Wasabi
 
 기본적인 웹 애플리케이션 개발을 위한 프로젝트 템플릿입니다.
 
