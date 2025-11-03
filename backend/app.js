@@ -10,6 +10,11 @@ require('dotenv').config();
 // Import routes
 var indexRouter = require('./routes/index');
 var userRouter = require('./routes/user');
+var teamRouter = require('./routes/team');
+var projectRouter = require('./routes/project');
+var taskRouter = require('./routes/task');
+var githubRouter = require('./routes/github');
+var progressRouter = require('./routes/progress');
 
 // Import database
 var { initDatabase } = require('./database/init');
@@ -42,6 +47,11 @@ initDatabase();
 // Routes
 app.use('/', indexRouter);
 app.use('/api/user', userRouter);
+app.use('/api/team', teamRouter);
+app.use('/api/project', projectRouter);
+app.use('/api/task', taskRouter);
+app.use('/api/github', githubRouter);
+app.use('/api/progress', progressRouter);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
