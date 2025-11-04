@@ -5,66 +5,69 @@ require('dotenv').config();
 var dbPath = process.env.DB_PATH || path.join(__dirname, 'todo.db');
 var db = new sqlite3.Database(dbPath);
 
+// FOREIGN KEY 활성화 (SQLite는 기본적으로 무시하므로 필수)
+db.run('PRAGMA foreign_keys = ON');
+
 function initDatabase() {
   db.serialize(function() {
-    // User 테이블
+    // Users 테이블
     db.run(`
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        name TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        password TEXT NOT NULL,
+        nickname TEXT NOT NULL,
+        profile_image TEXT DEFAULT 'basic.png',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    
+    // Users 인덱스
+    db.run(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
 
-    // Team 테이블
-    db.run(`
-      CREATE TABLE IF NOT EXISTS teams (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        team_code TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        owner_id INTEGER NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (owner_id) REFERENCES users(id)
-      )
-    `);
-
-    // TeamUser 테이블 (다대다 관계)
-    db.run(`
-      CREATE TABLE IF NOT EXISTS team_users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        team_id INTEGER NOT NULL,
-        user_id INTEGER NOT NULL,
-        joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        UNIQUE(team_id, user_id)
-      )
-    `);
-
-    // Project 테이블
+    // Projects 테이블
     db.run(`
       CREATE TABLE IF NOT EXISTS projects (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        team_id INTEGER,
         title TEXT NOT NULL,
         description TEXT,
+        project_code TEXT UNIQUE,
+        password_hash TEXT,
+        owner_id INTEGER NOT NULL,
         github_repo TEXT,
         github_token TEXT,
-        status TEXT DEFAULT 'active',
+        status TEXT DEFAULT 'active' CHECK(status IN ('active', 'archived', 'completed')),
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL
+        FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT
       )
     `);
 
-    // Task 테이블
+    // Projects 인덱스
+    db.run(`CREATE INDEX IF NOT EXISTS idx_projects_owner ON projects(owner_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_projects_code ON projects(project_code)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status)`);
+
+    // ProjectMembers 테이블
+    db.run(`
+      CREATE TABLE IF NOT EXISTS project_members (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        role TEXT DEFAULT 'member' CHECK(role IN ('owner', 'admin', 'member')),
+        joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(project_id, user_id)
+      )
+    `);
+
+    // ProjectMembers 인덱스
+    db.run(`CREATE INDEX IF NOT EXISTS idx_project_members_project ON project_members(project_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_project_members_user ON project_members(user_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_project_members_role ON project_members(role)`);
+
+    // Tasks 테이블
     db.run(`
       CREATE TABLE IF NOT EXISTS tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,7 +75,7 @@ function initDatabase() {
         assigned_user_id INTEGER,
         title TEXT NOT NULL,
         description TEXT,
-        status TEXT DEFAULT 'todo',
+        status TEXT DEFAULT 'todo' CHECK(status IN ('todo', 'in_progress', 'done', 'cancelled')),
         github_issue_number INTEGER,
         due_date DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -82,7 +85,13 @@ function initDatabase() {
       )
     `);
 
-    // ProjectCommit 테이블
+    // Tasks 인덱스
+    db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_user_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_github_issue ON tasks(github_issue_number)`);
+
+    // ProjectCommits 테이블
     db.run(`
       CREATE TABLE IF NOT EXISTS project_commits (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,25 +111,38 @@ function initDatabase() {
       )
     `);
 
-    // AI_Log 테이블
+    // ProjectCommits 인덱스
+    db.run(`CREATE INDEX IF NOT EXISTS idx_commits_project ON project_commits(project_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_commits_task ON project_commits(task_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_commits_date ON project_commits(commit_date)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_commits_sha ON project_commits(commit_sha)`);
+
+    // AI_Logs 테이블
     db.run(`
       CREATE TABLE IF NOT EXISTS ai_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         task_id INTEGER,
-        type TEXT NOT NULL,
+        project_id INTEGER,
+        type TEXT NOT NULL CHECK(type IN ('task_suggestion', 'refactoring_suggestion', 'completion_check')),
         input TEXT,
         output TEXT,
         feedback TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
       )
     `);
+
+    // AI_Logs 인덱스
+    db.run(`CREATE INDEX IF NOT EXISTS idx_ai_logs_user ON ai_logs(user_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_ai_logs_project ON ai_logs(project_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_ai_logs_type ON ai_logs(type)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_ai_logs_created ON ai_logs(created_at)`);
 
     console.log('Database initialized successfully');
   });
 }
 
 module.exports = { db, initDatabase };
-
