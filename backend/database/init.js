@@ -18,6 +18,12 @@ function initDatabase() {
         password TEXT NOT NULL,
         nickname TEXT NOT NULL,
         profile_image TEXT DEFAULT 'basic.png',
+        region TEXT,
+        is_admin INTEGER DEFAULT 0 CHECK(is_admin IN (0, 1)),
+        is_suspended INTEGER DEFAULT 0 CHECK(is_suspended IN (0, 1)),
+        suspension_reason TEXT,
+        suspension_start_date DATETIME,
+        suspension_end_date DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);

@@ -82,6 +82,12 @@ CREATE TABLE users (
   password VARCHAR(255) NOT NULL,                -- 암호화된 비밀번호
   nickname VARCHAR(50) NOT NULL,                  -- 사용자 닉네임
   profile_image VARCHAR(255) DEFAULT 'basic.png', -- 프로필 이미지 파일명
+  region TEXT,                                    -- 지역 정보 (선택)
+  is_admin INTEGER DEFAULT 0 CHECK(is_admin IN (0, 1)), -- 관리자 여부
+  is_suspended INTEGER DEFAULT 0 CHECK(is_suspended IN (0, 1)), -- 계정 정지 여부
+  suspension_reason TEXT,                        -- 계정 정지 사유
+  suspension_start_date DATETIME,               -- 계정 정지 시작일시
+  suspension_end_date DATETIME,                 -- 계정 정지 종료일시
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP  -- 계정 생성일시
 );
 
@@ -240,13 +246,18 @@ db.run('PRAGMA foreign_keys = ON');
 
 `201 Created`
 
+#### POST `/api/user/signup`
+회원가입 (별칭)
+
+`201 Created`
+
 #### POST `/api/user/login`
 로그인
 
 `200 OK`
 
 #### POST `/api/user/logout`
-로그아웃 (토큰 블랙리스트 관리 - 선택사항)
+로그아웃 (인증 필요)
 
 `200 OK`
 
@@ -257,6 +268,51 @@ db.run('PRAGMA foreign_keys = ON');
 
 #### GET `/api/user/info`
 회원정보 조회 (인증 필요)
+
+`200 OK`
+
+#### GET `/api/user/me`
+내 정보 조회 (인증 필요)
+
+`200 OK`
+
+#### PUT `/api/user/me`
+회원 정보 수정 (인증 필요)
+
+`200 OK`
+
+#### POST `/api/user/me/profile-image`
+프로필 이미지 업로드 (인증 필요)
+
+`200 OK`
+
+#### DELETE `/api/user/me/profile-image`
+프로필 이미지 삭제 (인증 필요)
+
+`200 OK`
+
+#### DELETE `/api/user/me`
+회원 탈퇴 (인증 필요)
+
+`200 OK`
+
+#### GET `/api/user/users`
+관리자용 사용자 목록 조회 (인증 필요, 관리자 권한)
+
+`200 OK`
+
+#### POST `/api/user/admin/:userId/suspend`
+관리자용 사용자 정지 (인증 필요, 관리자 권한)
+
+`200 OK`
+
+#### POST `/api/user/admin/:userId/unsuspend`
+관리자용 사용자 정지 해제 (인증 필요, 관리자 권한)
+
+`200 OK`
+
+#### DELETE `/api/user/admin/:userId`
+관리자용 계정 삭제 (인증 필요, 관리자 권한)
 
 `200 OK`
 
