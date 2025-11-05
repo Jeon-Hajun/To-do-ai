@@ -41,7 +41,7 @@ function all(sql, params, callback) {
   pool.query(sql, params, callback);
 }
 
-// 실행 (INSERT, UPDATE, DELETE) - SQLite 호환
+// 실행 (INSERT, UPDATE, DELETE)
 function run(sql, params, callback) {
   if (typeof params === 'function') {
     callback = params;
@@ -51,7 +51,7 @@ function run(sql, params, callback) {
     if (err) {
       return callback(err);
     }
-    // SQLite 호환: this.lastID와 this.changes를 사용할 수 있도록
+    // MySQL 결과를 SQLite 스타일로 변환 (this.lastID, this.changes 사용 가능)
     var context = {
       lastID: results.insertId,
       changes: results.affectedRows
@@ -76,16 +76,8 @@ function initDatabase() {
       password VARCHAR(255) NOT NULL,
       nickname VARCHAR(255) NOT NULL,
       profile_image VARCHAR(255) DEFAULT 'basic.png',
-      region VARCHAR(100),
-      is_admin TINYINT(1) DEFAULT 0,
-      is_suspended TINYINT(1) DEFAULT 0,
-      suspension_reason TEXT,
-      suspension_start_date DATETIME,
-      suspension_end_date DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_users_email (email),
-      INDEX idx_users_admin (is_admin),
-      INDEX idx_users_suspended (is_suspended)
+      INDEX idx_users_email (email)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `, function(err) {
     if (err) {
@@ -222,7 +214,7 @@ function initDatabase() {
   });
 }
 
-// SQLite 호환을 위한 db 객체 (기존 코드 호환성)
+// MySQL 쿼리 인터페이스 (기존 코드 호환성)
 var db = {
   get: get,
   all: all,

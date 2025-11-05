@@ -27,7 +27,7 @@
        │                 │
 ┌──────▼──────┐  ┌───────▼──────┐
 │  Database  │  │ AI Backend   │
-│  (SQLite)  │  │  (Flask)    │
+│  (MySQL)   │  │  (Flask)    │
 └────────────┘  └──────────────┘
 ```
 
@@ -82,12 +82,6 @@ CREATE TABLE users (
   password VARCHAR(255) NOT NULL,                -- 암호화된 비밀번호
   nickname VARCHAR(50) NOT NULL,                  -- 사용자 닉네임
   profile_image VARCHAR(255) DEFAULT 'basic.png', -- 프로필 이미지 파일명
-  region TEXT,                                    -- 지역 정보 (선택)
-  is_admin INTEGER DEFAULT 0 CHECK(is_admin IN (0, 1)), -- 관리자 여부
-  is_suspended INTEGER DEFAULT 0 CHECK(is_suspended IN (0, 1)), -- 계정 정지 여부
-  suspension_reason TEXT,                        -- 계정 정지 사유
-  suspension_start_date DATETIME,               -- 계정 정지 시작일시
-  suspension_end_date DATETIME,                 -- 계정 정지 종료일시
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP  -- 계정 생성일시
 );
 
@@ -207,19 +201,21 @@ CREATE INDEX idx_ai_logs_created ON ai_logs(created_at);
 
 ### 3.2 FOREIGN KEY 활성화
 
-SQLite는 기본적으로 FOREIGN KEY를 무시하므로, 연결 시 반드시 활성화해야 합니다:
+MySQL은 기본적으로 FOREIGN KEY를 지원하며, InnoDB 엔진에서 자동으로 활성화됩니다:
 
 ```javascript
-// database/config.js
-db.run('PRAGMA foreign_keys = ON');
+// database/init.js
+pool.query('SET FOREIGN_KEY_CHECKS = 1');
 ```
 
 ### 3.3 데이터 타입 및 제약조건
 
-- **Status 필드**: CHECK 제약조건으로 허용 값 제한
+- **Status 필드**: ENUM 타입 또는 VARCHAR로 허용 값 제한
 - **UNIQUE 제약조건**: 중복 방지 (email, project_code, project_id+commit_sha)
 - **CASCADE/SET NULL**: 적절한 삭제 정책 적용
 - **인덱스**: 자주 조회되는 컬럼에 인덱스 추가
+- **엔진**: InnoDB 사용 (외래 키 및 트랜잭션 지원)
+- **문자셋**: utf8mb4 사용 (한글 및 이모지 지원)
 
 ## 4. API 설계
 
@@ -229,6 +225,12 @@ db.run('PRAGMA foreign_keys = ON');
 - 인증: `Authorization: Bearer <token>`
 - Content-Type: `application/json`
 - 날짜 형식: ISO 8601 (예: `2024-01-15T10:30:00Z`)
+
+#### 인증 규칙
+- **인증 필요** 표시된 API는 JWT 토큰이 필요합니다
+- 먼저 `/api/user/login`으로 로그인하여 토큰을 받아야 합니다
+- 요청 시 `Authorization` 헤더에 `Bearer <token>` 형식으로 포함해야 합니다
+- 토큰이 없거나 유효하지 않으면 `401 Unauthorized` 응답을 받습니다
 
 #### HTTP 상태 코드
 - `200` OK: 조회 성공
@@ -241,13 +243,8 @@ db.run('PRAGMA foreign_keys = ON');
 
 ### 4.2 User API
 
-#### POST `/api/user/join`
-회원가입
-
-`201 Created`
-
 #### POST `/api/user/signup`
-회원가입 (별칭)
+회원가입
 
 `201 Created`
 
@@ -263,11 +260,6 @@ db.run('PRAGMA foreign_keys = ON');
 
 #### GET `/api/user/duplicate?email=user@example.com`
 이메일 중복 확인
-
-`200 OK`
-
-#### GET `/api/user/info`
-회원정보 조회 (인증 필요)
 
 `200 OK`
 
@@ -296,32 +288,18 @@ db.run('PRAGMA foreign_keys = ON');
 
 `200 OK`
 
-#### GET `/api/user/users`
-관리자용 사용자 목록 조회 (인증 필요, 관리자 권한)
-
-`200 OK`
-
-#### POST `/api/user/admin/:userId/suspend`
-관리자용 사용자 정지 (인증 필요, 관리자 권한)
-
-`200 OK`
-
-#### POST `/api/user/admin/:userId/unsuspend`
-관리자용 사용자 정지 해제 (인증 필요, 관리자 권한)
-
-`200 OK`
-
-#### DELETE `/api/user/admin/:userId`
-관리자용 계정 삭제 (인증 필요, 관리자 권한)
-
-`200 OK`
-
+-------------------------------------------------------------------------------------------------------
 ### 4.3 Project API
 
 #### POST `/api/project/create`
 프로젝트 생성 (인증 필요)
 
 `201 Created`
+
+#### GET `/api/project/validate-code?projectCode=ABC123`
+프로젝트 코드 검증 (인증 필요)
+
+`200 OK`
 
 #### POST `/api/project/join`
 프로젝트 참여 (인증 필요, 공유 프로젝트용)
@@ -346,25 +324,55 @@ GitHub 저장소 연결 (인증 필요)
 
 `200 OK`
 
+#### PUT `/api/project/update`
+프로젝트 수정 (인증 필요, owner만)
+
+`200 OK`
+
+#### DELETE `/api/project/delete`
+프로젝트 삭제 (인증 필요, owner만)
+
+`200 OK`
+
+#### DELETE `/api/project/member`
+멤버 삭제 (인증 필요, owner만, owner는 삭제 불가)
+
+`200 OK`
+
+#### DELETE `/api/project/leave`
+프로젝트 탈퇴 (인증 필요, 일반 멤버만)
+
+`200 OK`
+
 ### 4.5 Task API
 
 #### POST `/api/task/create`
-작업 생성 (인증 필요)
+작업 생성 (인증 필요, 프로젝트 멤버)
 
 `201 Created`
 
 #### GET `/api/task/info?projectId=1`
-작업 목록 조회 (인증 필요)
+작업 목록 조회 (인증 필요, 프로젝트 멤버)
 
 `200 OK`
 
 #### PATCH `/api/task/update`
-작업 수정 (인증 필요)
+작업 내용 수정 (인증 필요, owner만)
+
+`200 OK`
+
+#### PATCH `/api/task/status`
+작업 상태 수정 (인증 필요, 프로젝트 멤버)
 
 `200 OK`
 
 #### PATCH `/api/task/assign`
-작업 할당 (인증 필요)
+작업 할당 (인증 필요, owner만)
+
+`200 OK`
+
+#### DELETE `/api/task/delete`
+작업 삭제 (인증 필요, owner만)
 
 `200 OK`
 
@@ -546,7 +554,10 @@ PORT=3000
 NODE_ENV=development
 
 # Database
-DB_PATH=./database/todo.db
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=todo_ai
 
 # JWT
 JWT_SECRET=your-super-secret-jwt-key-here
