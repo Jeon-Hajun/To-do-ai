@@ -15,6 +15,7 @@ var projectRouter = require('./routes/project');
 var taskRouter = require('./routes/task');
 var githubRouter = require('./routes/github');
 var progressRouter = require('./routes/progress');
+var aiRouter = require('./routes/ai');
 
 // Import database
 var { initDatabase } = require('./database/init');
@@ -52,6 +53,7 @@ app.use('/api/project', projectRouter);
 app.use('/api/task', taskRouter);
 app.use('/api/github', githubRouter);
 app.use('/api/progress', progressRouter);
+app.use('/api/ai', aiRouter);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {

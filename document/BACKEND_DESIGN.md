@@ -224,26 +224,6 @@ db.run('PRAGMA foreign_keys = ON');
 - Content-Type: `application/json`
 - 날짜 형식: ISO 8601 (예: `2024-01-15T10:30:00Z`)
 
-#### 응답 형식
-```json
-// 성공 응답
-{
-  "success": true,
-  "data": { ... },
-  "message": "성공 메시지"
-}
-
-// 에러 응답
-{
-  "success": false,
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "에러 메시지",
-    "details": { ... }
-  }
-}
-```
-
 #### HTTP 상태 코드
 - `200` OK: 조회 성공
 - `201` Created: 생성 성공
@@ -258,169 +238,44 @@ db.run('PRAGMA foreign_keys = ON');
 #### POST `/api/user/join`
 회원가입
 
-**Request:**
-```json
-{
-  "email": "user@example.com",
-  "password": "password123",
-  "nickname": "홍길동"
-}
-```
-
-**Response:** `201 Created`
-```json
-{
-  "success": true,
-  "data": {
-    "id": 1,
-    "email": "user@example.com",
-    "nickname": "홍길동"
-  },
-  "message": "회원가입이 완료되었습니다."
-}
-```
+`201 Created`
 
 #### POST `/api/user/login`
 로그인
 
-**Request:**
-```json
-{
-  "email": "user@example.com",
-  "password": "password123"
-}
-```
-
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "data": {
-    "token": "jwt_token_here",
-    "user": {
-      "id": 1,
-      "email": "user@example.com",
-      "nickname": "홍길동"
-    }
-  },
-  "message": "로그인 성공"
-}
-```
+`200 OK`
 
 #### POST `/api/user/logout`
 로그아웃 (토큰 블랙리스트 관리 - 선택사항)
 
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "message": "로그아웃되었습니다."
-}
-```
+`200 OK`
 
 #### GET `/api/user/duplicate?email=user@example.com`
 이메일 중복 확인
 
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "data": {
-    "available": true
-  }
-}
-```
+`200 OK`
 
 #### GET `/api/user/info`
 회원정보 조회 (인증 필요)
 
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "data": {
-    "id": 1,
-    "email": "user@example.com",
-    "nickname": "홍길동",
-    "profileImage": "basic.png",
-    "createdAt": "2024-01-15T10:30:00Z"
-  }
-}
-```
+`200 OK`
 
 ### 4.3 Project API
 
 #### POST `/api/project/create`
 프로젝트 생성 (인증 필요)
 
-**Request:**
-```json
-{
-  "title": "새 프로젝트",
-  "description": "프로젝트 설명",
-  "isShared": false,
-  "password": "project123",
-  "githubRepo": "https://github.com/owner/repo"
-}
-```
-
-**Response:** `201 Created`
-```json
-{
-  "success": true,
-  "data": {
-    "id": 1,
-    "title": "새 프로젝트",
-    "projectCode": "A1B2C3",
-    "githubRepo": "https://github.com/owner/repo"
-  },
-  "message": "프로젝트가 생성되었습니다."
-}
-```
+`201 Created`
 
 #### POST `/api/project/join`
 프로젝트 참여 (인증 필요, 공유 프로젝트용)
 
-**Request:**
-```json
-{
-  "projectCode": "A1B2C3",
-  "password": "project123"
-}
-```
-
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "data": {
-    "id": 1,
-    "title": "새 프로젝트"
-  },
-  "message": "프로젝트에 참여했습니다."
-}
-```
+`200 OK`
 
 #### GET `/api/project/members?projectId=1`
 프로젝트 구성원 목록 조회 (인증 필요)
 
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "data": {
-    "members": [
-      {
-        "id": 1,
-        "email": "user@example.com",
-        "nickname": "홍길동",
-        "role": "owner",
-        "joinedAt": "2024-01-15T10:30:00Z"
-      }
-    ]
-  }
-}
-```
+`200 OK`
 
 #### GET `/api/project/info`
 프로젝트 목록/상세 조회 (인증 필요)
@@ -428,300 +283,70 @@ db.run('PRAGMA foreign_keys = ON');
 **Query Parameters:**
 - `id`: 프로젝트 ID (없으면 목록 조회)
 
-**Response (목록):** `200 OK`
-```json
-{
-  "success": true,
-  "data": {
-    "projects": [
-      {
-        "id": 1,
-        "title": "새 프로젝트",
-        "status": "active",
-        "memberCount": 3,
-        "isShared": true
-      }
-    ]
-  }
-}
-```
-
-**Response (상세):** `200 OK`
-```json
-{
-  "success": true,
-  "data": {
-    "project": {
-      "id": 1,
-      "title": "새 프로젝트",
-      "description": "프로젝트 설명",
-      "githubRepo": "https://github.com/owner/repo",
-      "status": "active",
-      "ownerId": 1,
-      "isShared": true,
-      "projectCode": "A1B2C3"
-    }
-  }
-}
-```
+`200 OK`
 
 #### POST `/api/project/connect-github`
 GitHub 저장소 연결 (인증 필요)
 
-**Request:**
-```json
-{
-  "projectId": 1,
-  "githubRepo": "https://github.com/owner/repo",
-  "githubToken": "ghp_xxxxx"  // Private 저장소용 (선택)
-}
-```
-
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "message": "GitHub 저장소가 연결되었습니다."
-}
-```
+`200 OK`
 
 ### 4.5 Task API
 
 #### POST `/api/task/create`
 작업 생성 (인증 필요)
 
-**Request:**
-```json
-{
-  "projectId": 1,
-  "title": "새 작업",
-  "description": "작업 설명",
-  "assignedUserId": 2,
-  "dueDate": "2024-02-01T00:00:00Z",
-  "githubIssueNumber": 123
-}
-```
-
-**Response:** `201 Created`
-```json
-{
-  "success": true,
-  "data": {
-    "id": 1,
-    "title": "새 작업",
-    "status": "todo"
-  },
-  "message": "작업이 생성되었습니다."
-}
-```
+`201 Created`
 
 #### GET `/api/task/info?projectId=1`
 작업 목록 조회 (인증 필요)
 
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "data": {
-    "tasks": [
-      {
-        "id": 1,
-        "title": "새 작업",
-        "status": "todo",
-        "assignedUserName": "김철수",
-        "dueDate": "2024-02-01T00:00:00Z"
-      }
-    ]
-  }
-}
-```
+`200 OK`
 
 #### PATCH `/api/task/update`
 작업 수정 (인증 필요)
 
-**Request:**
-```json
-{
-  "id": 1,
-  "title": "수정된 제목",
-  "status": "in_progress",
-  "description": "수정된 설명"
-}
-```
-
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "message": "작업이 수정되었습니다."
-}
-```
+`200 OK`
 
 #### PATCH `/api/task/assign`
 작업 할당 (인증 필요)
 
-**Request:**
-```json
-{
-  "id": 1,
-  "assignedUserId": 2
-}
-```
-
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "message": "작업이 할당되었습니다."
-}
-```
+`200 OK`
 
 ### 4.6 GitHub API
 
 #### POST `/api/github/sync/:projectId`
 프로젝트 정보 동기화 (인증 필요)
 
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "data": {
-    "commitsSynced": 30,
-    "issuesFound": 15,
-    "branchesFound": 5,
-    "progress": { ... }
-  },
-  "message": "동기화가 완료되었습니다."
-}
-```
+`200 OK`
 
 #### GET `/api/github/commits/:projectId`
 커밋 목록 조회 (인증 필요)
 
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "data": {
-    "commits": [
-      {
-        "sha": "abc123",
-        "message": "커밋 메시지",
-        "author": "홍길동",
-        "date": "2024-01-15T10:30:00Z",
-        "linesAdded": 100,
-        "linesDeleted": 20
-      }
-    ]
-  }
-}
-```
+`200 OK`
 
 #### GET `/api/github/issues/:projectId`
 이슈 목록 조회 (인증 필요)
 
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "data": {
-    "issues": [
-      {
-        "number": 123,
-        "title": "버그 수정",
-        "state": "open",
-        "assignees": ["홍길동"]
-      }
-    ]
-  }
-}
-```
+`200 OK`
 
 #### GET `/api/github/branches/:projectId`
 브랜치 목록 조회 (인증 필요)
 
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "data": {
-    "branches": [
-      {
-        "name": "main",
-        "sha": "abc123",
-        "protected": true
-      }
-    ]
-  }
-}
-```
+`200 OK`
 
 ### 4.7 Progress API
 
 #### GET `/api/progress/project/:projectId`
 프로젝트 진행도 조회 (인증 필요)
 
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "data": {
-    "taskProgress": 65,
-    "taskStats": {
-      "total": 20,
-      "todo": 5,
-      "inProgress": 2,
-      "done": 13
-    },
-    "codeProgress": 75,
-    "codeStats": {
-      "commitCount": 150,
-      "totalLinesAdded": 5000,
-      "totalLinesDeleted": 500,
-      "activeDays": 30
-    },
-    "contributions": [
-      {
-        "author": "홍길동",
-        "commitCount": 80,
-        "linesAdded": 3000
-      }
-    ]
-  }
-}
-```
+`200 OK`
 
 ### 4.8 AI API
 
 #### POST `/api/ai/task-suggestion`
 코드 분석 기반 새 Task 제안 (인증 필요)
 
-**Request:**
-```json
-{
-  "projectId": 1,
-  "includeCommits": true,
-  "includeIssues": true
-}
-```
-
-**Response:** `200 OK`
-```json
-{
-  "success": true,
-  "data": {
-    "suggestions": [
-      {
-        "title": "리팩토링 제안",
-        "description": "코드 중복 제거 필요",
-        "priority": "Medium",
-        "estimatedHours": 4
-      }
-    ]
-  },
-  "message": "Task 제안이 생성되었습니다."
-}
-```
+`200 OK`
 
 ## 5. 서비스 레이어 설계
 
