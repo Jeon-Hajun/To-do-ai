@@ -14,7 +14,7 @@ router.post('/sync/:projectId', authenticateToken, async function(req, res, next
   try {
     // 프로젝트 조회
     db.get(
-      'SELECT * FROM projects WHERE id = ? AND (user_id = ? OR EXISTS (SELECT 1 FROM team_users tu WHERE tu.team_id = projects.team_id AND tu.user_id = ?))',
+      'SELECT * FROM projects WHERE id = ? AND (owner_id = ? OR EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = projects.id AND pm.user_id = ?))',
       [projectId, userId, userId],
       async function(err, project) {
         if (err) {
@@ -53,7 +53,7 @@ router.post('/sync/:projectId', authenticateToken, async function(req, res, next
               
               // DB에 저장 (중복 체크)
               db.run(
-                `INSERT OR IGNORE INTO project_commits 
+                `INSERT IGNORE INTO project_commits 
                  (project_id, commit_sha, commit_message, author, commit_date, lines_added, lines_deleted, files_changed)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
