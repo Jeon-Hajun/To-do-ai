@@ -4,7 +4,7 @@ var jwt = require('jsonwebtoken');
 var multer = require('multer');
 var fs = require('fs');
 var path = require('path');
-var { db } = require('../database/init');
+var { db } = require('../database/db');
 var { authenticateToken, authMiddleware } = require('../middleware/auth');
 require('dotenv').config();
 

@@ -17,7 +17,7 @@ var progressRouter = require('./routes/progress');
 var aiRouter = require('./routes/ai');
 
 // Import database
-var { initDatabase } = require('./database/init');
+// Note: 테이블은 MySQL Workbench에서 schema.sql 파일로 생성하세요
 
 var app = express();
 
@@ -41,8 +41,7 @@ app.use(cookieParser());
 // Static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Initialize database
-initDatabase();
+// Database initialization is done via MySQL Workbench using schema.sql
 
 // Routes
 app.use('/', indexRouter);

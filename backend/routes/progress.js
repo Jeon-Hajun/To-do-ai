@@ -1,6 +1,6 @@
 var express = require('express');
 var progressAnalyzer = require('../services/progressAnalyzer');
-var { db } = require('../database/init');
+var { db } = require('../database/db');
 var { authenticateToken } = require('../middleware/auth');
 
 var router = express.Router();

@@ -1,4 +1,4 @@
-const { db } = require('../database/init');
+const { db } = require('../database/db');
 
 /**
  * 진행도 분석 서비스
