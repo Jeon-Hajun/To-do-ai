@@ -1,52 +1,31 @@
-import reactLogo from "@/assets/react.svg";
-import viteLogo from "/vite.svg";
-import "@/App.css";
+import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import LoginPage from "./pages/LoginPage";
+import MainPage from "./pages/MainPage";
+import AIadvisorPage from "./pages/AIadvisorPage";
+import SettingsPage from "./pages/SettingsPage";
+import ProfilePage from "./pages/ProfilePage";
+import AINextStepPage from "./pages/AINextStepPage";
+import NormalNextStepPage from "./pages/NormalNextStepPage";
 
-import { picker } from "@morpheus/addon-media";
-import { uploadHttp } from "@morpheus/addon-netext";
-import { useState } from "react";
-
-function App() {
-  const [previewUrl, setPreviewUrl] = useState("");
-  async function onClickButton() {
-    // todo: upload
-    // 1. 앨범에서 이미지 정보 가져오기
-    const image = await picker({ mediaType: "ALL" });
-    if (image) {
-      const file = image.path; // 타겟 파일
-      // 2. 파일을 업로드하기
-      const res = await uploadHttp({
-        url: "http://10.0.2.2:5173/file/upload",
-        body: [{ name: "file", type: "FILE", content: file }],
-      });
-
-      if (res.code == 200) {
-        // 3. 응답받은  URL을 통해서 미리보기를 제공하기.
-        const data = JSON.parse(res.body);
-        setPreviewUrl(data.path);
-      }
-    }
-  }
+export default function App() {
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={onClickButton}>파일 업로드 테스트</button>
-        {previewUrl && <img src={previewUrl} alt="" />}
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    <Router>
+      <Routes>
+        {/* '/'와 '/login' 둘 다 로그인 페이지로 연결 */}
+        <Route path="/" element={<LoginPage />} />
+        <Route path="/login" element={<LoginPage />} />
+
+        {/* 로그인 상태 체크는 각 페이지에서 useAuth Hook으로 처리 */}
+        <Route path="/main" element={<MainPage />} />
+        <Route path="/aiadvisor" element={<AIadvisorPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+
+        {/* AIadvisor 선택 옵션에 따른 페이지 */}
+        <Route path="/ai-next-step" element={<AINextStepPage />} />
+        <Route path="/normal-next-step" element={<NormalNextStepPage />} />
+      </Routes>
+    </Router>
   );
 }
-
-export default App;
