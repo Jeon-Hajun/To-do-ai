@@ -7,8 +7,8 @@ import { useAuthContext } from "../context/AuthContext";
 export default function LoggedInCard() {
   const { user } = useAuthContext();
 
-  // user.profileImage 그대로 사용, public/profile/basic.png도 포함
-  const imgSrc = `/profile/${user.profileImage || 'basic.png'}`;
+  // Vite 프록시를 통해 프로필 이미지 불러오기 (상대 경로)
+  const imgSrc = `/profile/${user?.profileImage || 'basic.png'}`;
 
   return (
     <Card
@@ -26,9 +26,13 @@ export default function LoggedInCard() {
           objectFit: "cover",
           marginBottom: "16px",
         }}
-        // 이미지 로드 실패 시 기본 이미지로 대체
         onError={(e) => {
-          e.target.onerror = null; // 무한 루프 방지
+          // 무한 루프 방지
+          if (e.target.src.includes('basic.png')) {
+            e.target.onerror = null;
+            return;
+          }
+          e.target.onerror = null;
           e.target.src = "/profile/basic.png";
         }}
       />

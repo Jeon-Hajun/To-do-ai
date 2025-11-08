@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import Button from "@mui/material/Button";
 
-const API_URL = "http://localhost:3000/api/user";
+const API_URL = "http://localhost:5000/api/user";
 
 export default function SignupButton({ email, nickname, password, onSignupSuccess, sx, ...props }) {
   const [loading, setLoading] = useState(false);

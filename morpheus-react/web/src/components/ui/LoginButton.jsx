@@ -3,7 +3,7 @@ import Button from "@mui/material/Button";
 import { setAuth } from "../../utils/auth";
 import { useAuthContext } from "../../context/AuthContext"; // ✅ 추가
 
-const API_URL = "http://localhost:3000/api/user";
+const API_URL = "http://localhost:5000/api/user";
 
 export default function LoginButton({ email, password, onLoginSuccess, sx, ...props }) {
   const [loading, setLoading] = useState(false);

@@ -19,8 +19,10 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
+    "dev": "vite --config vite.config.js --host",
+    "start": "vite --config vite.config.js --host",
+    "start:3000": "$env:PORT=3000; react-scripts start",
+    "build": "vite build --config vite.config.js",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
