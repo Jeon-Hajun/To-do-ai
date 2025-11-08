@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
-import Card from "./ui/Card";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import Card from "./ui/Card"; // 우리가 만든 MUI Card
 import { getTasks } from "../api/taskApi";
 
 export default function TaskList() {
@@ -11,7 +13,6 @@ export default function TaskList() {
       const data = await getTasks();
       setTasks(data);
 
-      // 상태별 통계 계산
       const total = data.length;
       const completed = data.filter((t) => t.status === "완료").length;
       const inProgress = data.filter((t) => t.status === "진행 중").length;
@@ -24,39 +25,47 @@ export default function TaskList() {
   }, []);
 
   return (
-    <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <Box sx={{ p: 2, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr", lg: "1fr 1fr 1fr" }, gap: 2 }}>
       {/* 통계 카드 */}
-      <Card className="bg-blue-50">
-        <h3 className="text-lg font-bold mb-2">Task 통계</h3>
-        <p>총 작업: {stats.total}</p>
-        <p>완료: {stats.completed}</p>
-        <p>진행 중: {stats.inProgress}</p>
-        <p>대기 중: {stats.pending}</p>
+      <Card sx={{ bgcolor: "blue.50" }}>
+        <Typography variant="h6" fontWeight="bold" gutterBottom>
+          Task 통계
+        </Typography>
+        <Typography>총 작업: {stats.total}</Typography>
+        <Typography>완료: {stats.completed}</Typography>
+        <Typography>진행 중: {stats.inProgress}</Typography>
+        <Typography>대기 중: {stats.pending}</Typography>
         {stats.total > 0 && (
-          <p className="mt-2 font-semibold">
+          <Typography sx={{ mt: 1, fontWeight: "bold" }}>
             진행률: {Math.round((stats.completed / stats.total) * 100)}%
-          </p>
+          </Typography>
         )}
       </Card>
 
       {/* Task 카드 */}
       {tasks.map((task) => (
-        <Card key={task.id} className="hover:shadow-lg transition">
-          <h2 className="text-lg font-bold mb-2">{task.title}</h2>
-          <p className="text-gray-600 mb-2">{task.description}</p>
-          <span
-            className={`text-sm font-semibold ${
+        <Card key={task.id} sx={{ "&:hover": { boxShadow: 6 }, transition: "0.3s" }}>
+          <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+            {task.title}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            {task.description}
+          </Typography>
+          <Typography
+            variant="caption"
+            fontWeight="bold"
+            color={
               task.status === "완료"
-                ? "text-green-600"
+                ? "success.main"
                 : task.status === "진행 중"
-                ? "text-blue-600"
-                : "text-gray-400"
-            }`}
+                ? "info.main"
+                : "text.disabled"
+            }
           >
             {task.status}
-          </span>
+          </Typography>
         </Card>
       ))}
-    </div>
+    </Box>
   );
 }

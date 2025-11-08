@@ -1,0 +1,9 @@
+{
+  "user": {
+    "id": 1,
+    "name": "홍길동",
+    "email": "test@test.com",
+    "avatar": "https://via.placeholder.com/150",
+    "password": "1234"
+  }
+}

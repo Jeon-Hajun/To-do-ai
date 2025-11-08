@@ -1,42 +1,37 @@
 // src/api/taskApi.js
 
-let dummyTasks = [
-  { id: 1, title: "회의 준비", description: "오늘 회의 자료 준비하기", status: "진행 중" },
-  { id: 2, title: "코드 리뷰", description: "PR 확인 및 리뷰 남기기", status: "대기 중" },
-  { id: 3, title: "문서 작성", description: "프로젝트 WBS 문서 작성", status: "완료" },
-];
+// TODO: 서버 연동 시 axios 적용 예정
+// import axios from "axios";
+// const API = axios.create({ baseURL: "/api" });
+
+import * as taskStorage from "./storage/taskStorage";
 
 export async function getTasks() {
-  return new Promise((resolve) => setTimeout(() => resolve(dummyTasks), 300));
+  return new Promise((resolve) => 
+    setTimeout(() => resolve(taskStorage.getTasks()), 300)
+  );
 }
 
-export async function addTask(newTask) {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const task = { id: dummyTasks.length + 1, ...newTask };
-      dummyTasks.push(task);
-      resolve(task);
-    }, 300);
-  });
+export async function addTask(task) {
+  return new Promise((resolve) => 
+    setTimeout(() => resolve(taskStorage.addTask(task)), 300)
+  );
 }
 
 export async function deleteTask(id) {
-  return new Promise((resolve) => {
+  return new Promise((resolve) => 
     setTimeout(() => {
-      dummyTasks = dummyTasks.filter((t) => t.id !== id);
+      taskStorage.deleteTask(id);
       resolve();
-    }, 300);
-  });
+    }, 300)
+  );
 }
 
 export async function updateTaskStatus(id, status) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => 
     setTimeout(() => {
-      const task = dummyTasks.find((t) => t.id === id);
-      if (task) {
-        task.status = status;
-        resolve(task);
-      } else reject(new Error("Task not found"));
-    }, 300);
-  });
+      const updated = taskStorage.updateTaskStatus(id, status);
+      updated ? resolve(updated) : reject(new Error("Task not found"));
+    }, 300)
+  );
 }

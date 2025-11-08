@@ -12,9 +12,8 @@
     "postinstall": "morpheus sync"
   },
   "dependencies": {
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "@morpheus/core": "file:.morpheus/libs/morpheus-core-2.18.81.tgz",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
     "@morpheus/addon-db": "file:.morpheus/libs/morpheus-addon-db-2.14.16.tgz",
     "@morpheus/addon-file": "file:.morpheus/libs/morpheus-addon-file-2.14.25.tgz",
     "@morpheus/addon-media": "file:.morpheus/libs/morpheus-addon-media-2.15.52.tgz",
@@ -22,11 +21,17 @@
     "@morpheus/addon-netext": "file:.morpheus/libs/morpheus-addon-netext-2.14.41.tgz",
     "@morpheus/addon-popup": "file:.morpheus/libs/morpheus-addon-popup-2.14.37.tgz",
     "@morpheus/addon-zip": "file:.morpheus/libs/morpheus-addon-zip-2.14.7.tgz",
+    "@morpheus/core": "file:.morpheus/libs/morpheus-core-2.18.81.tgz",
     "@morpheus/plugin-location": "file:.morpheus/libs/morpheus-plugin-location-2.10.12.tgz",
-    "@morpheus/plugin-qr": "file:.morpheus/libs/morpheus-plugin-qr-2.15.32.tgz"
+    "@morpheus/plugin-qr": "file:.morpheus/libs/morpheus-plugin-qr-2.15.32.tgz",
+    "@mui/icons-material": "^7.3.5",
+    "@mui/material": "^7.3.5",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
+    "@morpheus/cli": "file:.morpheus/libs/morpheus-cli-1.2.7.tgz",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^4.4.1",
@@ -34,7 +39,6 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
-    "vite": "^6.3.5",
-    "@morpheus/cli": "file:.morpheus/libs/morpheus-cli-1.2.7.tgz"
+    "vite": "^6.3.5"
   }
 }

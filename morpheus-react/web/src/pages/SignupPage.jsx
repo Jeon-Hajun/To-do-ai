@@ -1,14 +1,15 @@
+// src/pages/SignupPage.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Card from "../components/ui/Card";
 import ContainerBox from "../components/ui/ContainerBox";
-import ValidatedEmailInput from "../components/ui/ValidatedEmailInput";
 import Input from "../components/ui/Input";
-import LoginButton from "../components/ui/LoginButton";
-import GoSignupButton from "../components/ui/GoSignupButton";
+import ValidatedEmailInput from "../components/ui/ValidatedEmailInput";
+import SignupButton from "../components/ui/SignupButton";
 
-export default function LoginPage({ onLogin }) {
+export default function SignupPage() {
   const [email, setEmail] = useState("");
+  const [nickname, setNickname] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
 
@@ -19,18 +20,13 @@ export default function LoginPage({ onLogin }) {
         justifyContent: "center",
         alignItems: "center",
         minHeight: "100vh",
-        p: 2,
         backgroundColor: "#f5f5f5",
+        p: 2,
       }}
     >
       <Card
-        title="로그인"
-        sx={{
-          width: 450,
-          maxWidth: "100%",
-          textAlign: "center",
-          p: 4,
-        }}
+        title="회원가입"
+        sx={{ width: 450, maxWidth: "100%", textAlign: "center", p: 4 }}
       >
         <form>
           <ValidatedEmailInput
@@ -38,7 +34,12 @@ export default function LoginPage({ onLogin }) {
             onChange={(e) => setEmail(e.target.value)}
             sx={{ mb: 3 }}
           />
-
+          <Input
+            label="Nickname"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            sx={{ mb: 3 }}
+          />
           <Input
             label="Password"
             type="password"
@@ -46,17 +47,12 @@ export default function LoginPage({ onLogin }) {
             onChange={(e) => setPassword(e.target.value)}
             sx={{ mb: 3 }}
           />
-
-          <LoginButton
+          <SignupButton
             email={email}
+            nickname={nickname}
             password={password}
-            onLoginSuccess={(user) => {
-              if (onLogin) onLogin(user); // App.jsx 상태 갱신
-              navigate("/main"); // ✅ 로그인 성공 시 메인 페이지 이동
-            }}
+            onSignupSuccess={() => navigate("/login")}
           />
-
-          <GoSignupButton sx={{ mt: 1 }} />
         </form>
       </Card>
     </ContainerBox>

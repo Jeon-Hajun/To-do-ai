@@ -1,31 +1,69 @@
-// src/components/ui/Header.jsx
-import React from "react";
-import DropdownBar from "./DropdownBar";
-import { logout } from "../../utils/auth";
+import React, { useState } from "react";
+import AppBar from "@mui/material/AppBar";
+import Toolbar from "@mui/material/Toolbar";
+import Typography from "@mui/material/Typography";
+import IconButton from "@mui/material/IconButton";
+import MenuIcon from "@mui/icons-material/Menu";
+import Collapse from "@mui/material/Collapse";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import { useNavigate } from "react-router-dom";
+import { getHeaderMenuItems } from "../../constants/headerMenu";
 
-export default function Header({ title = "Todo App" }) {
+export default function Header({ title = "Todo App", isBlur = false }) {
   const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
 
-  const menuItems = [
-    { label: "Profile", onClick: () => navigate("/profile") },
-    { label: "Settings", onClick: () => navigate("/settings") },
-    { 
-      label: "Logout", 
-      onClick: () => {
-        logout();
-        navigate("/login");
-      } 
-    },
-  ];
+  const menuItems = getHeaderMenuItems(navigate);
 
   return (
-    <header className="w-full bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-50">
-      {/* 왼쪽 타이틀, 오른쪽 메뉴 사이 여백 */}
-      <h1 className="text-xl font-bold mr-4">{title}</h1>  
+    <>
+      <AppBar
+        position="sticky"
+        color="default"
+        elevation={0}
+        sx={{
+          backdropFilter: isBlur ? "blur(4px)" : "none",
+          transition: "backdrop-filter 0.3s ease",
+        }}
+      >
+        <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
+          <Typography variant="h6">{title}</Typography>
+          <IconButton
+            size="large"
+            edge="end"
+            color="inherit"
+            onClick={() => setOpen((prev) => !prev)}
+          >
+            <MenuIcon />
+          </IconButton>
+        </Toolbar>
+      </AppBar>
 
-      {/* 오른쪽 드롭다운 메뉴 */}
-      <DropdownBar items={menuItems} />
-    </header>
+      <Collapse in={open}>
+        <Box sx={{ bgcolor: "common.white", p: 2 }}>
+          {menuItems.map((item, idx) => (
+            <Button
+              key={idx}
+              fullWidth
+              sx={{
+                mb: 1,
+                color: "text.primary",
+                border: "none",
+                bgcolor: "common.white",
+                boxShadow: "none",
+                "&:hover": { bgcolor: "grey.100" },
+              }}
+              onClick={() => {
+                item.onClick();
+                setOpen(false);
+              }}
+            >
+              {item.label}
+            </Button>
+          ))}
+        </Box>
+      </Collapse>
+    </>
   );
 }
