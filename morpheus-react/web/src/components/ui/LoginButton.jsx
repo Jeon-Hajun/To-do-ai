@@ -1,12 +1,14 @@
 import React, { useState } from "react";
 import Button from "@mui/material/Button";
 import { setAuth } from "../../utils/auth";
+import { useAuthContext } from "../../context/AuthContext"; // ✅ 추가
 
 const API_URL = "http://localhost:3000/api/user";
 
 export default function LoginButton({ email, password, onLoginSuccess, sx, ...props }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { login } = useAuthContext(); // ✅ AuthContext login 사용
 
   const handleLogin = async (e) => {
     if (e) e.preventDefault();
@@ -34,10 +36,9 @@ export default function LoginButton({ email, password, onLoginSuccess, sx, ...pr
         return;
       }
 
-      // ✅ 로그인 성공 시 localStorage 저장
       setAuth(data);
+      login(data); // ✅ 로그인 상태 전역 업데이트
 
-      // ✅ 로그인 성공 시 콜백 호출
       if (onLoginSuccess) onLoginSuccess(data);
 
     } catch (err) {
