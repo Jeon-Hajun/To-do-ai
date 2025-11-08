@@ -30,9 +30,6 @@ router.post('/signup', userController.signup);
 // 로그인
 router.post('/login', userController.login);
 
-// 로그아웃
-router.post('/logout', authenticateToken, userController.logout);
-
 // 아이디 중복 확인
 router.get('/duplicate', userController.checkDuplicate);
 

@@ -4,15 +4,26 @@ export function getUser() {
   return user ? JSON.parse(user) : null;
 }
 
-export function isAuth() {
-  return !!getUser();
+export function getToken() {
+  return localStorage.getItem("token");
 }
 
-export function setAuth(user) {
-  localStorage.setItem("user", JSON.stringify(user));
+export function isAuth() {
+  return !!getToken() || !!getUser();
+}
+
+export function setAuth(user, token) {
+  if (user) {
+    localStorage.setItem("user", JSON.stringify(user));
+  }
+  if (token) {
+    localStorage.setItem("token", token);
+  }
 }
 
 export function logout() {
+  // 토큰과 사용자 정보 모두 삭제
+  localStorage.removeItem("token");
   localStorage.removeItem("user");
   window.location.href = "/login"; // 로그인 페이지로 이동
 }

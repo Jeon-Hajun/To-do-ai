@@ -257,11 +257,6 @@ pool.query('SET FOREIGN_KEY_CHECKS = 1');
 
 `200 OK`
 
-#### POST `/api/user/logout` ✅
-로그아웃 (인증 필요)
-
-`200 OK`
-
 #### GET `/api/user/duplicate?email=user@example.com` ✅
 이메일 중복 확인
 
@@ -546,8 +541,9 @@ throw new AppError('PROJECT_NOT_FOUND', '프로젝트를 찾을 수 없습니다
 
 ### 6.1 인증/인가
 - JWT 토큰 기반 인증
-- 토큰 만료 시간: 24시간
-- 리프레시 토큰 (선택사항)
+- 토큰 만료 시간: 없음 (로그아웃 전까지 유지)
+- 로그아웃: 프론트엔드에서 토큰 삭제로 처리 (백엔드 API 없음)
+- 리프레시 토큰: 미사용
 
 ### 6.2 데이터 보안
 - 비밀번호: bcrypt 해시 (salt rounds: 10)
@@ -555,10 +551,18 @@ throw new AppError('PROJECT_NOT_FOUND', '프로젝트를 찾을 수 없습니다
 - GitHub 저장소: 공개 저장소만 지원 (토큰 불필요)
 
 ### 6.3 입력 검증
-- 모든 입력값 검증 (Joi 또는 express-validator 사용)
+- 모든 입력값 검증 (`utils/validators.js` 사용)
 - 이메일 형식 검증
-- URL 형식 검증 (GitHub 저장소)
-- 날짜 형식 검증
+- 비밀번호: 최대 255자 제한 (최소 길이 제한 없음)
+- 닉네임: 1-255자 제한
+- 프로젝트 제목: 1-255자 제한
+- 프로젝트 설명: 최대 20,000자 제한
+- GitHub URL 형식 검증
+- 작업 제목: 1-255자 제한
+- 작업 설명: 최대 20,000자 제한
+- 프로젝트 비밀번호: 최소 4자, 최대 255자 제한
+- 프로젝트 코드: 6자리 영숫자 검증
+- ID 검증: 숫자 타입 및 양수 검증
 
 ## 7. 환경 변수
 
@@ -575,7 +579,7 @@ DB_NAME=todo_ai
 
 # JWT
 JWT_SECRET=your-super-secret-jwt-key-here
-JWT_EXPIRES_IN=24h
+# JWT 토큰 만료 시간 없음 (로그아웃 전까지 유지)
 
 # AI Backend
 AI_BACKEND_URL=http://localhost:5000
@@ -591,7 +595,7 @@ GITHUB_TOKEN=
 
 ### Phase 1: 핵심 기능 (Week 1)
 1. ✅ 데이터베이스 스키마 (FOREIGN KEY 활성화, 인덱스 추가)
-2. ✅ User API (회원가입, 로그인, 로그아웃)
+2. ✅ User API (회원가입, 로그인)
 3. ✅ Project API (프로젝트 생성, 참여, 멤버 관리)
 4. ✅ Task API
 
@@ -613,12 +617,13 @@ GITHUB_TOKEN=
 
 ### ✅ 구현 완료된 API
 
-**User API (9개)**
-- ✅ 회원가입, 로그인, 로그아웃
+**User API (8개)**
+- ✅ 회원가입, 로그인
 - ✅ 이메일 중복 확인
 - ✅ 내 정보 조회/수정
 - ✅ 프로필 이미지 업로드/삭제
 - ✅ 회원 탈퇴
+- ⚠️ 로그아웃: 프론트엔드에서 토큰 삭제로 처리 (백엔드 API 없음)
 
 **Project API (10개)**
 - ✅ 프로젝트 생성 (title, githubRepo 필수)
@@ -652,7 +657,7 @@ GITHUB_TOKEN=
 **AI API (1개)**
 - ✅ Task 제안
 
-**총 31개 API 모두 구현 완료** ✅
+**총 30개 API 구현 완료** ✅
 
 ## 9. 테스트 전략
 
