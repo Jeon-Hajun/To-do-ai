@@ -38,10 +38,8 @@ backend/
 ├── app.js                 # Express 앱 설정
 ├── bin/
 │   └── www               # 서버 실행 파일
-├── config/
-│   └── database.js       # DB 설정 및 연결
 ├── database/
-│   ├── init.js           # 스키마 초기화
+│   ├── db.js             # DB 연결 및 스키마 초기화
 │   └── migrations/       # 마이그레이션 (필요시)
 ├── middleware/
 │   ├── auth.js           # JWT 인증
@@ -49,12 +47,19 @@ backend/
 │   └── errorHandler.js   # 에러 핸들링
 ├── routes/
 │   ├── index.js          # 기본 라우트
-│   ├── user.js           # 사용자 API
-│   ├── project.js        # 프로젝트 API
-│   ├── task.js           # Task API
-│   ├── github.js         # GitHub 연동 API
-│   ├── progress.js       # 진행도 API
-│   └── ai.js             # AI API (프록시)
+│   ├── user.js           # 사용자 API 라우팅
+│   ├── project.js        # 프로젝트 API 라우팅
+│   ├── task.js           # Task API 라우팅
+│   ├── github.js         # GitHub 연동 API 라우팅
+│   ├── progress.js       # 진행도 API 라우팅
+│   └── ai.js             # AI API 라우팅
+├── controllers/
+│   ├── userController.js      # 사용자 컨트롤러
+│   ├── projectController.js   # 프로젝트 컨트롤러
+│   ├── taskController.js      # Task 컨트롤러
+│   ├── githubController.js    # GitHub 컨트롤러
+│   ├── progressController.js  # 진행도 컨트롤러
+│   └── aiController.js        # AI 컨트롤러
 ├── services/
 │   ├── userService.js    # 사용자 비즈니스 로직
 │   ├── projectService.js # 프로젝트 비즈니스 로직
@@ -77,13 +82,13 @@ backend/
 #### Users 테이블
 ```sql
 CREATE TABLE users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,          -- 사용자 고유 ID
-  email VARCHAR(100) UNIQUE NOT NULL,            -- 이메일 주소 (로그인용)
-  password VARCHAR(255) NOT NULL,                -- 암호화된 비밀번호
-  nickname VARCHAR(50) NOT NULL,                  -- 사용자 닉네임
+  id INT AUTO_INCREMENT PRIMARY KEY,          -- 사용자 고유 ID
+  email VARCHAR(255) UNIQUE NOT NULL,          -- 이메일 주소 (로그인용)
+  password VARCHAR(255) NOT NULL,              -- 암호화된 비밀번호
+  nickname VARCHAR(255) NOT NULL,              -- 사용자 닉네임
   profile_image VARCHAR(255) DEFAULT 'basic.png', -- 프로필 이미지 파일명
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP  -- 계정 생성일시
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_users_email ON users(email);
 ```
@@ -91,19 +96,18 @@ CREATE INDEX idx_users_email ON users(email);
 #### Projects 테이블
 ```sql
 CREATE TABLE projects (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,          -- 프로젝트 고유 ID
-  title TEXT NOT NULL,                            -- 프로젝트 제목
-  description TEXT,                               -- 프로젝트 설명
-  project_code TEXT UNIQUE,                      -- 프로젝트 코드 (참여용, 자동 생성, 선택)
-  password_hash TEXT,                            -- 프로젝트 비밀번호 (암호화, 공유 프로젝트용, 선택)
-  owner_id INTEGER NOT NULL,                     -- 프로젝트 소유자 ID (FK → users.id)
-  github_repo TEXT,                              -- GitHub 저장소 URL
-  github_token TEXT,                             -- GitHub Personal Access Token (암호화 저장, Private 저장소용)
-  status TEXT DEFAULT 'active' CHECK(status IN ('active', 'archived', 'completed')), -- 프로젝트 상태
+  id INT AUTO_INCREMENT PRIMARY KEY,          -- 프로젝트 고유 ID
+  title VARCHAR(255) NOT NULL,                -- 프로젝트 제목
+  description TEXT,                           -- 프로젝트 설명
+  project_code VARCHAR(6) UNIQUE,              -- 프로젝트 코드 (참여용, 자동 생성, 선택)
+  password_hash VARCHAR(255),                 -- 프로젝트 비밀번호 (암호화, 공유 프로젝트용, 선택)
+  owner_id INT NOT NULL,                      -- 프로젝트 소유자 ID (FK → users.id)
+  github_repo VARCHAR(500),                   -- GitHub 저장소 URL (공개 저장소만 지원)
+  status VARCHAR(20) DEFAULT 'active',         -- 프로젝트 상태
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP, -- 프로젝트 생성일시
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, -- 프로젝트 정보 수정일시
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- 프로젝트 정보 수정일시
   FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_projects_owner ON projects(owner_id);
 CREATE INDEX idx_projects_code ON projects(project_code);
@@ -113,15 +117,15 @@ CREATE INDEX idx_projects_status ON projects(status);
 #### ProjectMembers 테이블
 ```sql
 CREATE TABLE project_members (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,          -- 프로젝트-사용자 관계 고유 ID
-  project_id INTEGER NOT NULL,                    -- 프로젝트 ID (FK → projects.id)
-  user_id INTEGER NOT NULL,                       -- 사용자 ID (FK → users.id)
-  role TEXT DEFAULT 'member' CHECK(role IN ('owner', 'admin', 'member')), -- 역할 (owner, admin, member)
+  id INT AUTO_INCREMENT PRIMARY KEY,          -- 프로젝트-사용자 관계 고유 ID
+  project_id INT NOT NULL,                    -- 프로젝트 ID (FK → projects.id)
+  user_id INT NOT NULL,                       -- 사용자 ID (FK → users.id)
+  role VARCHAR(20) DEFAULT 'member',          -- 역할 (owner, admin, member)
   joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 프로젝트 참여일시
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  UNIQUE(project_id, user_id)
-);
+  UNIQUE KEY unique_project_user (project_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_project_members_project ON project_members(project_id);
 CREATE INDEX idx_project_members_user ON project_members(user_id);
@@ -131,19 +135,19 @@ CREATE INDEX idx_project_members_role ON project_members(role);
 #### Tasks 테이블
 ```sql
 CREATE TABLE tasks (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,          -- 작업 고유 ID
-  project_id INTEGER NOT NULL,                    -- 소속 프로젝트 ID (FK → projects.id)
-  assigned_user_id INTEGER,                       -- 할당된 사용자 ID (FK → users.id, 선택)
-  title TEXT NOT NULL,                            -- 작업 제목
-  description TEXT,                               -- 작업 설명
-  status TEXT DEFAULT 'todo' CHECK(status IN ('todo', 'in_progress', 'done', 'cancelled')), -- 작업 상태
-  github_issue_number INTEGER,                    -- 연결된 GitHub 이슈 번호 (선택)
-  due_date DATETIME,                             -- 마감일
+  id INT AUTO_INCREMENT PRIMARY KEY,          -- 작업 고유 ID
+  project_id INT NOT NULL,                    -- 소속 프로젝트 ID (FK → projects.id)
+  assigned_user_id INT,                       -- 할당된 사용자 ID (FK → users.id, 선택)
+  title VARCHAR(255) NOT NULL,                -- 작업 제목
+  description TEXT,                           -- 작업 설명
+  status VARCHAR(20) DEFAULT 'todo',          -- 작업 상태
+  github_issue_number INT,                    -- 연결된 GitHub 이슈 번호 (선택)
+  due_date DATETIME,                         -- 마감일
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP, -- 작업 생성일시
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, -- 작업 수정일시
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- 작업 수정일시
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
   FOREIGN KEY (assigned_user_id) REFERENCES users(id) ON DELETE SET NULL
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_tasks_project ON tasks(project_id);
 CREATE INDEX idx_tasks_assigned ON tasks(assigned_user_id);
@@ -154,21 +158,21 @@ CREATE INDEX idx_tasks_github_issue ON tasks(github_issue_number);
 #### ProjectCommits 테이블
 ```sql
 CREATE TABLE project_commits (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,          -- 커밋 기록 고유 ID
-  project_id INTEGER NOT NULL,                    -- 소속 프로젝트 ID (FK → projects.id)
-  task_id INTEGER,                                -- 연결된 작업 ID (FK → tasks.id, 선택)
-  commit_sha TEXT NOT NULL,                      -- 커밋 SHA 해시값
-  commit_message TEXT,                            -- 커밋 메시지
-  author TEXT,                                    -- 커밋 작성자 이름
-  commit_date DATETIME,                          -- 커밋 일시
-  lines_added INTEGER DEFAULT 0,                 -- 추가된 코드 라인 수
-  lines_deleted INTEGER DEFAULT 0,               -- 삭제된 코드 라인 수
-  files_changed INTEGER DEFAULT 0,               -- 변경된 파일 수
+  id INT AUTO_INCREMENT PRIMARY KEY,          -- 커밋 기록 고유 ID
+  project_id INT NOT NULL,                    -- 소속 프로젝트 ID (FK → projects.id)
+  task_id INT,                                -- 연결된 작업 ID (FK → tasks.id, 선택)
+  commit_sha VARCHAR(40) NOT NULL,           -- 커밋 SHA 해시값
+  commit_message TEXT,                        -- 커밋 메시지
+  author VARCHAR(255),                        -- 커밋 작성자 이름
+  commit_date DATETIME,                      -- 커밋 일시
+  lines_added INT DEFAULT 0,                 -- 추가된 코드 라인 수
+  lines_deleted INT DEFAULT 0,               -- 삭제된 코드 라인 수
+  files_changed INT DEFAULT 0,               -- 변경된 파일 수
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP, -- 레코드 생성일시
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
   FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL,
-  UNIQUE(project_id, commit_sha)
-);
+  UNIQUE KEY unique_project_commit (project_id, commit_sha)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_commits_project ON project_commits(project_id);
 CREATE INDEX idx_commits_task ON project_commits(task_id);
@@ -179,19 +183,19 @@ CREATE INDEX idx_commits_sha ON project_commits(commit_sha);
 #### AI_Logs 테이블
 ```sql
 CREATE TABLE ai_logs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,          -- AI 로그 고유 ID
-  user_id INTEGER NOT NULL,                       -- 요청한 사용자 ID (FK → users.id)
-  task_id INTEGER,                                -- 관련 작업 ID (FK → tasks.id, 선택)
-  project_id INTEGER,                             -- 관련 프로젝트 ID (FK → projects.id, 프로젝트별 로그 조회용)
-  type TEXT NOT NULL CHECK(type IN ('task_suggestion', 'refactoring_suggestion', 'completion_check')), -- AI 기능 타입
-  input TEXT,                                     -- AI에 입력된 데이터 (JSON 형태)
-  output TEXT,                                    -- AI 응답 결과 (JSON 형태)
-  feedback TEXT,                                 -- 사용자 피드백 (선택)
+  id INT AUTO_INCREMENT PRIMARY KEY,          -- AI 로그 고유 ID
+  user_id INT NOT NULL,                       -- 요청한 사용자 ID (FK → users.id)
+  task_id INT,                                -- 관련 작업 ID (FK → tasks.id, 선택)
+  project_id INT,                             -- 관련 프로젝트 ID (FK → projects.id, 프로젝트별 로그 조회용)
+  type VARCHAR(50) NOT NULL,                  -- AI 기능 타입
+  input TEXT,                                 -- AI에 입력된 데이터 (JSON 형태)
+  output TEXT,                               -- AI 응답 결과 (JSON 형태)
+  feedback TEXT,                              -- 사용자 피드백 (선택)
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP, -- 로그 생성일시
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
   FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_ai_logs_user ON ai_logs(user_id);
 CREATE INDEX idx_ai_logs_project ON ai_logs(project_id);
@@ -204,7 +208,7 @@ CREATE INDEX idx_ai_logs_created ON ai_logs(created_at);
 MySQL은 기본적으로 FOREIGN KEY를 지원하며, InnoDB 엔진에서 자동으로 활성화됩니다:
 
 ```javascript
-// database/init.js
+// database/db.js
 pool.query('SET FOREIGN_KEY_CHECKS = 1');
 ```
 
@@ -243,47 +247,47 @@ pool.query('SET FOREIGN_KEY_CHECKS = 1');
 
 ### 4.2 User API
 
-#### POST `/api/user/signup`
+#### POST `/api/user/signup` ✅
 회원가입
 
 `201 Created`
 
-#### POST `/api/user/login`
+#### POST `/api/user/login` ✅
 로그인
 
 `200 OK`
 
-#### POST `/api/user/logout`
+#### POST `/api/user/logout` ✅
 로그아웃 (인증 필요)
 
 `200 OK`
 
-#### GET `/api/user/duplicate?email=user@example.com`
+#### GET `/api/user/duplicate?email=user@example.com` ✅
 이메일 중복 확인
 
 `200 OK`
 
-#### GET `/api/user/me`
+#### GET `/api/user/me` ✅
 내 정보 조회 (인증 필요)
 
 `200 OK`
 
-#### PUT `/api/user/me`
+#### PUT `/api/user/me` ✅
 회원 정보 수정 (인증 필요)
 
 `200 OK`
 
-#### POST `/api/user/me/profile-image`
+#### POST `/api/user/me/profile-image` ✅
 프로필 이미지 업로드 (인증 필요)
 
 `200 OK`
 
-#### DELETE `/api/user/me/profile-image`
+#### DELETE `/api/user/me/profile-image` ✅
 프로필 이미지 삭제 (인증 필요)
 
 `200 OK`
 
-#### DELETE `/api/user/me`
+#### DELETE `/api/user/me` ✅
 회원 탈퇴 (인증 필요)
 
 `200 OK`
@@ -291,27 +295,29 @@ pool.query('SET FOREIGN_KEY_CHECKS = 1');
 -------------------------------------------------------------------------------------------------------
 ### 4.3 Project API
 
-#### POST `/api/project/create`
+#### POST `/api/project/create` ✅
 프로젝트 생성 (인증 필요)
 
 `201 Created`
 
-#### GET `/api/project/validate-code?projectCode=ABC123`
+**참고:** `title`, `githubRepo` 필수 필드
+
+#### GET `/api/project/validate-code?projectCode=ABC123` ✅
 프로젝트 코드 검증 (인증 필요)
 
 `200 OK`
 
-#### POST `/api/project/join`
+#### POST `/api/project/join` ✅
 프로젝트 참여 (인증 필요, 공유 프로젝트용)
 
 `200 OK`
 
-#### GET `/api/project/members?projectId=1`
+#### GET `/api/project/members?projectId=1` ✅
 프로젝트 구성원 목록 조회 (인증 필요)
 
 `200 OK`
 
-#### GET `/api/project/info`
+#### GET `/api/project/info` ✅
 프로젝트 목록/상세 조회 (인증 필요)
 
 **Query Parameters:**
@@ -319,95 +325,103 @@ pool.query('SET FOREIGN_KEY_CHECKS = 1');
 
 `200 OK`
 
-#### POST `/api/project/connect-github`
+#### POST `/api/project/connect-github` ✅
 GitHub 저장소 연결 (인증 필요)
 
 `200 OK`
 
-#### PUT `/api/project/update`
+#### PUT `/api/project/update` ✅
 프로젝트 수정 (인증 필요, owner만)
 
 `200 OK`
 
-#### DELETE `/api/project/delete`
+#### DELETE `/api/project/delete` ✅
 프로젝트 삭제 (인증 필요, owner만)
 
 `200 OK`
 
-#### DELETE `/api/project/member`
+#### DELETE `/api/project/member` ✅
 멤버 삭제 (인증 필요, owner만, owner는 삭제 불가)
 
 `200 OK`
 
-#### DELETE `/api/project/leave`
+#### DELETE `/api/project/leave` ✅
 프로젝트 탈퇴 (인증 필요, 일반 멤버만)
 
 `200 OK`
 
-### 4.5 Task API
+### 4.4 Task API
 
-#### POST `/api/task/create`
+#### POST `/api/task/create` ✅
 작업 생성 (인증 필요, 프로젝트 멤버)
 
 `201 Created`
 
-#### GET `/api/task/info?projectId=1`
-작업 목록 조회 (인증 필요, 프로젝트 멤버)
+#### GET `/api/task/info` ✅
+작업 목록/상세 조회 (인증 필요, 프로젝트 멤버)
+
+**Query Parameters:**
+- `id`: 작업 ID (있으면 상세 조회)
+- `projectId`: 프로젝트 ID (id가 없으면 목록 조회)
 
 `200 OK`
 
-#### PATCH `/api/task/update`
+#### PATCH `/api/task/update` ✅
 작업 내용 수정 (인증 필요, owner만)
 
 `200 OK`
 
-#### PATCH `/api/task/status`
+**수정 가능 필드:** `title`, `description`, `dueDate`, `githubIssueNumber` (상태는 제외)
+
+#### PATCH `/api/task/status` ✅
 작업 상태 수정 (인증 필요, 프로젝트 멤버)
 
 `200 OK`
 
-#### PATCH `/api/task/assign`
+**상태 값:** `todo`, `in_progress`, `done`, `cancelled`
+
+#### PATCH `/api/task/assign` ✅
 작업 할당 (인증 필요, owner만)
 
 `200 OK`
 
-#### DELETE `/api/task/delete`
+#### DELETE `/api/task/delete` ✅
 작업 삭제 (인증 필요, owner만)
 
 `200 OK`
 
-### 4.6 GitHub API
+### 4.5 GitHub API
 
-#### POST `/api/github/sync/:projectId`
+#### POST `/api/github/sync/:projectId` ✅
 프로젝트 정보 동기화 (인증 필요)
 
 `200 OK`
 
-#### GET `/api/github/commits/:projectId`
+#### GET `/api/github/commits/:projectId` ✅
 커밋 목록 조회 (인증 필요)
 
 `200 OK`
 
-#### GET `/api/github/issues/:projectId`
+#### GET `/api/github/issues/:projectId` ✅
 이슈 목록 조회 (인증 필요)
 
 `200 OK`
 
-#### GET `/api/github/branches/:projectId`
+#### GET `/api/github/branches/:projectId` ✅
 브랜치 목록 조회 (인증 필요)
 
 `200 OK`
 
-### 4.7 Progress API
+### 4.6 Progress API
 
-#### GET `/api/progress/project/:projectId`
+#### GET `/api/progress/project/:projectId` ✅
 프로젝트 진행도 조회 (인증 필요)
 
 `200 OK`
 
-### 4.8 AI API
+### 4.7 AI API
 
-#### POST `/api/ai/task-suggestion`
+#### POST `/api/ai/task-suggestion` ✅
 코드 분석 기반 새 Task 제안 (인증 필요)
 
 `200 OK`
@@ -427,7 +441,7 @@ GitHub 저장소 연결 (인증 필요)
 
 ### 5.1.1 아키텍처 패턴 비교
 
-#### 방식 1: Routes만 사용 (현재 설계)
+#### 방식 1: Routes만 사용
 ```
 routes/
   ├── user.js  (라우팅 + 컨트롤러 로직 모두 포함)
@@ -460,10 +474,10 @@ router.post('/login', async (req, res) => {
 });
 ```
 
-#### 방식 2: Routes + Controllers 분리
+#### 방식 2: Routes + Controllers 분리 (현재 설계)
 ```
 routes/
-  ├── userRoutes.js  (라우팅만)
+  ├── user.js  (라우팅만)
   └── ...
 
 controllers/
@@ -488,14 +502,14 @@ services/
 
 **사용 예시:**
 ```javascript
-// routes/userRoutes.js
-router.post('/login', userController.login);
+// routes/user.js
+router.post('/login', authenticateToken, userController.login);
 
 // controllers/userController.js
-exports.login = async (req, res) => {
+exports.login = function(req, res, next) {
   const { email, password } = req.body;
-  const result = await userService.login(email, password);
-  res.json(result);
+  // 비즈니스 로직 처리
+  // ...
 };
 ```
 
@@ -536,9 +550,9 @@ throw new AppError('PROJECT_NOT_FOUND', '프로젝트를 찾을 수 없습니다
 - 리프레시 토큰 (선택사항)
 
 ### 6.2 데이터 보안
-- GitHub Token: Base64 인코딩 (프로덕션에서는 AES 암호화 권장)
 - 비밀번호: bcrypt 해시 (salt rounds: 10)
 - SQL Injection 방지: 파라미터화된 쿼리 사용
+- GitHub 저장소: 공개 저장소만 지원 (토큰 불필요)
 
 ### 6.3 입력 검증
 - 모든 입력값 검증 (Joi 또는 express-validator 사용)
@@ -594,6 +608,51 @@ GITHUB_TOKEN=
 11. ✅ AI Service (백엔드 프록시)
 12. ✅ AI API
 13. ✅ AI 로그 저장
+
+## 8.1 구현 상태 요약
+
+### ✅ 구현 완료된 API
+
+**User API (9개)**
+- ✅ 회원가입, 로그인, 로그아웃
+- ✅ 이메일 중복 확인
+- ✅ 내 정보 조회/수정
+- ✅ 프로필 이미지 업로드/삭제
+- ✅ 회원 탈퇴
+
+**Project API (10개)**
+- ✅ 프로젝트 생성 (title, githubRepo 필수)
+- ✅ 프로젝트 코드 검증
+- ✅ 프로젝트 참여
+- ✅ 구성원 목록 조회
+- ✅ 프로젝트 목록/상세 조회
+- ✅ GitHub 저장소 연결
+- ✅ 프로젝트 수정 (owner만)
+- ✅ 프로젝트 삭제 (owner만)
+- ✅ 멤버 삭제 (owner만)
+- ✅ 프로젝트 탈퇴 (일반 멤버만)
+
+**Task API (6개)**
+- ✅ 작업 생성 (프로젝트 멤버)
+- ✅ 작업 목록/상세 조회 (프로젝트 멤버, id 또는 projectId로 조회)
+- ✅ 작업 내용 수정 (owner만, 제목/설명/마감일/GitHub 이슈만)
+- ✅ 작업 상태 수정 (프로젝트 멤버)
+- ✅ 작업 할당 (owner만)
+- ✅ 작업 삭제 (owner만)
+
+**GitHub API (4개)**
+- ✅ 프로젝트 정보 동기화
+- ✅ 커밋 목록 조회
+- ✅ 이슈 목록 조회
+- ✅ 브랜치 목록 조회
+
+**Progress API (1개)**
+- ✅ 프로젝트 진행도 조회
+
+**AI API (1개)**
+- ✅ Task 제안
+
+**총 31개 API 모두 구현 완료** ✅
 
 ## 9. 테스트 전략
 

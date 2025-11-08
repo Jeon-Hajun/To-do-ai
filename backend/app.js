@@ -16,9 +16,6 @@ var githubRouter = require('./routes/github');
 var progressRouter = require('./routes/progress');
 var aiRouter = require('./routes/ai');
 
-// Import database
-// Note: 테이블은 MySQL Workbench에서 schema.sql 파일로 생성하세요
-
 var app = express();
 
 // Security middleware
@@ -41,8 +38,6 @@ app.use(cookieParser());
 // Static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Database initialization is done via MySQL Workbench using schema.sql
-
 // Routes
 app.use('/', indexRouter);
 app.use('/api/user', userRouter);
@@ -59,13 +54,16 @@ app.use(function(req, res, next) {
 
 // error handler
 app.use(function(err, req, res, next) {
-  // set locals, only providing error in development
-  res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
-
-  // render the error page
+  // JSON 응답으로 변경 (React 프론트엔드용)
   res.status(err.status || 500);
-  res.render('error');
+  res.json({
+    success: false,
+    error: {
+      code: 'SERVER_ERROR',
+      message: err.message || '서버 오류가 발생했습니다.',
+      ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    }
+  });
 });
 
 module.exports = app;

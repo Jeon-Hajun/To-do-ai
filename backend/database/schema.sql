@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS projects (
   password_hash VARCHAR(255),
   owner_id INT NOT NULL,
   github_repo VARCHAR(500),
-  github_token TEXT,
   status VARCHAR(20) DEFAULT 'active',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -117,4 +116,3 @@ CREATE TABLE IF NOT EXISTS ai_logs (
   INDEX idx_ai_logs_type (type),
   INDEX idx_ai_logs_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-

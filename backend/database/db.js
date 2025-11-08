@@ -5,7 +5,7 @@ require('dotenv').config();
 var pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '1234',
+  password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'todo_ai',
   waitForConnections: true,
   connectionLimit: 10,
@@ -64,7 +64,4 @@ var db = {
   pool: pool
 };
 
-// 사용되는 함수들: db.get, db.all, db.run
-// query와 pool은 호환성을 위해 export하지만 직접 사용되지 않음
 module.exports = { db, pool, query, get, all, run };
-
