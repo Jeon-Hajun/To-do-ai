@@ -217,16 +217,6 @@ exports.login = function(req, res, next) {
   });
 };
 
-// 로그아웃
-exports.logout = function(req, res, next) {
-  // JWT는 stateless이므로 클라이언트에서 토큰을 삭제하면 됨
-  // 향후 토큰 블랙리스트 기능이 필요하면 추가 가능
-  res.json({
-    success: true,
-    message: '로그아웃되었습니다.'
-  });
-};
-
 // 아이디 중복 확인
 exports.checkDuplicate = function(req, res, next) {
   const { email } = req.query;

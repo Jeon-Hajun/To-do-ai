@@ -9,13 +9,30 @@ export function getUser() {
   return user ? JSON.parse(user) : null;
 }
 
-// 로그인 성공 시 유저 정보 저장
-export function setAuth(user) {
-  localStorage.setItem("user", JSON.stringify(user));
+// 로컬 스토리지에서 토큰 가져오기
+export function getToken() {
+  return localStorage.getItem("token");
+}
+
+// 로그인 여부 확인
+export function isAuth() {
+  return !!getToken() || !!getUser();
+}
+
+// 로그인 성공 시 유저 정보 및 토큰 저장
+export function setAuth(user, token) {
+  if (user) {
+    localStorage.setItem("user", JSON.stringify(user));
+  }
+  if (token) {
+    localStorage.setItem("token", token);
+  }
 }
 
 // 로그아웃
 export function logout() {
+  // 토큰과 사용자 정보 모두 삭제
+  localStorage.removeItem("token");
   localStorage.removeItem("user");
 }
 
