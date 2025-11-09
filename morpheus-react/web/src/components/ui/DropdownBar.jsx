@@ -3,8 +3,10 @@ import IconButton from "@mui/material/IconButton";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import MenuIcon from "@mui/icons-material/Menu";
+import { useTheme } from "@mui/material/styles";
 
 export default function DropdownBar({ items = [], title }) {
+  const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
 
@@ -24,7 +26,9 @@ export default function DropdownBar({ items = [], title }) {
         aria-haspopup="true"
         aria-expanded={open ? "true" : undefined}
         onClick={handleClick}
-        color="inherit"
+        sx={{
+          color: theme.palette.text.primary, // theme 색상
+        }}
       >
         <MenuIcon />
       </IconButton>
@@ -35,7 +39,7 @@ export default function DropdownBar({ items = [], title }) {
         anchorEl={anchorEl}
         open={open}
         onClose={handleClose}
-        disablePortal   // ← 추가: 블러 영향 받지 않도록 현재 DOM에 렌더링
+        disablePortal
         anchorOrigin={{
           vertical: "bottom",
           horizontal: "right",
@@ -44,9 +48,15 @@ export default function DropdownBar({ items = [], title }) {
           vertical: "top",
           horizontal: "right",
         }}
+        sx={{
+          "& .MuiPaper-root": {
+            borderRadius: theme.shape.borderRadius, // theme radius
+            minWidth: 180,
+          },
+        }}
       >
         {title && (
-          <MenuItem disabled sx={{ fontWeight: "bold" }}>
+          <MenuItem disabled sx={{ fontWeight: "bold", color: theme.palette.text.primary }}>
             {title}
           </MenuItem>
         )}
@@ -56,6 +66,11 @@ export default function DropdownBar({ items = [], title }) {
             onClick={() => {
               item.onClick?.();
               handleClose();
+            }}
+            sx={{
+              "&:hover": {
+                backgroundColor: theme.palette.primary.light,
+              },
             }}
           >
             {item.label}

@@ -1,25 +1,24 @@
-import React from "react";
-import Card from "../ui/Card";
-import Stack from "@mui/material/Stack";
-import Avatar from "@mui/material/Avatar";
+// ProjectCard.jsx
+import React from 'react';
+import Button from '../ui/Button';
 
-export default function ProjectCard({ project, onClick }) {
+export default function ProjectCard({ project, onLeave }) {
+  if (!project) return null; // 프로젝트가 없으면 아무것도 렌더링하지 않음
+
+  const members = project.members || []; // undefined 방지
+
   return (
-    <Card
-      title={project.name}
-      onClick={() => onClick(project)} // 클릭 이벤트 전달
-      sx={{ mb: 2 }}
-    >
-      <Stack direction="row" spacing={1} mt={1}>
-        {project.participants.map((p) => (
-          <Avatar
-            key={p.id}
-            alt={p.name}
-            src={p.avatar}
-            sx={{ width: 32, height: 32 }}
-          />
-        ))}
-      </Stack>
-    </Card>
+    <div style={{ border: '1px solid #ccc', padding: '12px', marginBottom: '12px' }}>
+      <h3>{project.title}</h3>
+      {project.description && <p>{project.description}</p>}
+
+      <div>
+        멤버: {members.length > 0 ? members.map((m) => m.nickname || m.email).join(', ') : '없음'}
+      </div>
+
+      <Button onClick={onLeave} style={{ marginTop: '8px' }}>
+        나가기
+      </Button>
+    </div>
   );
 }

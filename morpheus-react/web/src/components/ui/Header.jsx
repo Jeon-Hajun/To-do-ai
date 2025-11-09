@@ -9,8 +9,10 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import { useNavigate } from "react-router-dom";
 import { getHeaderMenuItems } from "../../constants/headerMenu";
+import { useTheme } from "@mui/material/styles";
 
 export default function Header({ title = "Todo App", isBlur = false }) {
+  const theme = useTheme();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
@@ -28,7 +30,9 @@ export default function Header({ title = "Todo App", isBlur = false }) {
         }}
       >
         <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
-          <Typography variant="h6">{title}</Typography>
+          <Typography variant="h6" sx={{ color: theme.palette.text.primary }}>
+            {title}
+          </Typography>
           <IconButton
             size="large"
             edge="end"
@@ -41,18 +45,25 @@ export default function Header({ title = "Todo App", isBlur = false }) {
       </AppBar>
 
       <Collapse in={open}>
-        <Box sx={{ bgcolor: "common.white", p: 2 }}>
+        <Box
+          sx={{
+            bgcolor: theme.palette.background.paper,
+            p: 2,
+          }}
+        >
           {menuItems.map((item, idx) => (
             <Button
               key={idx}
               fullWidth
               sx={{
                 mb: 1,
-                color: "text.primary",
+                color: theme.palette.text.primary,
                 border: "none",
-                bgcolor: "common.white",
+                bgcolor: theme.palette.background.paper,
                 boxShadow: "none",
-                "&:hover": { bgcolor: "grey.100" },
+                textTransform: "none",
+                fontWeight: 600,
+                "&:hover": { bgcolor: theme.palette.grey[100] },
               }}
               onClick={() => {
                 item.onClick();

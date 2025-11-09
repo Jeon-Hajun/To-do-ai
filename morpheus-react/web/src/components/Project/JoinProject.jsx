@@ -1,77 +1,60 @@
+// src/components/Project/JoinProject.jsx
 import React, { useState } from 'react';
-import { joinProjectByCode } from '../../api/projects';
-import Card from '../ui/Card';
+import { joinProject } from '../../api/projects';
 import Button from '../ui/Button';
-import TextField from '@mui/material/TextField';
-import Stack from '@mui/material/Stack';
-import Box from '@mui/material/Box';
-import Modal from '@mui/material/Modal';
+import Input from '../ui/Input';
 
 export default function JoinProject({ onJoin }) {
-    const [code, setCode] = useState('');
-    const [name, setName] = useState('');
-    const [error, setError] = useState('');
+  const [projectCode, setProjectCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-    const handleJoin = async () => {
-        if (!code || !name) {
-            setError('프로젝트 코드와 이름을 입력해주세요.');
-            return;
-        }
-        try {
-            const project = await joinProjectByCode(code, name);
-            onJoin(project);
-        } catch (err) {
-            setError(err.message || '참가 실패');
-        }
-    };
+  const handleJoin = async (e) => {
+    e.preventDefault();
+    if (loading) return;
 
-    const handleClose = () => {
-        onJoin(null); // 취소 시 모달 닫기
-    };
+    setError('');
+    setLoading(true);
 
-    return (
-        <Modal open={true} onClose={handleClose}>
-            <Box
-                sx={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    bgcolor: 'background.paper',
-                    boxShadow: 24,
-                    borderRadius: 2,
-                    p: 4,
-                    width: 400,
-                }}
-            >
-                <h2 style={{ textAlign: 'center', marginBottom: '16px' }}>프로젝트 참가</h2>
+    if (!projectCode) {
+      setError('프로젝트 코드를 입력해주세요.');
+      setLoading(false);
+      return;
+    }
 
-                <Stack spacing={2}>
-                    <TextField
-                        label="프로젝트 코드 입력"
-                        variant="outlined"
-                        fullWidth
-                        value={code}
-                        onChange={(e) => setCode(e.target.value)}
-                    />
-                    <TextField
-                        label="프로젝트에서 보여질 이름"
-                        variant="outlined"
-                        fullWidth
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                    />
-                    {error && <div style={{ color: 'red', fontSize: '0.9rem' }}>{error}</div>}
-                    <Stack direction="row" spacing={2} justifyContent="flex-end">
-                        <Button type="default" onClick={handleClose}>
-                            취소
-                        </Button>
-                        <Button type="default" onClick={handleJoin}>
-                            참가
-                        </Button>
-                    </Stack>
-                </Stack>
-            </Box>
-        </Modal>
-    );
+    try {
+      const res = await joinProject({ projectCode, password });
+      if (res.success) {
+        if (onJoin) onJoin(res.data); // 부모 컴포넌트로 전달
+      } else {
+        setError(res.error?.message || '프로젝트 참여에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.error?.message || '서버 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <Input
+        placeholder="프로젝트 코드"
+        value={projectCode}
+        onChange={(e) => setProjectCode(e.target.value)}
+      />
+      <Input
+        placeholder="비밀번호 (선택)"
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+      {error && <div style={{ color: 'red', fontSize: '0.9rem' }}>{error}</div>}
+      <Button type="submit" disabled={loading}>
+        {loading ? '참여 중...' : '프로젝트 참여'}
+      </Button>
+    </form>
+  );
 }

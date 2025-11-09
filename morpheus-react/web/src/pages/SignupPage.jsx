@@ -6,6 +6,7 @@ import ContainerBox from "../components/ui/ContainerBox";
 import Input from "../components/ui/Input";
 import ValidatedEmailInput from "../components/ui/ValidatedEmailInput";
 import SignupButton from "../components/ui/SignupButton";
+import Button from "../components/ui/Button";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -14,20 +15,24 @@ export default function SignupPage() {
   const navigate = useNavigate();
 
   return (
-    <ContainerBox
-      sx={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        minHeight: "100vh",
-        backgroundColor: "#f5f5f5",
-        p: 2,
-      }}
-    >
-      <Card
-        title="회원가입"
-        sx={{ width: 450, maxWidth: "100%", textAlign: "center", p: 4 }}
-      >
+    <ContainerBox sx={{ justifyContent: "center", alignItems: "center" }}>
+      <Card sx={{ width: 450, maxWidth: "100%", p: 4, position: "relative" }}>
+        
+        {/* ✅ 오른쪽 상단 뒤로가기 버튼 */}
+        <Button
+          type="back"
+          size="small"
+          style={{
+            position: "absolute",
+            right: 12,
+            top: 12,
+          }}
+        >
+          ← 뒤로
+        </Button>
+
+        <h2 style={{ textAlign: "center", marginBottom: 24 }}>회원가입</h2>
+
         <form>
           <ValidatedEmailInput
             value={email}
@@ -47,6 +52,7 @@ export default function SignupPage() {
             onChange={(e) => setPassword(e.target.value)}
             sx={{ mb: 3 }}
           />
+
           <SignupButton
             email={email}
             nickname={nickname}

@@ -1,20 +1,41 @@
+// Modal.jsx
 import React from "react";
+import Box from "@mui/material/Box";
+import Modal from "@mui/material/Modal";
+import IconButton from "@mui/material/IconButton";
+import CloseIcon from "@mui/icons-material/Close";
 
-export default function Modal({ open, title, children, onClose }) {
-  if (!open) return null;
-
+export default function ModalComponent({ isOpen, onClose, children }) { // 이름 변경
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50">
-      <div className="bg-white rounded-md p-6 w-full max-w-md shadow-lg relative">
-        {title && <h2 className="text-lg font-bold mb-4">{title}</h2>}
-        {children}
-        <button
-          className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      aria-labelledby="modal-title"
+      aria-describedby="modal-description"
+    >
+      <Box
+        sx={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: { xs: '90%', sm: 400, md: 500 },
+          bgcolor: 'background.paper',
+          borderRadius: 2,
+          boxShadow: 24,
+          p: { xs: 2, sm: 4 },
+          maxHeight: '90vh',
+          overflowY: 'auto',
+        }}
+      >
+        <IconButton
           onClick={onClose}
+          sx={{ position: 'absolute', top: 8, right: 8 }}
         >
-          ✕
-        </button>
-      </div>
-    </div>
+          <CloseIcon />
+        </IconButton>
+        {children}
+      </Box>
+    </Modal>
   );
 }

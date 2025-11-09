@@ -1,87 +1,97 @@
-import React, { useEffect, useState } from 'react';
-import JoinProject from './JoinProject';
-import ProjectList from './ProjectList';
-import ProjectDetailModal from './ProjectDetailModal';
-import { getUserProjects } from '../../api/projects';
-import Button from '@mui/material/Button'; // ✅ MUI 버튼 사용
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
+import React, { useEffect, useState } from "react";
+import CustomModal from "../ui/Modal";
+import CreateProject from "./CreateProject";
+import JoinProject from "./JoinProject";
+import { getProjects, leaveProject } from "../../api/projects";
+import ProjectCard from "./ProjectCard";
+import Button from "../ui/Button";
 
-export function ProjectManager() {
-    const [projects, setProjects] = useState([]);
-    const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
-    const [selectedProject, setSelectedProject] = useState(null);
+export default function ProjectManager() {
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState(""); // 'create' | 'join'
 
-    const fetchProjects = async () => {
-        const list = await getUserProjects();
-        setProjects(list);
-    };
+  const fetchProjects = async () => {
+    setLoading(true);
+    try {
+      const res = await getProjects();
+      if (res.success) setProjects(res.data.projects);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    useEffect(() => {
-        fetchProjects();
-    }, []);
+  useEffect(() => {
+    fetchProjects();
+  }, []);
 
-    const handleJoin = (project) => {
-        if (project && !projects.find((p) => p.id === project.id)) {
-            setProjects((prev) => [...prev, project]);
-        }
-        setIsJoinModalOpen(false);
-    };
+  const handleCreateSuccess = (project) => {
+    setProjects((prev) => [project, ...prev]);
+    setModalOpen(false);
+  };
 
-    const handleCardClick = (project) => {
-        setSelectedProject(project);
-    };
+  const handleJoinSuccess = (project) => {
+    setProjects((prev) => [project, ...prev]);
+    setModalOpen(false);
+  };
 
-    return (
-        <Box
-            sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 4,
-                alignItems: 'center', // ✅ 중앙 정렬
-                mt: 4,
-                px: 2,
-            }}
+  const handleLeave = async (projectId) => {
+    try {
+      const res = await leaveProject(projectId);
+      if (res.success) {
+        setProjects((prev) => prev.filter((p) => p.id !== projectId));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <div className="p-4">
+      <div style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
+        <Button
+          type="primary"
+          onClick={() => {
+            setModalType("create");
+            setModalOpen(true);
+          }}
         >
-            {/* ✅ 제목 영역 */}
-            <Typography variant="h5" fontWeight="bold" color="text.primary" sx={{ mb: 1 }}>
-                내 프로젝트
-            </Typography>
+          프로젝트 생성
+        </Button>
+        <Button
+          type="primary"
+          onClick={() => {
+            setModalType("join");
+            setModalOpen(true);
+          }}
+        >
+          프로젝트 참여
+        </Button>
+      </div>
 
-            {/* ✅ 버튼 영역 */}
-            <Button
-                variant="contained"
-                onClick={() => setIsJoinModalOpen(true)}
-                sx={{
-                    background: 'linear-gradient(90deg, #10b981, #3b82f6)',
-                    color: '#fff',
-                    fontWeight: 'bold',
-                    textTransform: 'none',
-                    fontSize: '1rem',
-                    borderRadius: '50px',
-                    px: 4,
-                    py: 1.5,
-                    boxShadow: '0 4px 14px rgba(0,0,0,0.2)',
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                        background: 'linear-gradient(90deg, #3b82f6, #10b981)',
-                        boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
-                        transform: 'translateY(-2px)',
-                    },
-                }}
-            >
-                프로젝트 참가
-            </Button>
+      {loading ? (
+        <div>로딩 중...</div>
+      ) : (
+        projects.map((project) => (
+          <ProjectCard
+            key={project.id}
+            project={project}
+            onLeave={() => handleLeave(project.id)}
+          />
+        ))
+      )}
 
-            {/* ✅ 프로젝트 리스트 (중앙 폭 제한) */}
-            <Box sx={{ width: '100%', maxWidth: 900 }}>
-                <ProjectList projects={projects} onSelect={handleCardClick} />
-            </Box>
-
-            {isJoinModalOpen && <JoinProject onJoin={handleJoin} />}
-            {selectedProject && (
-                <ProjectDetailModal project={selectedProject} onClose={() => setSelectedProject(null)} />
-            )}
-        </Box>
-    );
+      <CustomModal isOpen={modalOpen} onClose={() => setModalOpen(false)}>
+        {modalType === "create" && (
+          <CreateProject onCreateSuccess={handleCreateSuccess} />
+        )}
+        {modalType === "join" && (
+          <JoinProject onJoin={handleJoinSuccess} />
+        )}
+      </CustomModal>
+    </div>
+  );
 }

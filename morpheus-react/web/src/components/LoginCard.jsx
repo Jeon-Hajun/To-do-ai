@@ -1,6 +1,6 @@
-// src/components/LoginCard.jsx
 import React, { useState } from 'react';
-import { Box, Typography, Paper } from '@mui/material';
+import { Typography, Box } from '@mui/material';
+import Card from './ui/Card';
 import ValidatedEmailInput from './ui/ValidatedEmailInput';
 import Input from './ui/Input';
 import LoginButton from './ui/LoginButton';
@@ -10,21 +10,21 @@ export default function LoginCard({ onLoginSuccess }) {
     const [password, setPassword] = useState('');
 
     return (
-        <Paper
-            elevation={3}
+        <Card
+            title="로그인"
             sx={{
-                p: 4,
                 maxWidth: 450,
-                width: '100%',
+                mx: 'auto',
                 textAlign: 'center',
+                p: 4,
             }}
         >
-            <Typography variant="h5" sx={{ mb: 3 }}>
-                로그인
-            </Typography>
-
             <form>
-                <ValidatedEmailInput value={email} onChange={(e) => setEmail(e.target.value)} sx={{ mb: 3 }} />
+                <ValidatedEmailInput
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    sx={{ mb: 3 }}
+                />
 
                 <Input
                     label="Password"
@@ -34,8 +34,12 @@ export default function LoginCard({ onLoginSuccess }) {
                     sx={{ mb: 3 }}
                 />
 
-                <LoginButton email={email} password={password} onLoginSuccess={onLoginSuccess} />
+                <LoginButton
+                    email={email}
+                    password={password}
+                    onLoginSuccess={onLoginSuccess}
+                />
             </form>
-        </Paper>
+        </Card>
     );
 }

@@ -2,8 +2,10 @@ import React from "react";
 import Button from "@mui/material/Button";
 import { useAuthContext } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useTheme } from "@mui/material/styles";
 
 export default function LogoutButton() {
+  const theme = useTheme();
   const { logout } = useAuthContext();
   const navigate = useNavigate();
 
@@ -15,16 +17,20 @@ export default function LogoutButton() {
   return (
     <Button
       variant="contained"
-      color="error"
       fullWidth
       onClick={handleLogout}
       sx={{
         mt: 2,
         py: 1.5,
-        fontWeight: "bold",
-        borderRadius: "50px",
+        fontWeight: 600,
+        borderRadius: theme.shape.borderRadius,
         fontSize: "1rem",
         textTransform: "none",
+        backgroundColor: theme.palette.error.main,
+        color: theme.palette.getContrastText(theme.palette.error.main),
+        "&:hover": {
+          backgroundColor: theme.palette.error.dark,
+        },
       }}
     >
       로그아웃

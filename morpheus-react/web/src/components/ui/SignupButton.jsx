@@ -1,10 +1,12 @@
-// src/components/ui/SignupButton.jsx
 import React, { useState } from "react";
 import Button from "@mui/material/Button";
+import Typography from "@mui/material/Typography";
+import { useTheme } from "@mui/material/styles";
 
 const API_URL = "http://localhost:5000/api/user";
 
 export default function SignupButton({ email, nickname, password, onSignupSuccess, sx, ...props }) {
+  const theme = useTheme();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -34,7 +36,7 @@ export default function SignupButton({ email, nickname, password, onSignupSucces
         return;
       }
 
-      if (onSignupSuccess) onSignupSuccess(data); // 내부에서만 호출
+      if (onSignupSuccess) onSignupSuccess(data);
     } catch (err) {
       console.error(err);
       setError("서버 연결 실패");
@@ -53,27 +55,31 @@ export default function SignupButton({ email, nickname, password, onSignupSucces
         sx={{
           mt: 2,
           py: 1.75,
-          fontWeight: "bold",
-          borderRadius: "50px",
-          background: "linear-gradient(90deg, #10b981, #3b82f6)",
-          color: "#fff",
+          fontWeight: 600,
+          borderRadius: theme.shape.borderRadius,
+          background: `linear-gradient(90deg, ${theme.palette.success.main}, ${theme.palette.primary.main})`,
+          color: theme.palette.getContrastText(theme.palette.primary.main),
           textTransform: "none",
           fontSize: "1.1rem",
-          boxShadow: "0 4px 14px 0 rgba(0,0,0,0.25)",
+          boxShadow: theme.shadows[4],
           transition: "all 0.3s ease",
           "&:hover": {
-            background: "linear-gradient(90deg, #3b82f6, #10b981)",
-            boxShadow: "0 6px 20px 0 rgba(0,0,0,0.3)",
+            background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.success.main})`,
+            boxShadow: theme.shadows[6],
             transform: "translateY(-2px)",
           },
           ...sx,
         }}
-        {...props} // onSignupSuccess 제거
+        {...props}
       >
         {loading ? "회원가입 중..." : "회원가입"}
       </Button>
 
-      {error && <div style={{ color: "red", marginTop: 8, fontSize: "0.9rem" }}>{error}</div>}
+      {error && (
+        <Typography color="error" variant="body2" sx={{ mt: 1 }}>
+          {error}
+        </Typography>
+      )}
     </>
   );
 }

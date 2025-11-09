@@ -3,10 +3,12 @@ import Button from '@mui/material/Button';
 import axios from 'axios';
 import { setAuth } from '../../utils/auth';
 import { useAuthContext } from '../../context/AuthContext';
+import { useTheme } from '@mui/material/styles';
 
 const API_URL = 'http://localhost:5000/api/user';
 
 export default function LoginButton({ email, password, onLoginSuccess, sx, ...props }) {
+    const theme = useTheme();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const { login } = useAuthContext();
@@ -25,7 +27,7 @@ export default function LoginButton({ email, password, onLoginSuccess, sx, ...pr
 
         try {
             const res = await axios.post(`${API_URL}/login`, { email, password });
-            const token = res.data.data.token; // ✅ 기존 서버 구조 반영
+            const token = res.data.data.token;
 
             if (!token) throw new Error('Token not received');
 
@@ -50,16 +52,16 @@ export default function LoginButton({ email, password, onLoginSuccess, sx, ...pr
                 sx={{
                     mt: 2,
                     py: 1.75,
-                    fontWeight: 'bold',
-                    borderRadius: '50px',
-                    background: 'linear-gradient(90deg, #10b981, #3b82f6)',
+                    fontWeight: 600,
+                    borderRadius: theme.shape.borderRadius,
+                    background: `linear-gradient(90deg, ${theme.palette.primary.light}, ${theme.palette.primary.main})`,
                     color: '#fff',
                     textTransform: 'none',
                     fontSize: '1.1rem',
                     boxShadow: '0 4px 14px 0 rgba(0,0,0,0.25)',
                     transition: 'all 0.3s ease',
                     '&:hover': {
-                        background: 'linear-gradient(90deg, #3b82f6, #10b981)',
+                        background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`,
                         boxShadow: '0 6px 20px 0 rgba(0,0,0,0.3)',
                         transform: 'translateY(-2px)',
                     },
@@ -70,7 +72,11 @@ export default function LoginButton({ email, password, onLoginSuccess, sx, ...pr
                 {loading ? '로그인 중...' : '로그인'}
             </Button>
 
-            {error && <div style={{ color: 'red', marginTop: 8, fontSize: '0.9rem' }}>{error}</div>}
+            {error && (
+                <div style={{ color: theme.palette.error.main, marginTop: 8, fontSize: '0.9rem' }}>
+                    {error}
+                </div>
+            )}
         </>
     );
 }

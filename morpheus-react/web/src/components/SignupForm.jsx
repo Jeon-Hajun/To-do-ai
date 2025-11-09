@@ -1,6 +1,9 @@
-// src/components/SignupForm.jsx
 import React, { useState } from "react";
+import Box from "@mui/material/Box";
+import Input from "../ui/Input";
+import ValidatedEmailInput from "../ui/ValidatedEmailInput";
 import SignupButton from "../ui/SignupButton";
+import Typography from "@mui/material/Typography";
 
 export default function SignupForm({ onSignupSuccess }) {
   const [email, setEmail] = useState("");
@@ -8,44 +11,46 @@ export default function SignupForm({ onSignupSuccess }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  const passwordsMismatch = password && confirmPassword && password !== confirmPassword;
+
   return (
-    <form className="flex flex-col gap-2 w-80">
-      <input
-        type="email"
-        placeholder="이메일"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-        className="border p-2 rounded"
-      />
-      <input
-        type="text"
-        placeholder="닉네임"
+    <Box
+      component="form"
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        width: "100%",
+        maxWidth: 320,
+        mx: "auto",
+      }}
+    >
+      <ValidatedEmailInput value={email} onChange={(e) => setEmail(e.target.value)} />
+
+      <Input
+        label="닉네임"
         value={nickname}
         onChange={(e) => setNickname(e.target.value)}
-        required
-        className="border p-2 rounded"
-      />
-      <input
-        type="password"
-        placeholder="비밀번호"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        required
-        className="border p-2 rounded"
-      />
-      <input
-        type="password"
-        placeholder="비밀번호 확인"
-        value={confirmPassword}
-        onChange={(e) => setConfirmPassword(e.target.value)}
-        required
-        className="border p-2 rounded"
       />
 
-      {/* 비밀번호 확인 로직 */}
-      {password !== confirmPassword && password && confirmPassword && (
-        <div style={{ color: "red", fontSize: "0.9rem" }}>비밀번호가 일치하지 않습니다.</div>
+      <Input
+        label="비밀번호"
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+
+      <Input
+        label="비밀번호 확인"
+        type="password"
+        value={confirmPassword}
+        onChange={(e) => setConfirmPassword(e.target.value)}
+      />
+
+      {passwordsMismatch && (
+        <Typography color="error" variant="body2">
+          비밀번호가 일치하지 않습니다.
+        </Typography>
       )}
 
       <SignupButton
@@ -54,6 +59,6 @@ export default function SignupForm({ onSignupSuccess }) {
         nickname={nickname}
         onSignupSuccess={onSignupSuccess}
       />
-    </form>
+    </Box>
   );
 }

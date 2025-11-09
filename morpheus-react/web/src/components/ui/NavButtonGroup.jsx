@@ -1,4 +1,3 @@
-// src/components/ui/NavButtonGroup.jsx
 import React from "react";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
@@ -15,7 +14,6 @@ export default function NavButtonGroup({ buttons = [] }) {
 
   return (
     <ToggleButtonGroup
-      color="primary"
       value={location.pathname}
       exclusive
       onChange={(_, newValue) => newValue && navigate(newValue)}
@@ -30,6 +28,20 @@ export default function NavButtonGroup({ buttons = [] }) {
           alignItems: "center",
           justifyContent: "center",
           fontSize: isSmallScreen ? "1.2rem" : "1rem",
+          borderRadius: theme.shape.borderRadius,
+          textTransform: "none",
+          fontWeight: 600,
+          color: theme.palette.text.primary,
+          "&.Mui-selected": {
+            bgcolor: theme.palette.primary.main,
+            color: theme.palette.getContrastText(theme.palette.primary.main),
+            "&:hover": {
+              bgcolor: theme.palette.primary.dark,
+            },
+          },
+          "&:hover": {
+            bgcolor: theme.palette.grey[100],
+          },
         },
       }}
     >
