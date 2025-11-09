@@ -1,0 +1,1016 @@
+var bcrypt = require('bcryptjs');
+var { db } = require('../database/db');
+var { validateProjectTitle, validateProjectDescription, validateGitHubUrl, validateProjectPassword, validateProjectCode, validateId } = require('../utils/validators');
+
+// 프로젝트 코드 생성 (6자리 영숫자)
+function generateProjectCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+// 프로젝트 생성
+exports.create = function(req, res, next) {
+  const { title, description, isShared, password, githubRepo } = req.body;
+  const userId = req.user.userId;
+  
+  // 입력 검증
+  const titleValidation = validateProjectTitle(title);
+  if (!titleValidation.valid) {
+    return res.status(400).json({ 
+      success: false,
+      error: { 
+        code: 'INVALID_INPUT',
+        message: titleValidation.message
+      }
+    });
+  }
+  
+  const githubUrlValidation = validateGitHubUrl(githubRepo);
+  if (!githubUrlValidation.valid) {
+    return res.status(400).json({ 
+      success: false,
+      error: { 
+        code: 'INVALID_INPUT',
+        message: githubUrlValidation.message
+      }
+    });
+  }
+  
+  // 설명 검증 (선택 필드)
+  if (description !== undefined) {
+    const descriptionValidation = validateProjectDescription(description);
+    if (!descriptionValidation.valid) {
+      return res.status(400).json({ 
+        success: false,
+        error: { 
+          code: 'INVALID_INPUT',
+          message: descriptionValidation.message
+        }
+      });
+    }
+  }
+  
+  // 공유 프로젝트 비밀번호 검증 (선택 필드)
+  if (isShared && password) {
+    const passwordValidation = validateProjectPassword(password);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ 
+        success: false,
+        error: { 
+          code: 'INVALID_INPUT',
+          message: passwordValidation.message
+        }
+      });
+    }
+  }
+  
+  // 공유 프로젝트인 경우 비밀번호 해시화
+  let passwordHash = null;
+  let projectCode = null;
+  
+  if (isShared) {
+    projectCode = generateProjectCode();
+    // 프로젝트 코드 중복 확인
+    db.get('SELECT id FROM projects WHERE project_code = ?', [projectCode], function(err, existing) {
+        if (err) {
+        console.error('프로젝트 코드 확인 오류:', err);
+        return res.status(500).json({ 
+          success: false,
+          error: { 
+            code: 'SERVER_ERROR',
+            message: '서버 오류가 발생했습니다.' 
+          }
+        });
+        }
+        
+      if (existing) {
+        // 코드가 중복되면 다시 생성 (거의 발생하지 않지만 안전장치)
+        projectCode = generateProjectCode();
+      }
+      
+      if (password) {
+        bcrypt.hash(password, 10, function(err, hash) {
+          if (err) {
+            console.error('비밀번호 해시화 오류:', err);
+            return res.status(500).json({ 
+              success: false,
+              error: { 
+                code: 'SERVER_ERROR',
+                message: '서버 오류가 발생했습니다.' 
+              }
+            });
+        }
+          passwordHash = hash;
+          createProject();
+        });
+      } else {
+        createProject();
+      }
+    });
+  } else {
+    createProject();
+  }
+  
+  function createProject() {
+    db.run(
+      'INSERT INTO projects (owner_id, title, description, project_code, password_hash, github_repo) VALUES (?, ?, ?, ?, ?, ?)',
+      [userId, title, description || null, projectCode, passwordHash, githubRepo],
+      function(err) {
+        if (err) {
+          console.error('프로젝트 생성 오류:', err);
+          return res.status(500).json({ 
+            success: false,
+            error: { 
+              code: 'SERVER_ERROR',
+              message: '서버 오류가 발생했습니다.' 
+            }
+          });
+        }
+        
+        const projectId = this.lastID;
+        
+        // 프로젝트 멤버에 owner 추가
+        db.run(
+          'INSERT INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',
+          [projectId, userId, 'owner'],
+          function(err) {
+            if (err) {
+              console.error('프로젝트 멤버 추가 오류:', err);
+              // 프로젝트는 생성되었지만 멤버 추가 실패 - 롤백 고려 필요
+        }
+        
+        res.status(201).json({
+              success: true,
+              data: {
+                id: projectId,
+                title: title,
+                projectCode: projectCode,
+                githubRepo: githubRepo
+              },
+              message: '프로젝트가 생성되었습니다.'
+            });
+          }
+        );
+      }
+    );
+  }
+};
+
+// 프로젝트 참여 (공유 프로젝트용)
+exports.join = function(req, res, next) {
+  const { projectCode, password } = req.body;
+  const userId = req.user.userId;
+  
+  // 입력 검증
+  const codeValidation = validateProjectCode(projectCode);
+  if (!codeValidation.valid) {
+    return res.status(400).json({ 
+      success: false,
+      error: { 
+        code: 'INVALID_INPUT',
+        message: codeValidation.message
+      }
+    });
+  }
+  
+  // 프로젝트 조회
+  db.get('SELECT * FROM projects WHERE project_code = ?', [projectCode], function(err, project) {
+    if (err) {
+      console.error('프로젝트 조회 오류:', err);
+      return res.status(500).json({ 
+        success: false,
+        error: { 
+          code: 'SERVER_ERROR',
+          message: '서버 오류가 발생했습니다.' 
+        }
+      });
+    }
+    
+    if (!project) {
+      return res.status(404).json({ 
+        success: false,
+        error: { 
+          code: 'PROJECT_NOT_FOUND',
+          message: '프로젝트를 찾을 수 없습니다.' 
+        }
+      });
+    }
+    
+    // 비밀번호 확인
+    if (project.password_hash) {
+      if (!password) {
+        return res.status(400).json({ 
+          success: false,
+          error: { 
+            code: 'PASSWORD_REQUIRED',
+            message: '비밀번호를 입력해주세요.' 
+          }
+        });
+      }
+      
+      bcrypt.compare(password, project.password_hash, function(err, isValid) {
+        if (err) {
+          console.error('비밀번호 확인 오류:', err);
+          return res.status(500).json({ 
+            success: false,
+            error: { 
+              code: 'SERVER_ERROR',
+              message: '서버 오류가 발생했습니다.' 
+            }
+          });
+        }
+        
+        if (!isValid) {
+          return res.status(401).json({ 
+            success: false,
+            error: { 
+              code: 'INVALID_PASSWORD',
+              message: '비밀번호가 올바르지 않습니다.' 
+            }
+          });
+        }
+        
+        addMember();
+      });
+    } else {
+      addMember();
+    }
+    
+    function addMember() {
+      // 이미 멤버인지 확인
+      db.get(
+        'SELECT id FROM project_members WHERE project_id = ? AND user_id = ?',
+        [project.id, userId],
+        function(err, existing) {
+          if (err) {
+            console.error('멤버 확인 오류:', err);
+            return res.status(500).json({ 
+              success: false,
+              error: { 
+                code: 'SERVER_ERROR',
+                message: '서버 오류가 발생했습니다.' 
+              }
+            });
+          }
+          
+          if (existing) {
+            return res.status(400).json({ 
+              success: false,
+              error: { 
+                code: 'ALREADY_MEMBER',
+                message: '이미 프로젝트에 참여중입니다.' 
+              }
+            });
+          }
+          
+          // 프로젝트 멤버 추가
+          db.run(
+            'INSERT INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',
+            [project.id, userId, 'member'],
+            function(err) {
+              if (err) {
+                console.error('프로젝트 멤버 추가 오류:', err);
+                return res.status(500).json({ 
+                  success: false,
+                  error: { 
+                    code: 'SERVER_ERROR',
+                    message: '서버 오류가 발생했습니다.' 
+                  }
+                });
+              }
+              
+              res.json({
+                success: true,
+                data: {
+                  id: project.id,
+                  title: project.title
+                },
+                message: '프로젝트에 참여했습니다.'
+              });
+            }
+          );
+        }
+      );
+    }
+  });
+};
+
+// 프로젝트 구성원 목록 조회
+exports.getMembers = function(req, res, next) {
+  const { projectId } = req.query;
+  const userId = req.user.userId;
+  
+  // 입력 검증
+  const idValidation = validateId(projectId, '프로젝트 ID');
+  if (!idValidation.valid) {
+    return res.status(400).json({ 
+      success: false,
+      error: { 
+        code: 'INVALID_INPUT',
+        message: idValidation.message
+      }
+    });
+  }
+  
+  // 프로젝트 멤버인지 확인
+  db.get(
+    'SELECT id FROM project_members WHERE project_id = ? AND user_id = ?',
+    [projectId, userId],
+    function(err, membership) {
+      if (err) {
+        console.error('멤버십 확인 오류:', err);
+        return res.status(500).json({ 
+          success: false,
+          error: { 
+            code: 'SERVER_ERROR',
+            message: '서버 오류가 발생했습니다.' 
+          }
+        });
+      }
+      
+      if (!membership) {
+        return res.status(403).json({ 
+          success: false,
+          error: { 
+            code: 'FORBIDDEN',
+            message: '프로젝트에 대한 권한이 없습니다.' 
+          }
+        });
+      }
+      
+      // 구성원 목록 조회
+      db.all(
+        `SELECT u.id, u.email, u.nickname, pm.role, pm.joined_at
+         FROM project_members pm
+         JOIN users u ON pm.user_id = u.id
+         WHERE pm.project_id = ?
+         ORDER BY pm.joined_at ASC`,
+        [projectId],
+        function(err, members) {
+          if (err) {
+            console.error('구성원 목록 조회 오류:', err);
+            return res.status(500).json({ 
+              success: false,
+              error: { 
+                code: 'SERVER_ERROR',
+                message: '서버 오류가 발생했습니다.' 
+              }
+            });
+          }
+          
+          res.json({
+            success: true,
+            data: {
+              members: members.map(m => ({
+                id: m.id,
+                email: m.email,
+                nickname: m.nickname,
+                role: m.role,
+                joinedAt: m.joined_at
+              }))
+            }
+        });
+      }
+    );
+  }
+  );
+};
+
+// 프로젝트 목록/상세 조회
+exports.getInfo = function(req, res, next) {
+  const { id } = req.query;
+  const userId = req.user.userId;
+  
+  // ID가 제공된 경우 검증
+  if (id !== undefined) {
+    const idValidation = validateId(id, '프로젝트 ID');
+    if (!idValidation.valid) {
+      return res.status(400).json({ 
+        success: false,
+        error: { 
+          code: 'INVALID_INPUT',
+          message: idValidation.message
+        }
+      });
+    }
+  }
+  
+  if (id) {
+    // 프로젝트 상세 조회
+    db.get(
+      `SELECT p.*, COUNT(pm.id) as member_count
+       FROM projects p 
+       LEFT JOIN project_members pm ON p.id = pm.project_id
+       WHERE p.id = ? AND EXISTS (
+         SELECT 1 FROM project_members pm2 
+         WHERE pm2.project_id = p.id AND pm2.user_id = ?
+       )
+       GROUP BY p.id`,
+      [id, userId],
+      function(err, project) {
+        if (err) {
+          console.error('프로젝트 조회 오류:', err);
+          return res.status(500).json({ 
+            success: false,
+            error: { 
+              code: 'SERVER_ERROR',
+              message: '서버 오류가 발생했습니다.' 
+            }
+          });
+        }
+        
+        if (!project) {
+          return res.status(404).json({ 
+            success: false,
+            error: { 
+              code: 'PROJECT_NOT_FOUND',
+              message: '프로젝트를 찾을 수 없거나 권한이 없습니다.' 
+            }
+          });
+        }
+        
+        res.json({
+          success: true,
+          data: {
+            project: {
+              id: project.id,
+              title: project.title,
+              description: project.description,
+              githubRepo: project.github_repo,
+              status: project.status,
+              ownerId: project.owner_id,
+              isShared: !!project.project_code,
+              projectCode: project.project_code
+            }
+          }
+        });
+      }
+    );
+  } else {
+    // 프로젝트 목록 조회 (사용자가 멤버인 프로젝트)
+    db.all(
+      `SELECT p.id, p.title, p.status, p.project_code, COUNT(pm.id) as member_count
+       FROM projects p 
+       JOIN project_members pm ON p.id = pm.project_id
+       WHERE pm.user_id = ?
+       GROUP BY p.id
+       ORDER BY p.created_at DESC`,
+      [userId],
+      function(err, projects) {
+        if (err) {
+          console.error('프로젝트 목록 조회 오류:', err);
+          return res.status(500).json({ 
+            success: false,
+            error: { 
+              code: 'SERVER_ERROR',
+              message: '서버 오류가 발생했습니다.' 
+            }
+          });
+        }
+        
+        res.json({
+          success: true,
+          data: {
+            projects: (projects || []).map(p => ({
+              id: p.id,
+              title: p.title,
+              status: p.status,
+              memberCount: p.member_count,
+              isShared: !!p.project_code
+            }))
+          }
+        });
+      }
+    );
+  }
+};
+
+// GitHub 저장소 연결
+exports.connectGithub = function(req, res, next) {
+  const { projectId, githubRepo } = req.body;
+  const userId = req.user.userId;
+  
+  // 입력 검증
+  const idValidation = validateId(projectId, '프로젝트 ID');
+  if (!idValidation.valid) {
+    return res.status(400).json({ 
+      success: false,
+      error: { 
+        code: 'INVALID_INPUT',
+        message: idValidation.message
+      }
+    });
+  }
+  
+  const githubUrlValidation = validateGitHubUrl(githubRepo);
+  if (!githubUrlValidation.valid) {
+    return res.status(400).json({ 
+      success: false,
+      error: { 
+        code: 'INVALID_INPUT',
+        message: githubUrlValidation.message
+      }
+    });
+  }
+  
+  // 프로젝트 멤버인지 확인 (owner 또는 admin만 수정 가능하도록 할 수도 있음)
+  db.get(
+    `SELECT p.*, pm.role 
+     FROM projects p
+     JOIN project_members pm ON p.id = pm.project_id
+     WHERE p.id = ? AND pm.user_id = ?`,
+    [projectId, userId],
+    function(err, result) {
+      if (err) {
+        console.error('프로젝트 조회 오류:', err);
+        return res.status(500).json({ 
+          success: false,
+          error: { 
+            code: 'SERVER_ERROR',
+            message: '서버 오류가 발생했습니다.' 
+          }
+        });
+      }
+      
+      if (!result) {
+        return res.status(404).json({ 
+          success: false,
+          error: { 
+            code: 'PROJECT_NOT_FOUND',
+            message: '프로젝트를 찾을 수 없거나 권한이 없습니다.' 
+          }
+        });
+      }
+      
+      // GitHub 저장소 정보 업데이트 (URL만 저장)
+      db.run(
+        'UPDATE projects SET github_repo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [githubRepo, projectId],
+        function(err) {
+          if (err) {
+            console.error('GitHub 연결 오류:', err);
+            return res.status(500).json({ 
+              success: false,
+              error: { 
+                code: 'SERVER_ERROR',
+                message: '서버 오류가 발생했습니다.' 
+              }
+            });
+          }
+          
+          res.json({
+            success: true,
+            message: 'GitHub 저장소가 연결되었습니다.'
+          });
+        }
+      );
+    }
+  );
+};
+
+// 프로젝트 코드 검증
+exports.validateCode = function(req, res, next) {
+  const { projectCode } = req.query;
+  
+  // 입력 검증
+  const codeValidation = validateProjectCode(projectCode);
+  if (!codeValidation.valid) {
+    return res.status(400).json({ 
+      success: false,
+      error: { 
+        code: 'INVALID_INPUT',
+        message: codeValidation.message
+      }
+    });
+  }
+  
+  db.get('SELECT id, title FROM projects WHERE project_code = ?', [projectCode], function(err, project) {
+    if (err) {
+      console.error('프로젝트 코드 검증 오류:', err);
+      return res.status(500).json({ 
+        success: false,
+        error: { 
+          code: 'SERVER_ERROR',
+          message: '서버 오류가 발생했습니다.' 
+        }
+      });
+    }
+    
+    if (!project) {
+      return res.json({
+        success: true,
+        data: {
+          isValid: false,
+          exists: false
+        }
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        isValid: true,
+        exists: true,
+        projectId: project.id,
+        title: project.title
+      }
+    });
+  });
+};
+
+// 프로젝트 수정 (owner만)
+exports.update = function(req, res, next) {
+  const { projectId, title, description, status } = req.body;
+  const userId = req.user.userId;
+  
+  // 입력 검증
+  const idValidation = validateId(projectId, '프로젝트 ID');
+  if (!idValidation.valid) {
+    return res.status(400).json({ 
+      success: false,
+      error: { 
+        code: 'INVALID_INPUT',
+        message: idValidation.message
+      }
+    });
+  }
+  
+  // 제목 검증 (제공된 경우)
+  if (title !== undefined) {
+    const titleValidation = validateProjectTitle(title);
+    if (!titleValidation.valid) {
+      return res.status(400).json({ 
+        success: false,
+        error: { 
+          code: 'INVALID_INPUT',
+          message: titleValidation.message
+        }
+      });
+    }
+  }
+  
+  // 설명 검증 (제공된 경우)
+  if (description !== undefined) {
+    const descriptionValidation = validateProjectDescription(description);
+    if (!descriptionValidation.valid) {
+      return res.status(400).json({ 
+        success: false,
+        error: { 
+          code: 'INVALID_INPUT',
+          message: descriptionValidation.message
+        }
+      });
+    }
+  }
+  
+  // owner 권한 확인
+  db.get(
+    `SELECT p.*, pm.role 
+     FROM projects p
+     JOIN project_members pm ON p.id = pm.project_id
+     WHERE p.id = ? AND pm.user_id = ? AND pm.role = 'owner'`,
+    [projectId, userId],
+    function(err, project) {
+      if (err) {
+        console.error('프로젝트 조회 오류:', err);
+        return res.status(500).json({ 
+          success: false,
+          error: { 
+            code: 'SERVER_ERROR',
+            message: '서버 오류가 발생했습니다.' 
+          }
+        });
+      }
+      
+      if (!project) {
+        return res.status(403).json({ 
+          success: false,
+          error: { 
+            code: 'FORBIDDEN',
+            message: '프로젝트를 수정할 권한이 없습니다. (owner만 가능)' 
+          }
+        });
+      }
+      
+      // 수정할 필드만 업데이트
+      const updates = [];
+      const values = [];
+      
+      if (title !== undefined) {
+        updates.push('title = ?');
+        values.push(title);
+      }
+      if (description !== undefined) {
+        updates.push('description = ?');
+        values.push(description);
+      }
+      if (status !== undefined) {
+        if (!['active', 'archived'].includes(status)) {
+          return res.status(400).json({ 
+            success: false,
+            error: { 
+              code: 'INVALID_STATUS',
+              message: '유효하지 않은 상태입니다. (active, archived만 가능)' 
+            }
+          });
+        }
+        updates.push('status = ?');
+        values.push(status);
+      }
+      
+      if (updates.length === 0) {
+        return res.status(400).json({ 
+          success: false,
+          error: { 
+            code: 'MISSING_FIELDS',
+            message: '수정할 정보를 입력해주세요.' 
+          }
+        });
+      }
+      
+      updates.push('updated_at = CURRENT_TIMESTAMP');
+      values.push(projectId);
+      
+      db.run(
+        `UPDATE projects SET ${updates.join(', ')} WHERE id = ?`,
+        values,
+        function(err) {
+          if (err) {
+            console.error('프로젝트 수정 오류:', err);
+            return res.status(500).json({ 
+              success: false,
+              error: { 
+                code: 'SERVER_ERROR',
+                message: '서버 오류가 발생했습니다.' 
+              }
+            });
+          }
+          
+          res.json({
+            success: true,
+            message: '프로젝트가 수정되었습니다.'
+          });
+        }
+      );
+    }
+  );
+};
+
+// 프로젝트 삭제 (owner만)
+exports.delete = function(req, res, next) {
+  const { projectId } = req.body;
+  const userId = req.user.userId;
+  
+  // 입력 검증
+  const idValidation = validateId(projectId, '프로젝트 ID');
+  if (!idValidation.valid) {
+    return res.status(400).json({ 
+      success: false,
+      error: { 
+        code: 'INVALID_INPUT',
+        message: idValidation.message
+      }
+    });
+  }
+  
+  // owner 권한 확인
+  db.get(
+    `SELECT p.*, pm.role 
+     FROM projects p
+     JOIN project_members pm ON p.id = pm.project_id
+     WHERE p.id = ? AND pm.user_id = ? AND pm.role = 'owner'`,
+    [projectId, userId],
+    function(err, project) {
+      if (err) {
+        console.error('프로젝트 조회 오류:', err);
+        return res.status(500).json({ 
+          success: false,
+          error: { 
+            code: 'SERVER_ERROR',
+            message: '서버 오류가 발생했습니다.' 
+          }
+        });
+      }
+      
+      if (!project) {
+        return res.status(403).json({ 
+          success: false,
+          error: { 
+            code: 'FORBIDDEN',
+            message: '프로젝트를 삭제할 권한이 없습니다. (owner만 가능)' 
+          }
+        });
+      }
+      
+      // 프로젝트 삭제 (CASCADE로 관련 데이터 자동 삭제)
+      db.run('DELETE FROM projects WHERE id = ?', [projectId], function(err) {
+        if (err) {
+          console.error('프로젝트 삭제 오류:', err);
+          return res.status(500).json({ 
+            success: false,
+            error: { 
+              code: 'SERVER_ERROR',
+              message: '서버 오류가 발생했습니다.' 
+            }
+          });
+        }
+        
+        res.json({
+          success: true,
+          message: '프로젝트가 삭제되었습니다.'
+        });
+      });
+    }
+  );
+};
+
+// 멤버 삭제 (owner만, owner는 삭제 불가)
+exports.deleteMember = function(req, res, next) {
+  const { projectId, memberId } = req.body;
+  const userId = req.user.userId;
+  
+  if (!projectId || !memberId) {
+    return res.status(400).json({ 
+      success: false,
+      error: { 
+        code: 'MISSING_FIELDS',
+        message: '프로젝트 ID와 멤버 ID가 필요합니다.' 
+      }
+    });
+  }
+  
+  // owner 권한 확인
+  db.get(
+    `SELECT pm.role 
+     FROM project_members pm
+     WHERE pm.project_id = ? AND pm.user_id = ? AND pm.role = 'owner'`,
+    [projectId, userId],
+    function(err, ownerCheck) {
+      if (err) {
+        console.error('권한 확인 오류:', err);
+        return res.status(500).json({ 
+          success: false,
+          error: { 
+            code: 'SERVER_ERROR',
+            message: '서버 오류가 발생했습니다.' 
+          }
+        });
+      }
+      
+      if (!ownerCheck) {
+        return res.status(403).json({ 
+          success: false,
+          error: { 
+            code: 'FORBIDDEN',
+            message: '멤버를 삭제할 권한이 없습니다. (owner만 가능)' 
+          }
+        });
+      }
+      
+      // 삭제할 멤버의 역할 확인 (owner는 삭제 불가)
+      db.get(
+        `SELECT role FROM project_members 
+         WHERE project_id = ? AND user_id = ?`,
+        [projectId, memberId],
+        function(err, member) {
+          if (err) {
+            console.error('멤버 조회 오류:', err);
+            return res.status(500).json({ 
+              success: false,
+              error: { 
+                code: 'SERVER_ERROR',
+                message: '서버 오류가 발생했습니다.' 
+              }
+            });
+          }
+          
+          if (!member) {
+            return res.status(404).json({ 
+              success: false,
+              error: { 
+                code: 'MEMBER_NOT_FOUND',
+                message: '멤버를 찾을 수 없습니다.' 
+              }
+            });
+          }
+          
+          if (member.role === 'owner') {
+            return res.status(400).json({ 
+              success: false,
+              error: { 
+                code: 'CANNOT_DELETE_OWNER',
+                message: '프로젝트 소유자는 삭제할 수 없습니다.' 
+              }
+            });
+          }
+          
+          // 멤버 삭제
+          db.run(
+            'DELETE FROM project_members WHERE project_id = ? AND user_id = ?',
+            [projectId, memberId],
+            function(err) {
+              if (err) {
+                console.error('멤버 삭제 오류:', err);
+                return res.status(500).json({ 
+                  success: false,
+                  error: { 
+                    code: 'SERVER_ERROR',
+                    message: '서버 오류가 발생했습니다.' 
+                  }
+                });
+              }
+              
+              res.json({
+                success: true,
+                message: '멤버가 삭제되었습니다.'
+              });
+            }
+          );
+        }
+      );
+    }
+  );
+};
+
+// 프로젝트 탈퇴 (일반 멤버만)
+exports.leave = function(req, res, next) {
+  const { projectId } = req.body;
+  const userId = req.user.userId;
+  
+  if (!projectId) {
+    return res.status(400).json({ 
+      success: false,
+      error: { 
+        code: 'MISSING_FIELDS',
+        message: '프로젝트 ID가 필요합니다.' 
+      }
+    });
+  }
+  
+  // 멤버십 및 역할 확인
+  db.get(
+    `SELECT role FROM project_members 
+     WHERE project_id = ? AND user_id = ?`,
+    [projectId, userId],
+    function(err, membership) {
+      if (err) {
+        console.error('멤버십 확인 오류:', err);
+        return res.status(500).json({ 
+          success: false,
+          error: { 
+            code: 'SERVER_ERROR',
+            message: '서버 오류가 발생했습니다.' 
+          }
+        });
+      }
+      
+      if (!membership) {
+        return res.status(404).json({ 
+          success: false,
+          error: { 
+            code: 'NOT_MEMBER',
+            message: '프로젝트 멤버가 아닙니다.' 
+          }
+        });
+      }
+      
+      if (membership.role === 'owner') {
+        return res.status(400).json({ 
+          success: false,
+          error: { 
+            code: 'OWNER_CANNOT_LEAVE',
+            message: '프로젝트 소유자는 탈퇴할 수 없습니다. 프로젝트를 삭제해주세요.' 
+          }
+        });
+      }
+      
+      // 멤버 탈퇴
+      db.run(
+        'DELETE FROM project_members WHERE project_id = ? AND user_id = ?',
+        [projectId, userId],
+        function(err) {
+          if (err) {
+            console.error('프로젝트 탈퇴 오류:', err);
+            return res.status(500).json({ 
+              success: false,
+              error: { 
+                code: 'SERVER_ERROR',
+                message: '서버 오류가 발생했습니다.' 
+              }
+            });
+          }
+          
+          res.json({
+            success: true,
+            message: '프로젝트에서 탈퇴했습니다.'
+          });
+        }
+      );
+    }
+  );
+};
+
