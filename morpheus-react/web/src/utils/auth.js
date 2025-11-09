@@ -21,12 +21,8 @@ export function isAuth() {
 
 // 로그인 성공 시 유저 정보 및 토큰 저장
 export function setAuth(user, token) {
-  if (user) {
-    localStorage.setItem("user", JSON.stringify(user));
-  }
-  if (token) {
-    localStorage.setItem("token", token);
-  }
+  if (user) localStorage.setItem("user", JSON.stringify(user));
+  if (token) localStorage.setItem("token", token);
 }
 
 // 로그아웃
@@ -49,7 +45,6 @@ export async function registerUser(email, nickname, password) {
 export async function loginUser(email, password) {
   try {
     const res = await axios.post(`${API_URL}/login`, { email, password });
-    // 로그인 성공 시 토큰과 유저 정보 저장
     setAuth(res.data.data.user, res.data.data.token);
     return res.data;
   } catch (err) {
@@ -57,11 +52,9 @@ export async function loginUser(email, password) {
   }
 }
 
-// ========================
 // 회원 정보 수정
-// ========================
 export async function updateUser({ email, nickname, password, newPassword }) {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   if (!token) throw { error: { message: "로그인이 필요합니다." } };
 
   try {
@@ -70,6 +63,13 @@ export async function updateUser({ email, nickname, password, newPassword }) {
       { email, nickname, password, newPassword },
       { headers: { Authorization: `Bearer ${token}` } }
     );
+
+    // 수정 성공 시 로컬스토리지 업데이트
+    if (res.data?.success && res.data.data?.user) {
+      const currentUser = getUser() || {};
+      setAuth({ ...currentUser, ...res.data.data.user }, token);
+    }
+
     return res.data;
   } catch (err) {
     throw err.response?.data || err;

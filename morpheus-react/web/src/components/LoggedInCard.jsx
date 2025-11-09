@@ -11,9 +11,13 @@ export default function LoggedInCard() {
   const { user, setUser } = useAuthContext();
   const [openEdit, setOpenEdit] = useState(false);
 
-  const imgSrc = `/profile/${user?.profileImage || "basic.png"}`;
+  // 캐시 무효화를 위한 timestamp 추가
+  const imgSrc = user?.profileImage
+    ? `/profile/${user.profileImage}?t=${Date.now()}`
+    : `/profile/basic.png`;
 
   const handleUpdate = (updatedUser) => {
+    // 세션 메모리 및 UI 동기화
     setUser(updatedUser);
   };
 
@@ -59,7 +63,7 @@ export default function LoggedInCard() {
         open={openEdit}
         onClose={() => setOpenEdit(false)}
         user={user}
-        onUpdate={handleUpdate}
+        onSuccess={handleUpdate}  // ✅ 이름 맞춤
       />
     </>
   );
