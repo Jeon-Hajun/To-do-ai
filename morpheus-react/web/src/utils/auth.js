@@ -75,3 +75,11 @@ export async function updateUser({ email, nickname, password, newPassword }) {
     throw err.response?.data || err;
   }
 }
+
+// ============================================
+// 프로젝트 오너인지 확인
+export function isOwner(project) {
+  const user = getUser();
+  if (!user || !project || !project.ownerId) return false;
+  return String(user.id) === String(project.ownerId);
+}

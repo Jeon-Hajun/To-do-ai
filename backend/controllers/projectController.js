@@ -1,6 +1,11 @@
 var bcrypt = require('bcryptjs');
 var { db } = require('../database/db');
-var { validateProjectTitle, validateProjectDescription, validateGitHubUrl, validateProjectPassword, validateProjectCode, validateId } = require('../utils/validators');
+var { 
+  validateProjectTitle, 
+  validateProjectDescription, 
+  validateGitHubUrl, 
+  validateProjectPassword 
+} = require('../utils/validators');
 
 // 프로젝트 코드 생성 (6자리 영숫자)
 function generateProjectCode() {
@@ -13,143 +18,53 @@ function generateProjectCode() {
 }
 
 // 프로젝트 생성
-exports.create = function(req, res, next) {
+exports.create = function(req, res) {
   const { title, description, isShared, password, githubRepo } = req.body;
   const userId = req.user.userId;
-  
+
   // 입력 검증
-  const titleValidation = validateProjectTitle(title);
-  if (!titleValidation.valid) {
-    return res.status(400).json({ 
-      success: false,
-      error: { 
-        code: 'INVALID_INPUT',
-        message: titleValidation.message
-      }
-    });
+  if (!validateProjectTitle(title).valid) {
+    return res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: '제목이 올바르지 않습니다.' } });
   }
-  
-  const githubUrlValidation = validateGitHubUrl(githubRepo);
-  if (!githubUrlValidation.valid) {
-    return res.status(400).json({ 
-      success: false,
-      error: { 
-        code: 'INVALID_INPUT',
-        message: githubUrlValidation.message
-      }
-    });
+  if (githubRepo && !validateGitHubUrl(githubRepo).valid) {
+    return res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: 'GitHub URL이 올바르지 않습니다.' } });
   }
-  
-  // 설명 검증 (선택 필드)
-  if (description !== undefined) {
-    const descriptionValidation = validateProjectDescription(description);
-    if (!descriptionValidation.valid) {
-      return res.status(400).json({ 
-        success: false,
-        error: { 
-          code: 'INVALID_INPUT',
-          message: descriptionValidation.message
-        }
-      });
-    }
+  if (description && !validateProjectDescription(description).valid) {
+    return res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: '설명이 올바르지 않습니다.' } });
   }
-  
-  // 공유 프로젝트 비밀번호 검증 (선택 필드)
-  if (isShared && password) {
-    const passwordValidation = validateProjectPassword(password);
-    if (!passwordValidation.valid) {
-      return res.status(400).json({ 
-        success: false,
-        error: { 
-          code: 'INVALID_INPUT',
-          message: passwordValidation.message
-        }
-      });
-    }
+  if (isShared && password && !validateProjectPassword(password).valid) {
+    return res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: '비밀번호가 올바르지 않습니다.' } });
   }
-  
-  // 공유 프로젝트인 경우 비밀번호 해시화
+
   let passwordHash = null;
-  let projectCode = null;
-  
-  if (isShared) {
-    projectCode = generateProjectCode();
-    // 프로젝트 코드 중복 확인
-    db.get('SELECT id FROM projects WHERE project_code = ?', [projectCode], function(err, existing) {
-        if (err) {
-        console.error('프로젝트 코드 확인 오류:', err);
-        return res.status(500).json({ 
-          success: false,
-          error: { 
-            code: 'SERVER_ERROR',
-            message: '서버 오류가 발생했습니다.' 
-          }
-        });
-        }
-        
-      if (existing) {
-        // 코드가 중복되면 다시 생성 (거의 발생하지 않지만 안전장치)
-        projectCode = generateProjectCode();
-      }
-      
-      if (password) {
-        bcrypt.hash(password, 10, function(err, hash) {
-          if (err) {
-            console.error('비밀번호 해시화 오류:', err);
-            return res.status(500).json({ 
-              success: false,
-              error: { 
-                code: 'SERVER_ERROR',
-                message: '서버 오류가 발생했습니다.' 
-              }
-            });
-        }
-          passwordHash = hash;
-          createProject();
-        });
-      } else {
-        createProject();
-      }
-    });
-  } else {
-    createProject();
-  }
-  
-  function createProject() {
+  let projectCode = isShared ? generateProjectCode() : null;
+
+  const insertProject = () => {
     db.run(
       'INSERT INTO projects (owner_id, title, description, project_code, password_hash, github_repo) VALUES (?, ?, ?, ?, ?, ?)',
-      [userId, title, description || null, projectCode, passwordHash, githubRepo],
+      [userId, title, description || null, projectCode, passwordHash, githubRepo || null],
       function(err) {
         if (err) {
           console.error('프로젝트 생성 오류:', err);
-          return res.status(500).json({ 
-            success: false,
-            error: { 
-              code: 'SERVER_ERROR',
-              message: '서버 오류가 발생했습니다.' 
-            }
-          });
+          return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: '서버 오류가 발생했습니다.' } });
         }
-        
+
         const projectId = this.lastID;
-        
-        // 프로젝트 멤버에 owner 추가
+
+        // owner 멤버 추가
         db.run(
           'INSERT INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',
           [projectId, userId, 'owner'],
           function(err) {
-            if (err) {
-              console.error('프로젝트 멤버 추가 오류:', err);
-              // 프로젝트는 생성되었지만 멤버 추가 실패 - 롤백 고려 필요
-        }
-        
-        res.status(201).json({
+            if (err) console.error('프로젝트 멤버 추가 오류:', err);
+
+            res.status(201).json({
               success: true,
               data: {
                 id: projectId,
-                title: title,
-                projectCode: projectCode,
-                githubRepo: githubRepo
+                title,
+                projectCode,
+                githubRepo
               },
               message: '프로젝트가 생성되었습니다.'
             });
@@ -157,8 +72,24 @@ exports.create = function(req, res, next) {
         );
       }
     );
+  };
+
+  if (isShared && password) {
+    // 비밀번호 해시화 후 프로젝트 저장
+    bcrypt.hash(password, 10, (err, hash) => {
+      if (err) {
+        console.error('비밀번호 해시화 오류:', err);
+        return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: '서버 오류가 발생했습니다.' } });
+      }
+      passwordHash = hash;
+      insertProject();
+    });
+  } else {
+    insertProject();
   }
 };
+
+
 
 // 프로젝트 참여 (공유 프로젝트용)
 exports.join = function(req, res, next) {
