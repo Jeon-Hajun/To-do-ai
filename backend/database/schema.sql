@@ -31,13 +31,15 @@ CREATE TABLE IF NOT EXISTS projects (
   password_hash VARCHAR(255),
   owner_id INT NOT NULL,
   github_repo VARCHAR(500),
+  github_last_synced_at DATETIME NULL,
   status VARCHAR(20) DEFAULT 'active',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT,
   INDEX idx_projects_owner (owner_id),
   INDEX idx_projects_code (project_code),
-  INDEX idx_projects_status (status)
+  INDEX idx_projects_status (status),
+  INDEX idx_projects_github_synced (github_last_synced_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ProjectMembers 테이블
@@ -63,7 +65,6 @@ CREATE TABLE IF NOT EXISTS tasks (
   title VARCHAR(255) NOT NULL,
   description TEXT,
   status VARCHAR(20) DEFAULT 'todo',
-  github_issue_number INT,
   due_date DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -71,8 +72,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   FOREIGN KEY (assigned_user_id) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_tasks_project (project_id),
   INDEX idx_tasks_assigned (assigned_user_id),
-  INDEX idx_tasks_status (status),
-  INDEX idx_tasks_github_issue (github_issue_number)
+  INDEX idx_tasks_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ProjectCommits 테이블
@@ -95,6 +95,44 @@ CREATE TABLE IF NOT EXISTS project_commits (
   INDEX idx_commits_task (task_id),
   INDEX idx_commits_date (commit_date),
   INDEX idx_commits_sha (commit_sha)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ProjectIssues 테이블
+CREATE TABLE IF NOT EXISTS project_issues (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  project_id INT NOT NULL,
+  issue_number INT NOT NULL,
+  title VARCHAR(255),
+  body TEXT,
+  state VARCHAR(20) DEFAULT 'open',
+  assignees TEXT,
+  labels TEXT,
+  created_at DATETIME,
+  updated_at DATETIME,
+  closed_at DATETIME,
+  synced_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_project_issue (project_id, issue_number),
+  INDEX idx_issues_project (project_id),
+  INDEX idx_issues_number (issue_number),
+  INDEX idx_issues_state (state),
+  INDEX idx_issues_synced (synced_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ProjectBranches 테이블
+CREATE TABLE IF NOT EXISTS project_branches (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  project_id INT NOT NULL,
+  branch_name VARCHAR(255) NOT NULL,
+  commit_sha VARCHAR(40),
+  is_protected BOOLEAN DEFAULT FALSE,
+  is_default BOOLEAN DEFAULT FALSE,
+  synced_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_project_branch (project_id, branch_name),
+  INDEX idx_branches_project (project_id),
+  INDEX idx_branches_name (branch_name),
+  INDEX idx_branches_synced (synced_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- AI_Logs 테이블

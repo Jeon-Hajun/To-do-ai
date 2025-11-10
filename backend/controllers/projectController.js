@@ -131,13 +131,93 @@ exports.create = async function(req, res) {
               // 모든 커밋 저장 완료 대기
               await Promise.allSettled(commitPromises);
 
-              // 이슈 정보 가져오기 (선택적, 실패해도 계속 진행)
+              // 이슈 정보 가져오기 및 DB에 저장
               try {
-                await githubService.getIssues(githubRepo, { state: 'all', perPage: 100 });
+                const issues = await githubService.getIssues(githubRepo, { state: 'all', perPage: 100 });
+                
+                // 이슈 정보를 DB에 저장
+                for (const issue of issues) {
+                  db.run(
+                    `INSERT INTO project_issues 
+                     (project_id, issue_number, title, body, state, assignees, labels, created_at, updated_at, closed_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE
+                     title = VALUES(title),
+                     body = VALUES(body),
+                     state = VALUES(state),
+                     assignees = VALUES(assignees),
+                     labels = VALUES(labels),
+                     updated_at = VALUES(updated_at),
+                     closed_at = VALUES(closed_at),
+                     synced_at = CURRENT_TIMESTAMP`,
+                    [
+                      projectId,
+                      issue.number,
+                      issue.title,
+                      issue.body,
+                      issue.state,
+                      JSON.stringify(issue.assignees || []),
+                      JSON.stringify(issue.labels || []),
+                      issue.createdAt,
+                      issue.updatedAt,
+                      issue.closedAt || null
+                    ],
+                    function(err) {
+                      if (err) {
+                        console.error('이슈 저장 오류:', err);
+                      }
+                    }
+                  );
+                }
               } catch (error) {
                 console.error('이슈 조회 실패:', error.message);
                 // 이슈 조회 실패는 무시하고 계속 진행
               }
+
+              // 브랜치 정보 가져오기 및 DB에 저장
+              try {
+                const branches = await githubService.getBranches(githubRepo);
+                
+                // 브랜치 정보를 DB에 저장
+                for (const branch of branches) {
+                  db.run(
+                    `INSERT INTO project_branches 
+                     (project_id, branch_name, commit_sha, is_protected, is_default)
+                     VALUES (?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE
+                     commit_sha = VALUES(commit_sha),
+                     is_protected = VALUES(is_protected),
+                     is_default = VALUES(is_default),
+                     synced_at = CURRENT_TIMESTAMP`,
+                    [
+                      projectId,
+                      branch.name,
+                      branch.sha,
+                      branch.protected ? 1 : 0,
+                      branch.isDefault ? 1 : 0
+                    ],
+                    function(err) {
+                      if (err) {
+                        console.error('브랜치 저장 오류:', err);
+                      }
+                    }
+                  );
+                }
+              } catch (error) {
+                console.error('브랜치 조회 실패:', error.message);
+                // 브랜치 조회 실패는 무시하고 계속 진행
+              }
+
+              // projects 테이블의 github_last_synced_at 업데이트
+              db.run(
+                'UPDATE projects SET github_last_synced_at = CURRENT_TIMESTAMP WHERE id = ?',
+                [projectId],
+                function(err) {
+                  if (err) {
+                    console.error('동기화 시간 업데이트 오류:', err);
+                  }
+                }
+              );
             } catch (error) {
               console.error('GitHub 정보 불러오기 실패:', error.message);
               // GitHub 정보 불러오기 실패 시 프로젝트 롤백

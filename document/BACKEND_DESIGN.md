@@ -103,6 +103,7 @@ CREATE TABLE projects (
   password_hash VARCHAR(255),                 -- 프로젝트 비밀번호 (암호화, 공유 프로젝트용, 선택)
   owner_id INT NOT NULL,                      -- 프로젝트 소유자 ID (FK → users.id)
   github_repo VARCHAR(500),                   -- GitHub 저장소 URL (공개 저장소만 지원)
+  github_last_synced_at DATETIME NULL,        -- GitHub 마지막 동기화 일시
   status VARCHAR(20) DEFAULT 'active',         -- 프로젝트 상태
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP, -- 프로젝트 생성일시
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- 프로젝트 정보 수정일시
@@ -112,6 +113,7 @@ CREATE TABLE projects (
 CREATE INDEX idx_projects_owner ON projects(owner_id);
 CREATE INDEX idx_projects_code ON projects(project_code);
 CREATE INDEX idx_projects_status ON projects(status);
+CREATE INDEX idx_projects_github_synced ON projects(github_last_synced_at);
 ```
 
 #### ProjectMembers 테이블
@@ -141,7 +143,6 @@ CREATE TABLE tasks (
   title VARCHAR(255) NOT NULL,                -- 작업 제목
   description TEXT,                           -- 작업 설명
   status VARCHAR(20) DEFAULT 'todo',          -- 작업 상태
-  github_issue_number INT,                    -- 연결된 GitHub 이슈 번호 (선택)
   due_date DATETIME,                         -- 마감일
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP, -- 작업 생성일시
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- 작업 수정일시
@@ -152,7 +153,6 @@ CREATE TABLE tasks (
 CREATE INDEX idx_tasks_project ON tasks(project_id);
 CREATE INDEX idx_tasks_assigned ON tasks(assigned_user_id);
 CREATE INDEX idx_tasks_status ON tasks(status);
-CREATE INDEX idx_tasks_github_issue ON tasks(github_issue_number);
 ```
 
 #### ProjectCommits 테이블
@@ -178,6 +178,50 @@ CREATE INDEX idx_commits_project ON project_commits(project_id);
 CREATE INDEX idx_commits_task ON project_commits(task_id);
 CREATE INDEX idx_commits_date ON project_commits(commit_date);
 CREATE INDEX idx_commits_sha ON project_commits(commit_sha);
+```
+
+#### ProjectIssues 테이블
+```sql
+CREATE TABLE project_issues (
+  id INT AUTO_INCREMENT PRIMARY KEY,          -- 이슈 기록 고유 ID
+  project_id INT NOT NULL,                    -- 소속 프로젝트 ID (FK → projects.id)
+  issue_number INT NOT NULL,                  -- GitHub 이슈 번호
+  title VARCHAR(255),                         -- 이슈 제목
+  body TEXT,                                  -- 이슈 본문
+  state VARCHAR(20) DEFAULT 'open',           -- 이슈 상태 ('open', 'closed')
+  assignees TEXT,                             -- 담당자 목록 (JSON 배열)
+  labels TEXT,                                -- 라벨 목록 (JSON 배열)
+  created_at DATETIME,                        -- 이슈 생성일시 (GitHub)
+  updated_at DATETIME,                        -- 이슈 수정일시 (GitHub)
+  closed_at DATETIME,                         -- 이슈 닫힌 일시 (GitHub)
+  synced_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- 동기화 일시
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_project_issue (project_id, issue_number)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_issues_project ON project_issues(project_id);
+CREATE INDEX idx_issues_number ON project_issues(issue_number);
+CREATE INDEX idx_issues_state ON project_issues(state);
+CREATE INDEX idx_issues_synced ON project_issues(synced_at);
+```
+
+#### ProjectBranches 테이블
+```sql
+CREATE TABLE project_branches (
+  id INT AUTO_INCREMENT PRIMARY KEY,          -- 브랜치 기록 고유 ID
+  project_id INT NOT NULL,                    -- 소속 프로젝트 ID (FK → projects.id)
+  branch_name VARCHAR(255) NOT NULL,          -- 브랜치 이름
+  commit_sha VARCHAR(40),                    -- 최신 커밋 SHA
+  is_protected BOOLEAN DEFAULT FALSE,         -- 보호된 브랜치 여부
+  is_default BOOLEAN DEFAULT FALSE,           -- 기본 브랜치 여부
+  synced_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- 동기화 일시
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_project_branch (project_id, branch_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_branches_project ON project_branches(project_id);
+CREATE INDEX idx_branches_name ON project_branches(branch_name);
+CREATE INDEX idx_branches_synced ON project_branches(synced_at);
 ```
 
 #### AI_Logs 테이블
@@ -287,7 +331,6 @@ pool.query('SET FOREIGN_KEY_CHECKS = 1');
 
 `200 OK`
 
--------------------------------------------------------------------------------------------------------
 ### 4.3 Project API
 
 #### POST `/api/project/create` ✅
@@ -366,7 +409,7 @@ GitHub 저장소 연결 (인증 필요)
 
 `200 OK`
 
-**수정 가능 필드:** `title`, `description`, `dueDate`, `githubIssueNumber` (상태는 제외)
+**수정 가능 필드:** `title`, `description`, `dueDate` (상태는 제외)
 
 #### PATCH `/api/task/status` ✅
 작업 상태 수정 (인증 필요, 프로젝트 멤버)
@@ -390,22 +433,97 @@ GitHub 저장소 연결 (인증 필요)
 #### POST `/api/github/sync/:projectId` ✅
 프로젝트 정보 동기화 (인증 필요)
 
+**Path Parameters:**
+- `projectId`: 프로젝트 ID
+
+**Request Body (선택):**
+- `githubToken`: Private 저장소용 Personal Access Token
+
 `200 OK`
+
+**동작:**
+- 커밋 정보 가져오기 (최근 100개, 상세 정보는 최근 30개만) → DB에 저장
+- 이슈 정보 가져오기 (최근 100개) → DB에 저장
+- 브랜치 정보 가져오기 → DB에 저장
+- DB에 저장 (중복 체크, UPSERT)
+- `projects.github_last_synced_at` 업데이트
 
 #### GET `/api/github/commits/:projectId` ✅
-커밋 목록 조회 (인증 필요)
+커밋 목록 조회 (인증 필요, DB에 저장된 데이터)
+
+**Path Parameters:**
+- `projectId`: 프로젝트 ID
+
+**Query Parameters:**
+- `limit`: 조회할 커밋 수 (기본값: 50, 최대: 100)
+- `offset`: 페이지 오프셋 (기본값: 0)
+- `author`: 작성자 필터
+- `since`: 시작 날짜 (ISO 8601 형식)
+- `until`: 종료 날짜 (ISO 8601 형식)
 
 `200 OK`
+
+#### GET `/api/github/commits/:projectId/:commitSha` ✅
+커밋 상세 조회 (인증 필요, DB에 저장된 데이터)
+
+**Path Parameters:**
+- `projectId`: 프로젝트 ID
+- `commitSha`: 커밋 SHA
+
+`200 OK`
+
+**참고:** DB에 저장된 데이터 조회
 
 #### GET `/api/github/issues/:projectId` ✅
-이슈 목록 조회 (인증 필요)
+이슈 목록 조회 (인증 필요, DB에 저장된 데이터)
+
+**Path Parameters:**
+- `projectId`: 프로젝트 ID
+
+**Query Parameters:**
+- `state`: 이슈 상태 (`all`, `open`, `closed`, 기본값: `all`)
+- `limit`: 조회할 이슈 수 (기본값: 50, 최대: 100)
+- `offset`: 페이지 오프셋 (기본값: 0)
 
 `200 OK`
+
+**참고:** 동기화 시 DB에 저장됨
+
+#### GET `/api/github/issues/:projectId/:issueNumber` ✅
+이슈 상세 조회 (인증 필요, DB에 저장된 데이터)
+
+**Path Parameters:**
+- `projectId`: 프로젝트 ID
+- `issueNumber`: 이슈 번호
+
+`200 OK`
+
+**참고:** DB에 저장된 데이터 조회
 
 #### GET `/api/github/branches/:projectId` ✅
-브랜치 목록 조회 (인증 필요)
+브랜치 목록 조회 (인증 필요, DB에 저장된 데이터)
+
+**Path Parameters:**
+- `projectId`: 프로젝트 ID
 
 `200 OK`
+
+**참고:** 동기화 시 DB에 저장됨
+
+#### GET `/api/github/repo-status/:projectId` ✅
+GitHub 저장소 연결 상태 확인 (인증 필요)
+
+**Path Parameters:**
+- `projectId`: 프로젝트 ID
+
+`200 OK`
+
+**응답 데이터:**
+- `connected`: 연결 여부
+- `repoUrl`: 저장소 URL
+- `isPrivate`: Private 저장소 여부
+- `lastSyncedAt`: 마지막 동기화 시간
+- `stats`: 통계 정보 (커밋 수, 이슈 수, 브랜치 수)
 
 ### 4.6 Progress API
 
@@ -645,10 +763,12 @@ GITHUB_TOKEN=
 - ✅ 작업 할당 (owner만)
 - ✅ 작업 삭제 (owner만)
 
-**GitHub API (4개)**
-- ✅ 프로젝트 정보 동기화
+**GitHub API (6개)**
+- ✅ 프로젝트 정보 동기화 (커밋, 이슈, 브랜치)
 - ✅ 커밋 목록 조회
+- ✅ 커밋 상세 조회
 - ✅ 이슈 목록 조회
+- ✅ 이슈 상세 조회
 - ✅ 브랜치 목록 조회
 
 **Progress API (1개)**
@@ -657,7 +777,7 @@ GITHUB_TOKEN=
 **AI API (1개)**
 - ✅ Task 제안
 
-**총 30개 API 구현 완료** ✅
+**총 32개 API 구현 완료** ✅
 
 ## 9. 테스트 전략
 

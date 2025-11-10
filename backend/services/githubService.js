@@ -118,6 +118,7 @@ class GitHubService {
           body: issue.body,
           state: issue.state,
           assignees: issue.assignees.map(a => a.login),
+          labels: issue.labels.map(l => l.name),
           createdAt: issue.created_at,
           updatedAt: issue.updated_at,
           closedAt: issue.closed_at
@@ -135,6 +136,14 @@ class GitHubService {
     try {
       const { owner, repo } = this.parseRepoUrl(repoUrl);
 
+      // 저장소 정보 가져오기 (기본 브랜치 확인용)
+      const repoInfo = await this.octokit.repos.get({
+        owner,
+        repo
+      });
+      const defaultBranch = repoInfo.data.default_branch;
+
+      // 브랜치 목록 가져오기
       const response = await this.octokit.repos.listBranches({
         owner,
         repo,
@@ -144,7 +153,8 @@ class GitHubService {
       return response.data.map(branch => ({
         name: branch.name,
         sha: branch.commit.sha,
-        protected: branch.protected
+        protected: branch.protected,
+        isDefault: branch.name === defaultBranch
       }));
     } catch (error) {
       console.error('브랜치 조회 오류:', error);

@@ -3,7 +3,7 @@ var { validateTaskTitle, validateTaskDescription, validateId } = require('../uti
 
 // 작업 생성
 exports.create = function(req, res, next) {
-  const { projectId, title, description, assignedUserId, dueDate, githubIssueNumber } = req.body;
+  const { projectId, title, description, assignedUserId, dueDate } = req.body;
   const userId = req.user.userId;
   
   // 입력 검증
@@ -105,8 +105,8 @@ exports.create = function(req, res, next) {
       
       function createTask() {
         db.run(
-          'INSERT INTO tasks (project_id, assigned_user_id, title, description, github_issue_number, due_date) VALUES (?, ?, ?, ?, ?, ?)',
-          [projectId, assignedUserId || null, title, description || null, githubIssueNumber || null, dueDate || null],
+          'INSERT INTO tasks (project_id, assigned_user_id, title, description, due_date) VALUES (?, ?, ?, ?, ?)',
+          [projectId, assignedUserId || null, title, description || null, dueDate || null],
           function(err) {
             if (err) {
               console.error('작업 생성 오류:', err);
@@ -195,7 +195,6 @@ exports.getInfo = function(req, res, next) {
               assignedUserId: task.assigned_user_id,
               assignedUserName: task.assigned_user_name,
               dueDate: task.due_date,
-              githubIssueNumber: task.github_issue_number,
               createdAt: task.created_at,
               updatedAt: task.updated_at
             }
@@ -280,9 +279,9 @@ exports.getInfo = function(req, res, next) {
                   title: t.title,
                   description: t.description,
                   status: t.status,
+                  assignedUserId: t.assigned_user_id,
                   assignedUserName: t.assigned_user_name,
-                  dueDate: t.due_date,
-                  githubIssueNumber: t.github_issue_number
+                  dueDate: t.due_date
                 }))
               }
             });
@@ -293,9 +292,9 @@ exports.getInfo = function(req, res, next) {
   }
 };
 
-// 작업 수정 (owner만, 제목, 설명, 마감일, GitHub 이슈만 수정 가능)
+// 작업 수정 (owner만, 제목, 설명, 마감일만 수정 가능)
 exports.update = function(req, res, next) {
-  const { id, title, description, dueDate, githubIssueNumber } = req.body;
+  const { id, title, description, dueDate } = req.body;
   const userId = req.user.userId;
   
   // 입력 검증
@@ -374,7 +373,6 @@ exports.update = function(req, res, next) {
         if (title !== undefined) { updates.push('title = ?'); values.push(title); }
         if (description !== undefined) { updates.push('description = ?'); values.push(description); }
         if (dueDate !== undefined) { updates.push('due_date = ?'); values.push(dueDate); }
-        if (githubIssueNumber !== undefined) { updates.push('github_issue_number = ?'); values.push(githubIssueNumber); }
         
         if (updates.length === 0) {
           return res.status(400).json({ 
