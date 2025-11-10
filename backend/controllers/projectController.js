@@ -1,10 +1,13 @@
 var bcrypt = require('bcryptjs');
 var { db } = require('../database/db');
+var GitHubService = require('../services/githubService');
 var { 
   validateProjectTitle, 
   validateProjectDescription, 
   validateGitHubUrl, 
-  validateProjectPassword 
+  validateProjectPassword,
+  validateProjectCode,
+  validateId
 } = require('../utils/validators');
 
 // 프로젝트 코드 생성 (6자리 영숫자)
@@ -18,7 +21,7 @@ function generateProjectCode() {
 }
 
 // 프로젝트 생성
-exports.create = function(req, res) {
+exports.create = async function(req, res) {
   const { title, description, isShared, password, githubRepo } = req.body;
   const userId = req.user.userId;
 
@@ -26,9 +29,15 @@ exports.create = function(req, res) {
   if (!validateProjectTitle(title).valid) {
     return res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: '제목이 올바르지 않습니다.' } });
   }
-  if (githubRepo && !validateGitHubUrl(githubRepo).valid) {
+  
+  // GitHub URL 필수 검증
+  if (!githubRepo) {
+    return res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS', message: 'GitHub 저장소 URL이 필요합니다.' } });
+  }
+  if (!validateGitHubUrl(githubRepo).valid) {
     return res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: 'GitHub URL이 올바르지 않습니다.' } });
   }
+  
   if (description && !validateProjectDescription(description).valid) {
     return res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: '설명이 올바르지 않습니다.' } });
   }
@@ -39,11 +48,11 @@ exports.create = function(req, res) {
   let passwordHash = null;
   let projectCode = isShared ? generateProjectCode() : null;
 
-  const insertProject = () => {
+  const insertProject = async () => {
     db.run(
       'INSERT INTO projects (owner_id, title, description, project_code, password_hash, github_repo) VALUES (?, ?, ?, ?, ?, ?)',
-      [userId, title, description || null, projectCode, passwordHash, githubRepo || null],
-      function(err) {
+      [userId, title, description || null, projectCode, passwordHash, githubRepo],
+      async function(err) {
         if (err) {
           console.error('프로젝트 생성 오류:', err);
           return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: '서버 오류가 발생했습니다.' } });
@@ -55,8 +64,76 @@ exports.create = function(req, res) {
         db.run(
           'INSERT INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',
           [projectId, userId, 'owner'],
-          function(err) {
-            if (err) console.error('프로젝트 멤버 추가 오류:', err);
+          async function(err) {
+            if (err) {
+              console.error('프로젝트 멤버 추가 오류:', err);
+              // 프로젝트는 생성되었지만 멤버 추가 실패 - 프로젝트 삭제 시도
+              db.run('DELETE FROM projects WHERE id = ?', [projectId], function(deleteErr) {
+                if (deleteErr) {
+                  console.error('프로젝트 롤백 오류:', deleteErr);
+                }
+              });
+              return res.status(500).json({ 
+                success: false, 
+                error: { 
+                  code: 'SERVER_ERROR', 
+                  message: '프로젝트 생성 중 오류가 발생했습니다.' 
+                } 
+              });
+            }
+
+            // GitHub 정보 불러오기 (비동기, 실패해도 프로젝트 생성은 성공)
+            try {
+              const githubService = new GitHubService();
+              
+              // 커밋 정보 가져오기 (최근 30개)
+              try {
+                const commits = await githubService.getCommits(githubRepo, { perPage: 30 });
+                const recentCommits = commits.slice(0, 30);
+                
+                for (const commit of recentCommits) {
+                  try {
+                    const detail = await githubService.getCommitStats(githubRepo, commit.sha);
+                    
+                    // DB에 저장 (중복 체크)
+                    db.run(
+                      `INSERT IGNORE INTO project_commits 
+                       (project_id, commit_sha, commit_message, author, commit_date, lines_added, lines_deleted, files_changed)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                      [
+                        projectId,
+                        detail.sha,
+                        detail.message,
+                        detail.author,
+                        detail.date,
+                        detail.linesAdded,
+                        detail.linesDeleted,
+                        detail.filesChanged
+                      ],
+                      function(err) {
+                        if (err && !err.message.includes('UNIQUE')) {
+                          console.error('커밋 저장 오류:', err);
+                        }
+                      }
+                    );
+                  } catch (error) {
+                    console.error(`커밋 ${commit.sha} 상세 조회 실패:`, error.message);
+                  }
+                }
+              } catch (error) {
+                console.error('커밋 조회 실패:', error.message);
+              }
+
+              // 이슈 정보 가져오기
+              try {
+                await githubService.getIssues(githubRepo, { state: 'all', perPage: 100 });
+              } catch (error) {
+                console.error('이슈 조회 실패:', error.message);
+              }
+            } catch (error) {
+              console.error('GitHub 정보 불러오기 실패:', error.message);
+              // GitHub 정보 불러오기 실패해도 프로젝트 생성은 성공
+            }
 
             res.status(201).json({
               success: true,
