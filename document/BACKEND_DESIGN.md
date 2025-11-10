@@ -338,7 +338,7 @@ pool.query('SET FOREIGN_KEY_CHECKS = 1');
 
 `201 Created`
 
-**참고:** `title`, `githubRepo` 필수 필드
+**참고:** `title` 필수 필드, `githubRepo`는 선택 사항 (나중에 연결 가능)
 
 #### GET `/api/project/validate-code?projectCode=ABC123` ✅
 프로젝트 코드 검증 (인증 필요)
@@ -366,7 +366,22 @@ pool.query('SET FOREIGN_KEY_CHECKS = 1');
 #### POST `/api/project/connect-github` ✅
 GitHub 저장소 연결 (인증 필요)
 
+**Request Body:**
+- `projectId`: 프로젝트 ID
+- `githubRepo`: GitHub 저장소 URL
+
 `200 OK`
+
+**동작:**
+- GitHub 저장소 URL을 프로젝트에 연결
+- 백그라운드에서 GitHub 정보 동기화 시작
+- 커밋 정보 가져오기 (최근 30개, 기본 정보만) → DB에 저장
+- 이슈 정보 가져오기 (최근 100개) → DB에 저장
+- 브랜치 정보 가져오기 → DB에 저장
+
+**참고:**
+- 커밋 상세 정보(통계)는 가져오지 않음 (API 호출 수 최적화)
+- API 호출 수: 총 4회 (커밋 목록 1회 + 이슈 목록 1회 + 브랜치 목록 2회)
 
 #### PUT `/api/project/update` ✅
 프로젝트 수정 (인증 필요, owner만)
@@ -442,11 +457,15 @@ GitHub 저장소 연결 (인증 필요)
 `200 OK`
 
 **동작:**
-- 커밋 정보 가져오기 (최근 100개, 상세 정보는 최근 30개만) → DB에 저장
+- 커밋 정보 가져오기 (최근 100개, 기본 정보만) → DB에 저장
 - 이슈 정보 가져오기 (최근 100개) → DB에 저장
 - 브랜치 정보 가져오기 → DB에 저장
 - DB에 저장 (중복 체크, UPSERT)
 - `projects.github_last_synced_at` 업데이트
+
+**참고:** 
+- 커밋 상세 정보(통계)는 가져오지 않음 (API 호출 수 최적화)
+- API 호출 수: 총 4회 (커밋 목록 1회 + 이슈 목록 1회 + 브랜치 목록 2회)
 
 #### GET `/api/github/commits/:projectId` ✅
 커밋 목록 조회 (인증 필요, DB에 저장된 데이터)
@@ -744,7 +763,7 @@ GITHUB_TOKEN=
 - ⚠️ 로그아웃: 프론트엔드에서 토큰 삭제로 처리 (백엔드 API 없음)
 
 **Project API (10개)**
-- ✅ 프로젝트 생성 (title, githubRepo 필수)
+- ✅ 프로젝트 생성 (title 필수, githubRepo 선택 사항)
 - ✅ 프로젝트 코드 검증
 - ✅ 프로젝트 참여
 - ✅ 구성원 목록 조회
@@ -764,12 +783,14 @@ GITHUB_TOKEN=
 - ✅ 작업 삭제 (owner만)
 
 **GitHub API (6개)**
-- ✅ 프로젝트 정보 동기화 (커밋, 이슈, 브랜치)
+- ✅ 프로젝트 정보 동기화 (커밋 기본 정보, 이슈, 브랜치 - 커밋 상세 통계 제외)
 - ✅ 커밋 목록 조회
-- ✅ 커밋 상세 조회
+- ✅ 커밋 상세 조회 (DB에 저장된 데이터)
 - ✅ 이슈 목록 조회
 - ✅ 이슈 상세 조회
 - ✅ 브랜치 목록 조회
+
+**참고:** API 호출 수 최적화를 위해 커밋 상세 통계 정보는 가져오지 않음
 
 **Progress API (1개)**
 - ✅ 프로젝트 진행도 조회

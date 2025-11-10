@@ -48,42 +48,31 @@ exports.sync = async function(req, res, next) {
         const githubService = new GitHubService();
 
         try {
-          // 커밋 정보 가져오기
+          // 커밋 정보 가져오기 (기본 정보만, 상세 정보는 제외)
           const commits = await githubService.getCommits(project.github_repo, { perPage: 100 });
           
-          // 커밋 상세 정보 가져오기 (최근 30개만)
-          const recentCommits = commits.slice(0, 30);
-          const commitDetails = [];
-          
-          for (const commit of recentCommits) {
-            try {
-              const detail = await githubService.getCommitStats(project.github_repo, commit.sha);
-              commitDetails.push(detail);
-              
-              // DB에 저장 (중복 체크)
-              db.run(
-                `INSERT IGNORE INTO project_commits 
-                 (project_id, commit_sha, commit_message, author, commit_date, lines_added, lines_deleted, files_changed)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                  projectId,
-                  detail.sha,
-                  detail.message,
-                  detail.author,
-                  detail.date,
-                  detail.linesAdded,
-                  detail.linesDeleted,
-                  detail.filesChanged
-                ],
-                function(err) {
-                  if (err && !err.message.includes('UNIQUE')) {
-                    console.error('커밋 저장 오류:', err);
-                  }
+          // 커밋 기본 정보만 DB에 저장 (상세 정보는 제외)
+          for (const commit of commits) {
+            db.run(
+              `INSERT IGNORE INTO project_commits 
+               (project_id, commit_sha, commit_message, author, commit_date, lines_added, lines_deleted, files_changed)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                projectId,
+                commit.sha,
+                commit.message,
+                commit.author,
+                commit.date,
+                null, // lines_added (상세 정보 없음)
+                null, // lines_deleted (상세 정보 없음)
+                null  // files_changed (상세 정보 없음)
+              ],
+              function(err) {
+                if (err && !err.message.includes('UNIQUE')) {
+                  console.error('커밋 저장 오류:', err);
                 }
-              );
-            } catch (error) {
-              console.error(`커밋 ${commit.sha} 상세 조회 실패:`, error.message);
-            }
+              }
+            );
           }
 
           // 이슈 정보 가져오기
@@ -182,7 +171,7 @@ exports.sync = async function(req, res, next) {
             data: {
               message: '동기화가 완료되었습니다.',
               syncResult: {
-                commitsSynced: commitDetails.length,
+                commitsSynced: commits.length,
                 issuesFound: issues.length,
                 branchesFound: branches.length,
                 progress

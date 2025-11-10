@@ -82,14 +82,6 @@ export default function CreateProject({ onCreateSuccess }) {
         />
       )}
 
-      <TextField
-        label="GitHub 저장소 URL"
-        fullWidth
-        value={githubRepo}
-        onChange={(e) => setGithubRepo(e.target.value)}
-        margin="normal"
-      />
-
       <Button
         type="submit"
         fullWidth
