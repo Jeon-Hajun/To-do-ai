@@ -82,20 +82,21 @@ exports.create = async function(req, res) {
               });
             }
 
-            // GitHub 정보 불러오기 (비동기, 실패해도 프로젝트 생성은 성공)
+            // GitHub 정보 불러오기 (완료되어야 프로젝트 생성 완료)
             try {
               const githubService = new GitHubService();
               
               // 커밋 정보 가져오기 (최근 30개)
-              try {
-                const commits = await githubService.getCommits(githubRepo, { perPage: 30 });
-                const recentCommits = commits.slice(0, 30);
-                
-                for (const commit of recentCommits) {
-                  try {
-                    const detail = await githubService.getCommitStats(githubRepo, commit.sha);
-                    
-                    // DB에 저장 (중복 체크)
+              const commits = await githubService.getCommits(githubRepo, { perPage: 30 });
+              const recentCommits = commits.slice(0, 30);
+              
+              // 커밋 상세 정보를 Promise 배열로 저장
+              const commitPromises = recentCommits.map(async (commit) => {
+                try {
+                  const detail = await githubService.getCommitStats(githubRepo, commit.sha);
+                  
+                  // DB에 저장 (Promise로 변환)
+                  return new Promise((resolve, reject) => {
                     db.run(
                       `INSERT IGNORE INTO project_commits 
                        (project_id, commit_sha, commit_message, author, commit_date, lines_added, lines_deleted, files_changed)
@@ -113,26 +114,50 @@ exports.create = async function(req, res) {
                       function(err) {
                         if (err && !err.message.includes('UNIQUE')) {
                           console.error('커밋 저장 오류:', err);
+                          reject(err);
+                        } else {
+                          resolve();
                         }
                       }
                     );
-                  } catch (error) {
-                    console.error(`커밋 ${commit.sha} 상세 조회 실패:`, error.message);
-                  }
+                  });
+                } catch (error) {
+                  console.error(`커밋 ${commit.sha} 상세 조회 실패:`, error.message);
+                  // 개별 커밋 실패는 무시하고 계속 진행
+                  return Promise.resolve();
                 }
-              } catch (error) {
-                console.error('커밋 조회 실패:', error.message);
-              }
+              });
+              
+              // 모든 커밋 저장 완료 대기
+              await Promise.allSettled(commitPromises);
 
-              // 이슈 정보 가져오기
+              // 이슈 정보 가져오기 (선택적, 실패해도 계속 진행)
               try {
                 await githubService.getIssues(githubRepo, { state: 'all', perPage: 100 });
               } catch (error) {
                 console.error('이슈 조회 실패:', error.message);
+                // 이슈 조회 실패는 무시하고 계속 진행
               }
             } catch (error) {
               console.error('GitHub 정보 불러오기 실패:', error.message);
-              // GitHub 정보 불러오기 실패해도 프로젝트 생성은 성공
+              // GitHub 정보 불러오기 실패 시 프로젝트 롤백
+              db.run('DELETE FROM project_members WHERE project_id = ?', [projectId], function(deleteErr) {
+                if (deleteErr) {
+                  console.error('멤버 삭제 오류:', deleteErr);
+                }
+              });
+              db.run('DELETE FROM projects WHERE id = ?', [projectId], function(deleteErr) {
+                if (deleteErr) {
+                  console.error('프로젝트 롤백 오류:', deleteErr);
+                }
+              });
+              return res.status(500).json({ 
+                success: false, 
+                error: { 
+                  code: 'GITHUB_SYNC_FAILED', 
+                  message: `GitHub 정보를 불러오는 중 오류가 발생했습니다: ${error.message}` 
+                } 
+              });
             }
 
             res.status(201).json({
