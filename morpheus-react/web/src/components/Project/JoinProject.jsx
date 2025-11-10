@@ -1,8 +1,11 @@
 // src/components/Project/JoinProject.jsx
 import React, { useState } from "react";
+import TextField from "@mui/material/TextField";
+import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
 import { joinProject } from "../../api/projects";
 
-export default function JoinProject({ onJoin }) {
+export default function JoinProject({ onJoinSuccess, onClose }) {
   const [projectCode, setProjectCode] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -15,9 +18,8 @@ export default function JoinProject({ onJoin }) {
       const res = await joinProject(projectCode, password);
 
       if (res.success) {
-        const project = res.data.project || { projectCode }; // 안전장치
-        if (!project.id && project.projectCode) project.id = project.projectCode;
-        if (onJoin) onJoin(project);
+        // ✅ 상위에서 새로고침 후 모달 닫기
+        if (onJoinSuccess) onJoinSuccess();
       } else {
         alert("프로젝트 참여 실패: " + (res.error?.message || "알 수 없는 오류"));
       }
@@ -30,28 +32,32 @@ export default function JoinProject({ onJoin }) {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div>
-        <label>프로젝트 코드</label>
-        <input
-          value={projectCode}
-          onChange={(e) => setProjectCode(e.target.value.toUpperCase())}
-          required
-        />
-      </div>
+    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <TextField
+        label="프로젝트 코드"
+        value={projectCode}
+        onChange={(e) => setProjectCode(e.target.value.toUpperCase())}
+        fullWidth
+        required
+      />
 
-      <div>
-        <label>비밀번호 (공유 프로젝트용)</label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-      </div>
+      <TextField
+        label="비밀번호 (공유 프로젝트용)"
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        fullWidth
+      />
 
-      <button type="submit" disabled={loading}>
-        {loading ? "참여 중..." : "프로젝트 참여"}
-      </button>
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <Button variant="outlined" color="secondary" onClick={onClose}>
+          취소
+        </Button>
+
+        <Button type="submit" variant="contained" disabled={loading}>
+          {loading ? <CircularProgress size={20} /> : "프로젝트 참여"}
+        </Button>
+      </div>
     </form>
   );
 }
