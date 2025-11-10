@@ -77,9 +77,16 @@ export async function updateUser({ email, nickname, password, newPassword }) {
 }
 
 // ============================================
-// 프로젝트 오너인지 확인
+// 프로젝트 오너인지 확인 (기존 isOwner 함수)
 export function isOwner(project) {
   const user = getUser();
   if (!user || !project || !project.ownerId) return false;
   return String(user.id) === String(project.ownerId);
+}
+
+// 새로운 범용 함수: 프로젝트 객체에서 ownerId 혹은 owner_id를 자동 처리
+export function isProjectOwner(user, project) {
+  if (!user || !project) return false;
+  const ownerId = project.ownerId ?? project.owner_id;
+  return ownerId && String(user.id) === String(ownerId);
 }

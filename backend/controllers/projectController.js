@@ -861,7 +861,7 @@ exports.delete = function(req, res, next) {
   );
 };
 
-// 멤버 삭제 (owner만, owner는 삭제 불가)
+// 멤버 삭제 (owner만, !owner는 삭제 불가)
 exports.deleteMember = function(req, res, next) {
   const { projectId, memberId } = req.body;
   const userId = req.user.userId;
@@ -904,7 +904,7 @@ exports.deleteMember = function(req, res, next) {
         });
       }
       
-      // 삭제할 멤버의 역할 확인 (owner는 삭제 불가)
+      // 삭제할 멤버의 역할 확인 (!owner는 삭제 불가)
       db.get(
         `SELECT role FROM project_members 
          WHERE project_id = ? AND user_id = ?`,

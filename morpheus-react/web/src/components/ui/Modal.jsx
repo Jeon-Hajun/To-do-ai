@@ -5,7 +5,7 @@ import Modal from "@mui/material/Modal";
 import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
 
-export default function ModalComponent({ isOpen, onClose, children }) { // 이름 변경
+export default function ModalComponent({ isOpen, onClose, children }) {
   return (
     <Modal
       open={isOpen}
@@ -28,13 +28,17 @@ export default function ModalComponent({ isOpen, onClose, children }) { // 이�
           overflowY: 'auto',
         }}
       >
-        <IconButton
-          onClick={onClose}
-          sx={{ position: 'absolute', top: 8, right: 8 }}
-        >
-          <CloseIcon />
-        </IconButton>
-        {children}
+        {/* 헤더 영역: X 버튼 공간 확보 */}
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+          <IconButton onClick={onClose}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
+
+        {/* 모달 내용 */}
+        <Box>
+          {children}
+        </Box>
       </Box>
     </Modal>
   );
