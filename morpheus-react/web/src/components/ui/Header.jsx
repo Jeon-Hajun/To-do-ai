@@ -1,22 +1,26 @@
 import React, { useState } from "react";
-import AppBar from "@mui/material/AppBar";
-import Toolbar from "@mui/material/Toolbar";
-import Typography from "@mui/material/Typography";
-import IconButton from "@mui/material/IconButton";
+import { AppBar, Toolbar, Typography, IconButton, Collapse, Box, Button } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
-import Collapse from "@mui/material/Collapse";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import { useNavigate } from "react-router-dom";
-import { getHeaderMenuItems } from "../../constants/headerMenu";
 import { useTheme } from "@mui/material/styles";
+import { useProject } from "../../context/ProjectContext";
 
 export default function Header({ title = "Todo App", isBlur = false }) {
   const theme = useTheme();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const { projects } = useProject();
 
-  const menuItems = getHeaderMenuItems(navigate);
+  // 이제 기본 Settings / Project 메뉴는 제거
+  const menuItems = [];
+
+  // 사용자가 참여한 모든 프로젝트 메뉴 추가
+  projects.forEach((p) => {
+    menuItems.push({
+      label: p.title,
+      onClick: () => navigate(`/project/${p.id}`, { state: { project: p } }),
+    });
+  });
 
   return (
     <>
@@ -33,12 +37,7 @@ export default function Header({ title = "Todo App", isBlur = false }) {
           <Typography variant="h6" sx={{ color: theme.palette.text.primary }}>
             {title}
           </Typography>
-          <IconButton
-            size="large"
-            edge="end"
-            color="inherit"
-            onClick={() => setOpen((prev) => !prev)}
-          >
+          <IconButton size="large" edge="end" color="inherit" onClick={() => setOpen((prev) => !prev)}>
             <MenuIcon />
           </IconButton>
         </Toolbar>

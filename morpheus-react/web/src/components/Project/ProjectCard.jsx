@@ -8,12 +8,14 @@ import Avatar from "@mui/material/Avatar";
 import AvatarGroup from "@mui/material/AvatarGroup";
 import { getMembers } from "../../api/projects";
 import { useAuthContext } from "../../context/AuthContext";
+import { useProject } from "../../context/ProjectContext";
 import { getProfileImageSrc } from "../../utils/profileImage";
 
 export default function ProjectCard({ project }) {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user: currentUser } = useAuthContext();
+  const { setCurrentProject } = useProject(); // ✅ 프로젝트 선택 업데이트
   const navigate = useNavigate();
 
   if (!project || !currentUser) return null;
@@ -31,10 +33,12 @@ export default function ProjectCard({ project }) {
       }
     };
     fetchMembers();
-  }, [project.id, currentUser?.profileImage]); // 프로필 이미지가 변경될 때도 멤버 정보 다시 불러오기
+  }, [project.id, currentUser?.profileImage]);
 
   const handleCardClick = () => {
-    if (project.id) navigate(`/project/${project.id}`, { state: { project } });
+    if (!project?.id) return;
+    setCurrentProject(project); // ✅ 헤더에 표시될 프로젝트 설정
+    navigate(`/project/${project.id}`, { state: { project } });
   };
 
   return (
