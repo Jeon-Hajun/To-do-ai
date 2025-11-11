@@ -303,17 +303,6 @@ exports.updateMe = function(req, res, next) {
   var { nickname, email, password, newPassword } = req.body;
   
   // 입력 검증
-  const emailValidation = validateEmail(email);
-  if (!emailValidation.valid) {
-    return res.status(400).json({
-      success: false,
-      error: {
-        code: 'INVALID_INPUT',
-        message: emailValidation.message
-      }
-    });
-  }
-  
   const nicknameValidation = validateNickname(nickname);
   if (!nicknameValidation.valid) {
     return res.status(400).json({
@@ -340,7 +329,7 @@ exports.updateMe = function(req, res, next) {
   }
   
   // 현재 사용자 정보 조회
-  db.get('SELECT password FROM users WHERE id = ?', [userId], function(err, currentUser) {
+  db.get('SELECT password, email FROM users WHERE id = ?', [userId], function(err, currentUser) {
     if (err) {
       console.error('사용자 조회 오류:', err);
       return res.status(500).json({
@@ -358,6 +347,17 @@ exports.updateMe = function(req, res, next) {
         error: {
           code: 'USER_NOT_FOUND',
           message: '사용자를 찾을 수 없습니다.'
+        }
+      });
+    }
+    
+    // 이메일이 현재 사용자의 이메일과 다른 경우 에러 반환
+    if (email && email !== currentUser.email) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'EMAIL_CANNOT_BE_CHANGED',
+          message: '이메일은 변경할 수 없습니다.'
         }
       });
     }
@@ -410,10 +410,10 @@ exports.updateMe = function(req, res, next) {
             });
           }
           
-          // DB 업데이트
+          // DB 업데이트 (이메일은 변경하지 않음)
           db.run(
-            'UPDATE users SET nickname = ?, email = ?, password = ? WHERE id = ?',
-            [nickname, email, hashedNewPassword, userId],
+            'UPDATE users SET nickname = ?, password = ? WHERE id = ?',
+            [nickname, hashedNewPassword, userId],
             function(err) {
               if (err) {
                 console.error('회원정보 수정 오류:', err);
@@ -460,10 +460,10 @@ exports.updateMe = function(req, res, next) {
         });
       });
     } else {
-      // 비밀번호 변경 없이 업데이트
+      // 비밀번호 변경 없이 업데이트 (이메일은 변경하지 않음)
       db.run(
-        'UPDATE users SET nickname = ?, email = ? WHERE id = ?',
-        [nickname, email, userId],
+        'UPDATE users SET nickname = ? WHERE id = ?',
+        [nickname, userId],
         function(err) {
           if (err) {
             console.error('회원정보 수정 오류:', err);

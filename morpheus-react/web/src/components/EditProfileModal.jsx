@@ -16,7 +16,6 @@ import { updateUser, setAuth } from "../utils/auth";
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 
 export default function EditProfileModal({ user, open, onClose }) {
-  const [email, setEmail] = useState(user.email);
   const [nickname, setNickname] = useState(user.nickname);
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -34,14 +33,14 @@ export default function EditProfileModal({ user, open, onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!email || !nickname) {
-      setSnackbar({ open: true, severity: "error", message: "이메일과 닉네임은 필수입니다." });
+    if (!nickname) {
+      setSnackbar({ open: true, severity: "error", message: "닉네임은 필수입니다." });
       return;
     }
 
     try {
-      // 1. 회원 정보 수정
-      const res = await updateUser({ email, nickname, password, newPassword });
+      // 1. 회원 정보 수정 (이메일은 현재 이메일 그대로 전송)
+      const res = await updateUser({ email: user.email, nickname, password, newPassword });
       if (res.success) {
         // 2. 프로필 이미지 업로드
         if (selectedFile) {
@@ -105,9 +104,9 @@ export default function EditProfileModal({ user, open, onClose }) {
             type="email"
             fullWidth
             variant="outlined"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
+            value={user.email}
+            disabled
+            helperText="이메일은 변경할 수 없습니다"
           />
           <TextField
             margin="dense"
