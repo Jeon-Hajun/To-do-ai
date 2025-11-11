@@ -1,19 +1,20 @@
 // src/components/Project/ProjectDetailCard.jsx
 import React, { useEffect, useState } from "react";
-import { Box, Typography, Stack, Avatar, AvatarGroup, Button, TextField, CircularProgress } from "@mui/material";
-import { getMembers, leaveProject, deleteProject, updateProject, connectGithubRepo } from "../../api/projects";
+import { Box, Typography, Stack, Avatar, AvatarGroup, Button, CircularProgress } from "@mui/material";
+import { getMembers, leaveProject, deleteProject, updateProject } from "../../api/projects";
 import { useAuthContext } from "../../context/AuthContext";
+import { useProject } from "../../context/ProjectContext";
 import { getProfileImageSrc } from "../../utils/profileImage";
 
-export default function ProjectDetailCard({ project }) {
+export default function ProjectDetailCard({ project: initialProject }) {
   const { user: currentUser } = useAuthContext();
+  const { updateProjectTitle } = useProject();
+
+  const [project, setProject] = useState(initialProject);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
-  const [githubRepoInput, setGithubRepoInput] = useState(project.githubRepo || "");
-  const [updatingGithub, setUpdatingGithub] = useState(false);
 
-  // 멤버 정보 불러오기 + 오너 여부 판단
   useEffect(() => {
     const fetchMembers = async () => {
       setLoading(true);
@@ -24,9 +25,10 @@ export default function ProjectDetailCard({ project }) {
           setMembers(memberList);
 
           const owner = memberList.find((m) => m.role === "owner");
-          setIsOwner(owner
-            ? String(owner.id) === String(currentUser?.id)
-            : String(project.ownerId) === String(currentUser?.id)
+          setIsOwner(
+            owner
+              ? String(owner.id) === String(currentUser?.id)
+              : String(project.ownerId) === String(currentUser?.id)
           );
         }
       } catch (err) {
@@ -35,10 +37,8 @@ export default function ProjectDetailCard({ project }) {
         setLoading(false);
       }
     };
-    if (currentUser?.id) {
-      fetchMembers();
-    }
-  }, [project.id, currentUser?.id, project.ownerId, currentUser?.profileImage]); // 프로필 이미지가 변경될 때도 멤버 정보 다시 불러오기
+    if (currentUser?.id) fetchMembers();
+  }, [project.id, currentUser?.id, project.ownerId, currentUser?.profileImage]);
 
   const handleLeave = async () => {
     if (!window.confirm("정말 프로젝트에서 나가시겠습니까?")) return;
@@ -58,23 +58,10 @@ export default function ProjectDetailCard({ project }) {
     const newTitle = prompt("새 프로젝트 제목을 입력하세요", project.title);
     if (!newTitle) return;
     const res = await updateProject(project.id, { title: newTitle });
-    if (res.success) project.title = newTitle;
-    else alert("수정 실패");
-  };
-
-  const handleUpdateGithub = async () => {
-    setUpdatingGithub(true);
-    try {
-      const res = await connectGithubRepo(project.id, githubRepoInput);
-      if (res.success) {
-        alert("GitHub 연결 완료");
-        project.githubRepo = githubRepoInput;
-      } else alert("GitHub 연결 실패");
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setUpdatingGithub(false);
-    }
+    if (res.success) {
+      setProject(prev => ({ ...prev, title: newTitle })); // 로컬 상태 갱신
+      updateProjectTitle(project.id, newTitle); // Context에도 반영
+    } else alert("수정 실패");
   };
 
   if (loading) return <CircularProgress />;
@@ -91,21 +78,6 @@ export default function ProjectDetailCard({ project }) {
           ))}
         </AvatarGroup>
         <Typography>{members.map(m => m.nickname || m.email).join(", ")}</Typography>
-      </Stack>
-
-      <Typography variant="h6" sx={{ mt: 2 }}>GitHub 저장소</Typography>
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-        <TextField
-          value={githubRepoInput}
-          onChange={(e) => setGithubRepoInput(e.target.value)}
-          fullWidth
-          placeholder="GitHub URL"
-        />
-        {isOwner && (
-          <Button variant="contained" onClick={handleUpdateGithub} disabled={updatingGithub}>
-            {updatingGithub ? <CircularProgress size={20}/> : "연결/수정"}
-          </Button>
-        )}
       </Stack>
 
       <Stack direction="row" spacing={2}>

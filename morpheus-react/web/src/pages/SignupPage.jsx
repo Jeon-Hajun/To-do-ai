@@ -1,12 +1,9 @@
-// src/pages/SignupPage.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Card from "../components/ui/Card";
-import ContainerBox from "../components/ui/ContainerBox";
+import { Box, Card, Button, Typography, Stack } from "@mui/material";
 import Input from "../components/ui/Input";
 import ValidatedEmailInput from "../components/ui/ValidatedEmailInput";
 import SignupButton from "../components/ui/SignupButton";
-import Button from "../components/ui/Button";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -15,42 +12,47 @@ export default function SignupPage() {
   const navigate = useNavigate();
 
   return (
-    <ContainerBox sx={{ justifyContent: "center", alignItems: "center" }}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        bgcolor: "background.default",
+        p: 2,
+      }}
+    >
       <Card sx={{ width: 450, maxWidth: "100%", p: 4, position: "relative" }}>
         
-        {/* ✅ 오른쪽 상단 뒤로가기 버튼 */}
+        {/* 뒤로가기 버튼 */}
         <Button
-          type="back"
+          variant="outlined"
           size="small"
-          style={{
-            position: "absolute",
-            right: 12,
-            top: 12,
-          }}
+          onClick={() => navigate(-1)}
+          sx={{ position: "absolute", top: 12, right: 12 }}
         >
           ← 뒤로
         </Button>
 
-        <h2 style={{ textAlign: "center", marginBottom: 24 }}>회원가입</h2>
+        <Typography variant="h5" align="center" sx={{ mb: 3 }}>
+          회원가입
+        </Typography>
 
-        <form>
+        <Stack spacing={2}>
           <ValidatedEmailInput
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            sx={{ mb: 3 }}
           />
           <Input
             label="Nickname"
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
-            sx={{ mb: 3 }}
           />
           <Input
             label="Password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            sx={{ mb: 3 }}
           />
 
           <SignupButton
@@ -59,8 +61,8 @@ export default function SignupPage() {
             password={password}
             onSignupSuccess={() => navigate("/login")}
           />
-        </form>
+        </Stack>
       </Card>
-    </ContainerBox>
+    </Box>
   );
 }

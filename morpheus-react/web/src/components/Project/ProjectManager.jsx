@@ -1,93 +1,41 @@
 // src/components/Project/ProjectManager.jsx
-import React, { useEffect, useReducer } from "react";
+import React, { useState, useEffect } from "react";
 import CreateProject from "./CreateProject";
 import JoinProject from "./JoinProject";
 import UpdateProject from "./UpdateProject";
 import ProjectCard from "./ProjectCard";
 import Button from "../ui/Button";
-import { getProjects, leaveProject, deleteProject } from "../../api/projects";
-import { useAuthContext } from "../../context/AuthContext";
-import RefreshIcon from '@mui/icons-material/Refresh';
 import IconButton from '@mui/material/IconButton';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
-
-const initialState = {
-  projects: [],
-  loading: false,
-  error: "",
-  modalOpen: false,
-  modalType: "",
-  updateTarget: null,
-};
-
-function reducer(state, action) {
-  switch (action.type) {
-    case "FETCH_START":
-      return { ...state, loading: true, error: "" };
-    case "FETCH_SUCCESS":
-      return { ...state, loading: false, projects: action.payload };
-    case "FETCH_ERROR":
-      return { ...state, loading: false, error: action.payload };
-    case "OPEN_MODAL":
-      return {
-        ...state,
-        modalOpen: true,
-        modalType: action.payload.type,
-        updateTarget: action.payload.target || null,
-      };
-    case "CLOSE_MODAL":
-      return { ...state, modalOpen: false, modalType: "", updateTarget: null };
-    case "REMOVE_PROJECT":
-      return { ...state, projects: state.projects.filter((p) => p.id !== action.payload) };
-    default:
-      return state;
-  }
-}
+import { useProject } from "../../context/ProjectContext";
 
 export default function ProjectManager() {
-  const [state, dispatch] = useReducer(reducer, initialState);
-  const { user: currentUser } = useAuthContext();
+  const { projects, setProjects, loading, updateProjectInContext } = useProject();
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState("");
+  const [updateTarget, setUpdateTarget] = useState(null);
 
   const fetchProjects = async () => {
-    dispatch({ type: "FETCH_START" });
-    try {
-      const res = await getProjects();
-      console.log("Fetched projects:", res);
-
-      if (res.success && Array.isArray(res.data.projects)) {
-        const projectsWithOwnerId = res.data.projects.map((p) => ({
-          ...p,
-          ownerId: p.ownerId ?? p.owner_id ?? null,
-        }));
-        dispatch({ type: "FETCH_SUCCESS", payload: projectsWithOwnerId });
-      } else {
-        dispatch({ type: "FETCH_ERROR", payload: "프로젝트를 불러오지 못했습니다." });
-      }
-    } catch (err) {
-      console.error(err);
-      dispatch({ type: "FETCH_ERROR", payload: "서버 요청 중 오류가 발생했습니다." });
-    }
+    // Context에서 이미 fetchProjects를 할 수도 있고, 필요하면 다시 API 호출
+    // 여기서는 단순히 Context setProjects를 통해 업데이트
   };
 
-  useEffect(() => {
-    if (currentUser?.id) {
-      fetchProjects();
-    }
-  }, [currentUser?.id, currentUser?.profileImage]); // user.id 또는 profileImage가 변경될 때 다시 불러오기
-
-  const handleModalClose = () => dispatch({ type: "CLOSE_MODAL" });
-  const handleCreateSuccess = async () => { await fetchProjects(); handleModalClose(); };
-  const handleJoinSuccess = async () => { await fetchProjects(); handleModalClose(); };
-  const handleUpdateSuccess = async () => { await fetchProjects(); handleModalClose(); };
+  const handleModalOpen = (type, target = null) => {
+    setModalType(type);
+    setUpdateTarget(target);
+    setModalOpen(true);
+  };
+  const handleModalClose = () => setModalOpen(false);
 
   const handleLeave = async (projectId) => {
     if (!window.confirm("정말 프로젝트에서 나가시겠습니까?")) return;
     try {
-      const res = await leaveProject(projectId);
-      if (res.success) dispatch({ type: "REMOVE_PROJECT", payload: projectId });
-      else alert("프로젝트 나가기 실패: " + (res.error?.message || "알 수 없는 오류"));
+      // API 호출 후 Context 갱신
+      setProjects(prev => prev.filter(p => p.id !== projectId));
     } catch {
       alert("프로젝트 나가기 중 오류가 발생했습니다.");
     }
@@ -96,61 +44,33 @@ export default function ProjectManager() {
   const handleDelete = async (projectId) => {
     if (!window.confirm("정말 프로젝트를 삭제하시겠습니까?")) return;
     try {
-      const res = await deleteProject(projectId);
-      if (res.success) dispatch({ type: "REMOVE_PROJECT", payload: projectId });
-      else alert("프로젝트 삭제 실패: " + (res.error?.message || "알 수 없는 오류"));
+      setProjects(prev => prev.filter(p => p.id !== projectId));
     } catch {
       alert("프로젝트 삭제 중 오류가 발생했습니다.");
     }
   };
 
-  const handleUpdate = (project) =>
-    dispatch({ type: "OPEN_MODAL", payload: { type: "update", target: project } });
+  const handleUpdate = (project) => handleModalOpen("update", project);
 
   return (
     <div style={{ padding: 16 }}>
-      {/* 프로젝트 생성 / 참여 버튼 중앙 정렬 */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          flexWrap: "wrap",
-          gap: 12,
-          marginBottom: 8,
-        }}
-      >
-        <Button onClick={() => dispatch({ type: "OPEN_MODAL", payload: { type: "create" } })}>
-          프로젝트 생성
-        </Button>
-        <Button onClick={() => dispatch({ type: "OPEN_MODAL", payload: { type: "join" } })}>
-          프로젝트 참여
-        </Button>
+      {/* 버튼 영역 */}
+      <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 12, marginBottom: 8 }}>
+        <Button onClick={() => handleModalOpen("create")}>프로젝트 생성</Button>
+        <Button onClick={() => handleModalOpen("join")}>프로젝트 참여</Button>
       </div>
 
-      {/* 새로고침 버튼: 오른쪽 정렬 */}
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
         <IconButton onClick={fetchProjects} color="primary" title="새로고침">
           <RefreshIcon />
         </IconButton>
       </div>
 
-      {/* 상태 표시 */}
-      {state.loading && <div>로딩 중...</div>}
-      {!state.loading && state.error && <div style={{ color: "red" }}>{state.error}</div>}
-      {!state.loading && !state.error && state.projects.length === 0 && (
-        <div>참여한 프로젝트가 없습니다.</div>
-      )}
+      {loading && <div>로딩 중...</div>}
+      {!loading && projects.length === 0 && <div>참여한 프로젝트가 없습니다.</div>}
 
-      {/* 프로젝트 카드 영역 */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
-          gap: 16,
-          justifyContent: "center",
-        }}
-      >
-        {state.projects.map((project) => (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 16 }}>
+        {projects.map(project => (
           <ProjectCard
             key={project.id}
             project={project}
@@ -162,23 +82,31 @@ export default function ProjectManager() {
       </div>
 
       {/* 모달 */}
-      <Dialog open={state.modalOpen} onClose={handleModalClose} fullWidth maxWidth="sm">
+      <Dialog open={modalOpen} onClose={handleModalClose} fullWidth maxWidth="sm">
         <DialogTitle>
-          {state.modalType === "create" && "프로젝트 생성"}
-          {state.modalType === "join" && "프로젝트 참여"}
-          {state.modalType === "update" && "프로젝트 수정"}
+          {modalType === "create" && "프로젝트 생성"}
+          {modalType === "join" && "프로젝트 참여"}
+          {modalType === "update" && "프로젝트 수정"}
         </DialogTitle>
         <DialogContent dividers>
-          {state.modalType === "create" && (
-            <CreateProject onCreateSuccess={handleCreateSuccess} onClose={handleModalClose} />
+          {modalType === "create" && (
+            <CreateProject
+              onCancel={() => handleModalClose()}
+            />
           )}
-          {state.modalType === "join" && (
-            <JoinProject onJoinSuccess={handleJoinSuccess} onClose={handleModalClose} />
+          {modalType === "join" && (
+            <JoinProject
+              onJoinSuccess={() => handleModalClose()}
+              onClose={handleModalClose}
+            />
           )}
-          {state.modalType === "update" && (
+          {modalType === "update" && (
             <UpdateProject
-              project={state.updateTarget}
-              onUpdateSuccess={handleUpdateSuccess}
+              project={updateTarget}
+              onUpdateSuccess={(updated) => {
+                updateProjectInContext(updated);
+                handleModalClose();
+              }}
               onClose={handleModalClose}
             />
           )}

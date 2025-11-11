@@ -4,10 +4,12 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { getProjects, getMembers } from "../api/projects";
 import { getUser } from "../utils/auth";
 import { Box, CircularProgress, Stack } from "@mui/material";
+
 import Header from "../components/ui/Header";
 import NavBar from "../components/ui/NavBar";
 import Button from "../components/ui/Button";
-import ProjectDetailTabs from "../components/Project/ProjectDetailTabs"; // 탭 컴포넌트
+import ProjectDetailTabs from "../components/Project/ProjectDetailTabs";
+import { getHeaderMenuItems } from "../constants/headerMenu";
 
 export default function ProjectDetailPage() {
   const location = useLocation();
@@ -18,6 +20,7 @@ export default function ProjectDetailPage() {
 
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeIndex, setActiveIndex] = useState(0); // 현재 선택된 프로젝트
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -58,10 +61,16 @@ export default function ProjectDetailPage() {
 
   if (loading || projects.length === 0) return <CircularProgress />;
 
+  const activeProject = projects[activeIndex]; // 현재 선택된 프로젝트
+
   return (
     <Box sx={{ bgcolor: "grey.100", minHeight: "100vh", pb: 8 }}>
-      <Header title="프로젝트 상세" />
-      
+      {/* 헤더에 activeProject 전달 */}
+      <Header
+        title="프로젝트 상세"
+        menuItems={getHeaderMenuItems(navigate, activeProject)}
+      />
+
       <Box sx={{ p: 3 }}>
         <Stack direction="row" justifyContent="flex-end" sx={{ mb: 2 }}>
           <Button type="back" onClick={() => navigate("/project")}>
@@ -69,7 +78,12 @@ export default function ProjectDetailPage() {
           </Button>
         </Stack>
 
-        <ProjectDetailTabs projects={projects} />
+        {/* 프로젝트 탭에 activeIndex와 setActiveIndex 전달 */}
+        <ProjectDetailTabs
+          projects={projects}
+          activeIndex={activeIndex}
+          setActiveIndex={setActiveIndex}
+        />
       </Box>
 
       <NavBar />

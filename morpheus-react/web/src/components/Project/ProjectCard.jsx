@@ -15,7 +15,7 @@ export default function ProjectCard({ project }) {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user: currentUser } = useAuthContext();
-  const { setCurrentProject } = useProject(); // ✅ 프로젝트 선택 업데이트
+  const { setCurrentProject } = useProject(); // ✅ context에서 프로젝트 선택 함수
   const navigate = useNavigate();
 
   if (!project || !currentUser) return null;
@@ -37,14 +37,14 @@ export default function ProjectCard({ project }) {
 
   const handleCardClick = () => {
     if (!project?.id) return;
-    setCurrentProject(project); // ✅ 헤더에 표시될 프로젝트 설정
-    navigate(`/project/${project.id}`, { state: { project } });
+    setCurrentProject(project); // ✅ 클릭 시 context에 저장
+    navigate(`/project/${project.id}`); // 상세 페이지로 이동
   };
 
   return (
     <Card
       variant="outlined"
-      sx={{ mb: 2, borderRadius: 2, cursor: project.id ? "pointer" : "default" }}
+      sx={{ mb: 2, borderRadius: 2, cursor: "pointer" }}
       onClick={handleCardClick}
     >
       <CardContent>
