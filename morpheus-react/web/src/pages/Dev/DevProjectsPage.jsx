@@ -1,5 +1,6 @@
 //http://localhost:3000/dev/projects 절대 지우지
 import React from "react";
+import { Box } from "@mui/material";
 import useAuth from "../../hooks/useAuth";
 import Header from "../../components/ui/Header";
 import NavBar from "../../components/ui/NavBar";
@@ -23,9 +24,9 @@ export default function DevProjectsPage() {
       >
         <ProjectManager
           renderHeader={(openModal) => (
-            <div className="flex justify-end mb-4">
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
               <Button onClick={openModal}>프로젝트 생성</Button>
-            </div>
+            </Box>
           )}
           devMode={true} // 개발자 모드
         />

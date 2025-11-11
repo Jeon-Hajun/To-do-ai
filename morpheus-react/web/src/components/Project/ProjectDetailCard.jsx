@@ -2,10 +2,11 @@
 import React, { useEffect, useState } from "react";
 import { Box, Typography, Stack, Avatar, AvatarGroup, Button, TextField, CircularProgress } from "@mui/material";
 import { getMembers, leaveProject, deleteProject, updateProject, connectGithubRepo } from "../../api/projects";
-import { getUser } from "../../utils/auth";
+import { useAuthContext } from "../../context/AuthContext";
+import { getProfileImageSrc } from "../../utils/profileImage";
 
 export default function ProjectDetailCard({ project }) {
-  const currentUser = getUser();
+  const { user: currentUser } = useAuthContext();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
@@ -24,8 +25,8 @@ export default function ProjectDetailCard({ project }) {
 
           const owner = memberList.find((m) => m.role === "owner");
           setIsOwner(owner
-            ? String(owner.id) === String(currentUser.id)
-            : String(project.ownerId) === String(currentUser.id)
+            ? String(owner.id) === String(currentUser?.id)
+            : String(project.ownerId) === String(currentUser?.id)
           );
         }
       } catch (err) {
@@ -34,8 +35,10 @@ export default function ProjectDetailCard({ project }) {
         setLoading(false);
       }
     };
-    fetchMembers();
-  }, [project.id, currentUser.id, project.ownerId]);
+    if (currentUser?.id) {
+      fetchMembers();
+    }
+  }, [project.id, currentUser?.id, project.ownerId, currentUser?.profileImage]); // 프로필 이미지가 변경될 때도 멤버 정보 다시 불러오기
 
   const handleLeave = async () => {
     if (!window.confirm("정말 프로젝트에서 나가시겠습니까?")) return;
@@ -84,7 +87,7 @@ export default function ProjectDetailCard({ project }) {
       <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
         <AvatarGroup max={5}>
           {members.map(m => (
-            <Avatar key={m.id} alt={m.nickname || m.email} src={m.avatarUrl || ""} />
+            <Avatar key={m.id} alt={m.nickname || m.email} src={getProfileImageSrc(m.profileImage, true)} />
           ))}
         </AvatarGroup>
         <Typography>{members.map(m => m.nickname || m.email).join(", ")}</Typography>

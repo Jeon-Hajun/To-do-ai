@@ -76,6 +76,28 @@ export async function updateUser({ email, nickname, password, newPassword }) {
   }
 }
 
+// 회원 탈퇴
+export async function deleteUser() {
+  const token = getToken();
+  if (!token) throw { error: { message: "로그인이 필요합니다." } };
+
+  try {
+    const res = await axios.delete(
+      `${API_URL}/me`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    // 탈퇴 성공 시 로컬스토리지 정리
+    if (res.data?.success) {
+      logout();
+    }
+
+    return res.data;
+  } catch (err) {
+    throw err.response?.data || err;
+  }
+}
+
 // ============================================
 // 프로젝트 오너인지 확인 (기존 isOwner 함수)
 export function isOwner(project) {

@@ -446,6 +446,7 @@ exports.updateMe = function(req, res, next) {
                     success: true,
                     data: {
                       user: {
+                        id: updatedUser.id,
                         nickname: updatedUser.nickname,
                         email: updatedUser.email,
                         profileImage: updatedUser.profile_image

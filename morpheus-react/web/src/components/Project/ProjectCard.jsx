@@ -7,13 +7,13 @@ import Stack from "@mui/material/Stack";
 import Avatar from "@mui/material/Avatar";
 import AvatarGroup from "@mui/material/AvatarGroup";
 import { getMembers } from "../../api/projects";
-import { getUser } from "../../utils/auth";
+import { useAuthContext } from "../../context/AuthContext";
+import { getProfileImageSrc } from "../../utils/profileImage";
 
 export default function ProjectCard({ project }) {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const currentUser = getUser();
+  const { user: currentUser } = useAuthContext();
   const navigate = useNavigate();
 
   if (!project || !currentUser) return null;
@@ -31,7 +31,7 @@ export default function ProjectCard({ project }) {
       }
     };
     fetchMembers();
-  }, [project.id]);
+  }, [project.id, currentUser?.profileImage]); // 프로필 이미지가 변경될 때도 멤버 정보 다시 불러오기
 
   const handleCardClick = () => {
     if (project.id) navigate(`/project/${project.id}`, { state: { project } });
@@ -54,14 +54,14 @@ export default function ProjectCard({ project }) {
               {members.map((m) => (
                 <Avatar
                   key={m.id || Math.random()}
-                  alt={m.nickname || m.email || "알 수 없음"}
-                  src={m.avatarUrl || ""}
+                  alt={m.nickname || m.email}
+                  src={getProfileImageSrc(m.profileImage, true)}
                   sx={{ width: 32, height: 32 }}
                 />
               ))}
             </AvatarGroup>
             <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-              {members.map((m) => m.nickname || m.email || "알 수 없음").join(", ")}
+              {members.map((m) => m.nickname || m.email).join(", ")}
             </Typography>
           </Stack>
         )}

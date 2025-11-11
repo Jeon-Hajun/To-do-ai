@@ -16,10 +16,10 @@ export default function ProfileCard() {
       }}
     >
       <Typography variant="h6" sx={{ mb: 1 }}>
-        {user?.name || "사용자 이름"}
+        {user?.name}
       </Typography>
       <Typography color="text.secondary">
-        {user?.email || "이메일"}
+        {user?.email}
       </Typography>
     </Card>
   );

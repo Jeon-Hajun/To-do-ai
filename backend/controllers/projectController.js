@@ -306,7 +306,7 @@ exports.getMembers = function(req, res, next) {
       
       // 구성원 목록 조회
       db.all(
-        `SELECT u.id, u.email, u.nickname, pm.role, pm.joined_at
+        `SELECT u.id, u.email, u.nickname, u.profile_image, pm.role, pm.joined_at
          FROM project_members pm
          JOIN users u ON pm.user_id = u.id
          WHERE pm.project_id = ?
@@ -331,6 +331,7 @@ exports.getMembers = function(req, res, next) {
                 id: m.id,
                 email: m.email,
                 nickname: m.nickname,
+                profileImage: m.profile_image,
                 role: m.role,
                 joinedAt: m.joined_at
               }))

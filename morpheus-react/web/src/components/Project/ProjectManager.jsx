@@ -6,7 +6,7 @@ import UpdateProject from "./UpdateProject";
 import ProjectCard from "./ProjectCard";
 import Button from "../ui/Button";
 import { getProjects, leaveProject, deleteProject } from "../../api/projects";
-import { getUser } from "../../utils/auth";
+import { useAuthContext } from "../../context/AuthContext";
 import RefreshIcon from '@mui/icons-material/Refresh';
 import IconButton from '@mui/material/IconButton';
 import Dialog from "@mui/material/Dialog";
@@ -48,7 +48,7 @@ function reducer(state, action) {
 
 export default function ProjectManager() {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const currentUser = getUser();
+  const { user: currentUser } = useAuthContext();
 
   const fetchProjects = async () => {
     dispatch({ type: "FETCH_START" });
@@ -72,8 +72,10 @@ export default function ProjectManager() {
   };
 
   useEffect(() => {
-    fetchProjects();
-  }, []);
+    if (currentUser?.id) {
+      fetchProjects();
+    }
+  }, [currentUser?.id, currentUser?.profileImage]); // user.id 또는 profileImage가 변경될 때 다시 불러오기
 
   const handleModalClose = () => dispatch({ type: "CLOSE_MODAL" });
   const handleCreateSuccess = async () => { await fetchProjects(); handleModalClose(); };
@@ -152,7 +154,6 @@ export default function ProjectManager() {
           <ProjectCard
             key={project.id}
             project={project}
-            currentUser={currentUser}
             onLeave={handleLeave}
             onDelete={handleDelete}
             onUpdate={handleUpdate}
