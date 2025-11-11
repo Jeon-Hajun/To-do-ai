@@ -88,9 +88,14 @@ export const leaveProject = async (projectId) => {
     }));
 };
 
+// 특정 프로젝트 멤버 조회
 export const getMembers = async (projectId) => {
   return await callApi("get", `${API_URL}/members?projectId=${projectId}`);
 };
+
+// === 새롭게 추가된 named export ===
+// ProjectTaskList.jsx에서 사용하기 위한 getProjectMembers
+export const getProjectMembers = getMembers;
 
 export const deleteMember = async (projectId, memberId) => {
   return await callApi("delete", `${API_URL}/member`, { projectId, memberId });

@@ -55,13 +55,15 @@ export const updateTask = async (id, data) => {
 // Task 상태 수정
 export const updateTaskStatus = async (id, status) => {
   if (!id) return { success: false, error: { message: "Task ID 필요" } };
+  if (!status) return { success: false, error: { message: "작업 상태 필요" } };
   return await callApi("patch", `${API_URL}/status`, { id, status });
 };
 
-// Task 할당
-export const assignTask = async (id, assignedUserId) => {
+// Task 담당자 변경
+export const updateTaskAssignee = async (id, assignedUserId) => {
   if (!id) return { success: false, error: { message: "Task ID 필요" } };
-  return await callApi("patch", `${API_URL}/assign`, { id, assignedUserId });
+  // null 허용
+  return await callApi("patch", `${API_URL}/assign`, { id, assignedUserId: assignedUserId || null });
 };
 
 // Task 삭제

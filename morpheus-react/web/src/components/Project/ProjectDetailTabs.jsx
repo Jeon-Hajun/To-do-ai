@@ -5,9 +5,8 @@ import ProjectDetailCard from "./ProjectDetailCard";
 import ProjectTaskList from "./task/ProjectTaskList";
 
 export default function ProjectDetailTabs({ projects }) {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState("detail"); // detail / task
-  const activeProject = projects[activeIndex];
+  const [activeIndex, setActiveIndex] = useState(0); // 현재 프로젝트 인덱스
+  const [activeTab, setActiveTab] = useState("detail"); // "detail" / "task"
 
   return (
     <Box sx={{ maxWidth: 800, margin: "auto", mt: 4 }}>
@@ -15,7 +14,7 @@ export default function ProjectDetailTabs({ projects }) {
         <Box key={proj.id} sx={{ mb: 4 }}>
           {activeIndex === idx && (
             <Card sx={{ p: 0, borderRadius: 2, overflow: "hidden" }}>
-              {/* 카드 안 책갈피 */}
+              {/* 탭 버튼 */}
               <Box sx={{ display: "flex", borderBottom: 1, borderColor: "divider" }}>
                 <Button
                   onClick={() => setActiveTab("detail")}
@@ -24,7 +23,7 @@ export default function ProjectDetailTabs({ projects }) {
                     borderRadius: 0,
                     bgcolor: activeTab === "detail" ? "primary.main" : "grey.100",
                     color: activeTab === "detail" ? "white" : "black",
-                    fontWeight: activeTab === "detail" ? "bold" : "500",
+                    fontWeight: activeTab === "detail" ? "bold" : 500,
                   }}
                 >
                   상세 정보
@@ -36,7 +35,7 @@ export default function ProjectDetailTabs({ projects }) {
                     borderRadius: 0,
                     bgcolor: activeTab === "task" ? "primary.main" : "grey.100",
                     color: activeTab === "task" ? "white" : "black",
-                    fontWeight: activeTab === "task" ? "bold" : "500",
+                    fontWeight: activeTab === "task" ? "bold" : 500,
                   }}
                 >
                   작업 목록
@@ -44,6 +43,7 @@ export default function ProjectDetailTabs({ projects }) {
               </Box>
 
               <CardContent sx={{ pt: 3 }}>
+                {/* 상세 정보 / 작업 목록 탭 */}
                 {activeTab === "detail" && <ProjectDetailCard project={proj} />}
                 {activeTab === "task" && <ProjectTaskList projectId={proj.id} />}
               </CardContent>
