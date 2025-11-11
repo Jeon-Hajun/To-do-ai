@@ -71,3 +71,12 @@ export const deleteTask = async (id) => {
   if (!id) return { success: false, error: { message: "Task ID 필요" } };
   return await callApi("delete", `${API_URL}/delete`, { id });
 };
+
+// ================== 새로 추가 ==================
+
+// Task ID로 상세 정보 조회 (description 포함)
+// 백엔드에서는 GET /info?id={id} 형태를 사용
+export const getTaskById = async (id) => {
+  if (!id) return { success: false, error: { message: "Task ID 필요" } };
+  return await callApi("get", `${API_URL}/info?id=${id}`);
+};
