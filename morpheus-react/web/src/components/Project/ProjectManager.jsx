@@ -54,6 +54,8 @@ export default function ProjectManager() {
     dispatch({ type: "FETCH_START" });
     try {
       const res = await getProjects();
+      console.log("Fetched projects:", res);
+
       if (res.success && Array.isArray(res.data.projects)) {
         const projectsWithOwnerId = res.data.projects.map((p) => ({
           ...p,
@@ -63,7 +65,8 @@ export default function ProjectManager() {
       } else {
         dispatch({ type: "FETCH_ERROR", payload: "프로젝트를 불러오지 못했습니다." });
       }
-    } catch {
+    } catch (err) {
+      console.error(err);
       dispatch({ type: "FETCH_ERROR", payload: "서버 요청 중 오류가 발생했습니다." });
     }
   };
@@ -73,31 +76,16 @@ export default function ProjectManager() {
   }, []);
 
   const handleModalClose = () => dispatch({ type: "CLOSE_MODAL" });
-
-  const handleCreateSuccess = async () => {
-    await fetchProjects();
-    handleModalClose();
-  };
-
-  const handleJoinSuccess = async () => {
-    await fetchProjects();
-    handleModalClose();
-  };
-
-  const handleUpdateSuccess = async () => {
-    await fetchProjects();
-    handleModalClose();
-  };
+  const handleCreateSuccess = async () => { await fetchProjects(); handleModalClose(); };
+  const handleJoinSuccess = async () => { await fetchProjects(); handleModalClose(); };
+  const handleUpdateSuccess = async () => { await fetchProjects(); handleModalClose(); };
 
   const handleLeave = async (projectId) => {
     if (!window.confirm("정말 프로젝트에서 나가시겠습니까?")) return;
     try {
       const res = await leaveProject(projectId);
-      if (res.success) {
-        dispatch({ type: "REMOVE_PROJECT", payload: projectId });
-      } else {
-        alert("프로젝트 나가기 실패: " + (res.error?.message || "알 수 없는 오류"));
-      }
+      if (res.success) dispatch({ type: "REMOVE_PROJECT", payload: projectId });
+      else alert("프로젝트 나가기 실패: " + (res.error?.message || "알 수 없는 오류"));
     } catch {
       alert("프로젝트 나가기 중 오류가 발생했습니다.");
     }
@@ -107,11 +95,8 @@ export default function ProjectManager() {
     if (!window.confirm("정말 프로젝트를 삭제하시겠습니까?")) return;
     try {
       const res = await deleteProject(projectId);
-      if (res.success) {
-        dispatch({ type: "REMOVE_PROJECT", payload: projectId });
-      } else {
-        alert("프로젝트 삭제 실패: " + (res.error?.message || "알 수 없는 오류"));
-      }
+      if (res.success) dispatch({ type: "REMOVE_PROJECT", payload: projectId });
+      else alert("프로젝트 삭제 실패: " + (res.error?.message || "알 수 없는 오류"));
     } catch {
       alert("프로젝트 삭제 중 오류가 발생했습니다.");
     }
@@ -122,25 +107,47 @@ export default function ProjectManager() {
 
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginBottom: 16 }}>
+      {/* 프로젝트 생성 / 참여 버튼 중앙 정렬 */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          flexWrap: "wrap",
+          gap: 12,
+          marginBottom: 8,
+        }}
+      >
         <Button onClick={() => dispatch({ type: "OPEN_MODAL", payload: { type: "create" } })}>
           프로젝트 생성
         </Button>
         <Button onClick={() => dispatch({ type: "OPEN_MODAL", payload: { type: "join" } })}>
           프로젝트 참여
         </Button>
+      </div>
+
+      {/* 새로고침 버튼: 오른쪽 정렬 */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
         <IconButton onClick={fetchProjects} color="primary" title="새로고침">
           <RefreshIcon />
         </IconButton>
       </div>
 
+      {/* 상태 표시 */}
       {state.loading && <div>로딩 중...</div>}
       {!state.loading && state.error && <div style={{ color: "red" }}>{state.error}</div>}
       {!state.loading && !state.error && state.projects.length === 0 && (
         <div>참여한 프로젝트가 없습니다.</div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 16 }}>
+      {/* 프로젝트 카드 영역 */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
+          gap: 16,
+          justifyContent: "center",
+        }}
+      >
         {state.projects.map((project) => (
           <ProjectCard
             key={project.id}
@@ -153,6 +160,7 @@ export default function ProjectManager() {
         ))}
       </div>
 
+      {/* 모달 */}
       <Dialog open={state.modalOpen} onClose={handleModalClose} fullWidth maxWidth="sm">
         <DialogTitle>
           {state.modalType === "create" && "프로젝트 생성"}
@@ -167,7 +175,11 @@ export default function ProjectManager() {
             <JoinProject onJoinSuccess={handleJoinSuccess} onClose={handleModalClose} />
           )}
           {state.modalType === "update" && (
-            <UpdateProject project={state.updateTarget} onUpdateSuccess={handleUpdateSuccess} onClose={handleModalClose} />
+            <UpdateProject
+              project={state.updateTarget}
+              onUpdateSuccess={handleUpdateSuccess}
+              onClose={handleModalClose}
+            />
           )}
         </DialogContent>
       </Dialog>
