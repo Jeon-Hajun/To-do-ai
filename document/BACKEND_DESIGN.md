@@ -102,7 +102,8 @@ CREATE TABLE projects (
   project_code VARCHAR(6) UNIQUE,              -- 프로젝트 코드 (참여용, 자동 생성, 선택)
   password_hash VARCHAR(255),                 -- 프로젝트 비밀번호 (암호화, 공유 프로젝트용, 선택)
   owner_id INT NOT NULL,                      -- 프로젝트 소유자 ID (FK → users.id)
-  github_repo VARCHAR(500),                   -- GitHub 저장소 URL (공개 저장소만 지원)
+  github_repo VARCHAR(500),                   -- GitHub 저장소 URL
+  github_token VARCHAR(255),                   -- GitHub Personal Access Token (프로젝트별 저장, 선택)
   github_last_synced_at DATETIME NULL,        -- GitHub 마지막 동기화 일시
   status VARCHAR(20) DEFAULT 'active',         -- 프로젝트 상태
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP, -- 프로젝트 생성일시
@@ -369,19 +370,27 @@ GitHub 저장소 연결 (인증 필요)
 **Request Body:**
 - `projectId`: 프로젝트 ID
 - `githubRepo`: GitHub 저장소 URL
+- `githubToken`: GitHub Personal Access Token (선택사항)
 
 `200 OK`
 
 **동작:**
-- GitHub 저장소 URL을 프로젝트에 연결
+- GitHub 저장소 URL과 토큰을 프로젝트에 저장
 - 백그라운드에서 GitHub 정보 동기화 시작
-- 커밋 정보 가져오기 (최근 30개, 기본 정보만) → DB에 저장
+- 커밋 정보 가져오기 (최근 30개, 기본 정보 + 통계 정보) → DB에 저장
 - 이슈 정보 가져오기 (최근 100개) → DB에 저장
 - 브랜치 정보 가져오기 → DB에 저장
 
+**토큰 사용:**
+- `githubToken`이 제공되면 프로젝트에 저장하고 사용
+- 토큰이 없으면 공개 저장소만 조회 가능 (Rate Limit: IP당 60회/시간)
+- 토큰이 있으면 Private 저장소도 접근 가능 (Rate Limit: 5,000회/시간, 토큰 소유자 기준)
+- 프로젝트의 모든 멤버가 같은 토큰을 공유하여 사용
+
 **참고:**
-- 커밋 상세 정보(통계)는 가져오지 않음 (API 호출 수 최적화)
-- API 호출 수: 총 4회 (커밋 목록 1회 + 이슈 목록 1회 + 브랜치 목록 2회)
+- 커밋 상세 통계 정보(lines_added, lines_deleted, files_changed)도 함께 가져와서 저장
+- API 호출 수: 총 4 + 커밋 수 회 (커밋 목록 1회 + 각 커밋 상세 통계 커밋 수만큼 + 이슈 목록 1회 + 브랜치 목록 2회)
+- 통계 정보 가져오기 실패 시에도 기본 정보는 저장됨
 
 #### PUT `/api/project/update` ✅
 프로젝트 수정 (인증 필요, owner만)
@@ -451,21 +460,25 @@ GitHub 저장소 연결 (인증 필요)
 **Path Parameters:**
 - `projectId`: 프로젝트 ID
 
-**Request Body (선택):**
-- `githubToken`: Private 저장소용 Personal Access Token
-
 `200 OK`
 
 **동작:**
-- 커밋 정보 가져오기 (최근 100개, 기본 정보만) → DB에 저장
+- 프로젝트에 저장된 토큰 사용 (`project.github_token`)
+- 커밋 정보 가져오기 (최근 100개, 기본 정보 + 통계 정보) → DB에 저장
 - 이슈 정보 가져오기 (최근 100개) → DB에 저장
 - 브랜치 정보 가져오기 → DB에 저장
 - DB에 저장 (중복 체크, UPSERT)
 - `projects.github_last_synced_at` 업데이트
 
+**토큰 사용:**
+- 프로젝트에 저장된 토큰을 자동으로 사용
+- 토큰이 없으면 공개 저장소만 조회 가능
+- 토큰이 있으면 Private 저장소도 접근 가능
+
 **참고:** 
-- 커밋 상세 정보(통계)는 가져오지 않음 (API 호출 수 최적화)
-- API 호출 수: 총 4회 (커밋 목록 1회 + 이슈 목록 1회 + 브랜치 목록 2회)
+- 커밋 상세 통계 정보(lines_added, lines_deleted, files_changed)도 함께 가져와서 저장
+- API 호출 수: 총 4 + 커밋 수 회 (커밋 목록 1회 + 각 커밋 상세 통계 커밋 수만큼 + 이슈 목록 1회 + 브랜치 목록 2회)
+- 통계 정보 가져오기 실패 시에도 기본 정보는 저장됨
 
 #### GET `/api/github/commits/:projectId` ✅
 커밋 목록 조회 (인증 필요, DB에 저장된 데이터)
@@ -529,6 +542,17 @@ GitHub 저장소 연결 (인증 필요)
 
 **참고:** 동기화 시 DB에 저장됨
 
+#### GET `/api/github/branches/:projectId/:branchName` ✅
+브랜치 상세 조회 (인증 필요, DB에 저장된 데이터)
+
+**Path Parameters:**
+- `projectId`: 프로젝트 ID
+- `branchName`: 브랜치 이름
+
+`200 OK`
+
+**참고:** DB에 저장된 데이터 조회, 해당 브랜치의 최신 커밋 정보도 포함
+
 #### GET `/api/github/repo-status/:projectId` ✅
 GitHub 저장소 연결 상태 확인 (인증 필요)
 
@@ -567,7 +591,7 @@ GitHub 저장소 연결 상태 확인 (인증 필요)
 - **userService**: 사용자 인증, 비밀번호 해시
 - **projectService**: 프로젝트 CRUD, 프로젝트 코드 생성, 멤버 관리, 권한 확인
 - **taskService**: Task CRUD, 상태 변경
-- **githubService**: GitHub API 호출, 데이터 파싱
+- **githubService**: GitHub API 호출, 데이터 파싱, 토큰 기반 인증 지원
 - **progressAnalyzer**: 진행도 계산 알고리즘
 - **aiService**: AI 백엔드 연동, 로그 저장
 
@@ -657,7 +681,32 @@ exports.login = function(req, res, next) {
   - 팀 협업 필요
   - 기능 확장 예정
 
-### 5.2 에러 처리
+### 5.2 GitHub Service 상세
+
+**GitHubService (`services/githubService.js`):**
+- GitHub API 클라이언트 래퍼 (`@octokit/rest` 사용)
+- 토큰 기반 인증 지원
+- 토큰 없이도 공개 저장소 조회 가능
+
+**토큰 사용 방식:**
+- 프로젝트별 토큰 저장 (`project.github_token`)
+- 토큰이 있으면 인증된 API 호출 (Rate Limit: 5,000회/시간, 토큰 소유자 기준)
+- 토큰이 없으면 공개 저장소만 조회 (Rate Limit: IP당 60회/시간)
+- 프로젝트의 모든 멤버가 같은 토큰 공유
+- 프로젝트 멤버 중 1명만 토큰을 입력하면 모든 멤버가 사용 가능
+
+**주요 메서드:**
+- `getCommits(repoUrl, options)`: 커밋 목록 가져오기 (기본 정보만)
+- `getCommitStats(repoUrl, sha)`: 커밋 상세 정보 (통계 포함, 별도 API 호출)
+- `getIssues(repoUrl, options)`: 이슈 목록 가져오기 (PR 제외)
+- `getBranches(repoUrl)`: 브랜치 목록 가져오기 (기본 브랜치 정보 포함)
+
+**토큰 저장 및 사용 흐름:**
+1. `POST /api/project/connect-github`: 토큰을 프로젝트에 저장
+2. `POST /api/github/sync/:projectId`: 프로젝트에 저장된 토큰 자동 사용
+3. 모든 GitHub 정보 조회 API: DB에서 조회 (토큰 불필요)
+
+### 5.3 에러 처리
 
 커스텀 에러 클래스 사용:
 
@@ -685,7 +734,8 @@ throw new AppError('PROJECT_NOT_FOUND', '프로젝트를 찾을 수 없습니다
 ### 6.2 데이터 보안
 - 비밀번호: bcrypt 해시 (salt rounds: 10)
 - SQL Injection 방지: 파라미터화된 쿼리 사용
-- GitHub 저장소: 공개 저장소만 지원 (토큰 불필요)
+- GitHub 토큰: 프로젝트별로 DB에 저장, API 응답에는 포함하지 않음
+- GitHub 저장소: 토큰 없이 공개 저장소만 지원, 토큰 있으면 Private 저장소도 지원
 
 ### 6.3 입력 검증
 - 모든 입력값 검증 (`utils/validators.js` 사용)
@@ -724,8 +774,7 @@ AI_BACKEND_URL=http://localhost:5000
 # CORS
 CORS_ORIGIN=http://localhost:5173
 
-# GitHub (선택사항 - 글로벌 Rate Limit 향상용)
-GITHUB_TOKEN=
+# GitHub 토큰은 프로젝트별로 저장 (환경변수 사용 안 함)
 ```
 
 ## 8. 구현 우선순위
@@ -737,18 +786,19 @@ GITHUB_TOKEN=
 4. ✅ Task API
 
 ### Phase 2: GitHub 연동 (Week 1)
-6. ✅ GitHub Service 구현
+6. ✅ GitHub Service 구현 (토큰 기반 인증 지원)
 7. ✅ GitHub API (동기화, 조회)
-8. ✅ Task-이슈 자동 연동
+8. ✅ 프로젝트별 토큰 저장 및 사용
+9. ✅ Task-이슈 자동 연동
 
 ### Phase 3: 진행도 분석 (Week 1)
-9. ✅ Progress Analyzer
-10. ✅ Progress API
+10. ✅ Progress Analyzer
+11. ✅ Progress API
 
 ### Phase 4: AI 연동 (Week 1-2)
-11. ✅ AI Service (백엔드 프록시)
-12. ✅ AI API
-13. ✅ AI 로그 저장
+12. ✅ AI Service (백엔드 프록시)
+13. ✅ AI API
+14. ✅ AI 로그 저장
 
 ## 8.1 구현 상태 요약
 
@@ -782,15 +832,22 @@ GITHUB_TOKEN=
 - ✅ 작업 할당 (owner만)
 - ✅ 작업 삭제 (owner만)
 
-**GitHub API (6개)**
-- ✅ 프로젝트 정보 동기화 (커밋 기본 정보, 이슈, 브랜치 - 커밋 상세 통계 제외)
-- ✅ 커밋 목록 조회
+**GitHub API (7개)**
+- ✅ 프로젝트 정보 동기화 (커밋 기본 정보 + 통계 정보, 이슈, 브랜치)
+  - 프로젝트별 토큰 저장 및 사용 지원
+  - 토큰 없이도 공개 저장소 조회 가능
+- ✅ 커밋 목록 조회 (DB에 저장된 데이터)
 - ✅ 커밋 상세 조회 (DB에 저장된 데이터)
-- ✅ 이슈 목록 조회
-- ✅ 이슈 상세 조회
-- ✅ 브랜치 목록 조회
+- ✅ 이슈 목록 조회 (DB에 저장된 데이터)
+- ✅ 이슈 상세 조회 (DB에 저장된 데이터)
+- ✅ 브랜치 목록 조회 (DB에 저장된 데이터)
+- ✅ 브랜치 상세 조회 (DB에 저장된 데이터)
 
-**참고:** API 호출 수 최적화를 위해 커밋 상세 통계 정보는 가져오지 않음
+**참고:** 
+- 커밋 상세 통계 정보(lines_added, lines_deleted, files_changed)도 함께 가져와서 저장
+- API 호출 수: 동기화 시 커밋 수만큼 추가 호출 (각 커밋의 상세 통계 정보)
+- 토큰은 프로젝트별로 저장되며, 프로젝트의 모든 멤버가 공유
+- 프로젝트 멤버 중 1명만 토큰을 입력하면 모든 멤버가 사용 가능
 
 **Progress API (1개)**
 - ✅ 프로젝트 진행도 조회
@@ -798,7 +855,7 @@ GITHUB_TOKEN=
 **AI API (1개)**
 - ✅ Task 제안
 
-**총 32개 API 구현 완료** ✅
+**총 33개 API 구현 완료** ✅
 
 ## 9. 테스트 전략
 

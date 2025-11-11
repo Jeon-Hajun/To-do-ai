@@ -22,4 +22,7 @@ router.get('/issues/:projectId/:issueNumber', authenticateToken, githubControlle
 // 브랜치 목록 조회 (DB에 저장된 데이터)
 router.get('/branches/:projectId', authenticateToken, githubController.getBranches);
 
+// 브랜치 상세 조회
+router.get('/branches/:projectId/:branchName', authenticateToken, githubController.getBranch);
+
 module.exports = router;

@@ -10,6 +10,13 @@ var {
   validateId
 } = require('../utils/validators');
 
+// ISO 8601 날짜를 MySQL DATETIME 형식으로 변환
+function convertToMySQLDateTime(isoDateString) {
+  if (!isoDateString) return null;
+  // '2025-11-03T00:05:03Z' -> '2025-11-03 00:05:03'
+  return isoDateString.replace('T', ' ').replace('Z', '').substring(0, 19);
+}
+
 // 프로젝트 코드 생성 (6자리 영숫자)
 function generateProjectCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -446,7 +453,7 @@ exports.getInfo = function(req, res, next) {
 
 // GitHub 저장소 연결
 exports.connectGithub = function(req, res, next) {
-  const { projectId, githubRepo } = req.body;
+  const { projectId, githubRepo, githubToken } = req.body;
   const userId = req.user.userId;
   
   // 입력 검증
@@ -501,10 +508,10 @@ exports.connectGithub = function(req, res, next) {
         });
       }
       
-      // GitHub 저장소 정보 업데이트
+      // GitHub 저장소 정보 업데이트 (토큰 포함)
       db.run(
-        'UPDATE projects SET github_repo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [githubRepo, projectId],
+        'UPDATE projects SET github_repo = ?, github_token = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [githubRepo, githubToken || null, projectId],
         function(err) {
           if (err) {
             console.error('GitHub 연결 오류:', err);
@@ -520,31 +527,87 @@ exports.connectGithub = function(req, res, next) {
           // GitHub 정보 가져오기 (백그라운드에서 처리, 커밋 상세 제외)
           (async () => {
             try {
-              const githubService = new GitHubService();
+              // 프로젝트 토큰 또는 전달받은 토큰 사용
+              const token = githubToken || result.github_token;
+              const githubService = new GitHubService(token);
               
-              // 커밋 목록 가져오기 (기본 정보만, 상세 정보는 제외)
+              // 커밋 목록 가져오기 (통계 정보 포함)
               try {
                 const commits = await githubService.getCommits(githubRepo, { perPage: 30 });
                 
-                // 커밋 기본 정보만 DB에 저장 (상세 정보는 제외)
+                // 커밋 정보를 DB에 저장 (통계 정보 포함)
                 for (const commit of commits) {
+                  // 커밋 상세 통계 정보 가져오기
+                  let stats = null;
+                  try {
+                    stats = await githubService.getCommitStats(githubRepo, commit.sha);
+                    console.log(`커밋 ${commit.sha.substring(0, 7)} 통계:`, {
+                      linesAdded: stats.linesAdded,
+                      linesDeleted: stats.linesDeleted,
+                      filesChanged: stats.filesChanged
+                    });
+                  } catch (error) {
+                    // 통계 정보 가져오기 실패해도 기본 정보는 저장
+                    console.warn(`커밋 ${commit.sha.substring(0, 7)} 통계 정보 가져오기 실패:`, error.message);
+                  }
+                  
                   db.run(
-                    `INSERT IGNORE INTO project_commits 
+                    `INSERT INTO project_commits 
                      (project_id, commit_sha, commit_message, author, commit_date, lines_added, lines_deleted, files_changed)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE
+                     commit_message = VALUES(commit_message),
+                     author = VALUES(author),
+                     commit_date = VALUES(commit_date),
+                     lines_added = IF(VALUES(lines_added) IS NOT NULL, VALUES(lines_added), lines_added),
+                     lines_deleted = IF(VALUES(lines_deleted) IS NOT NULL, VALUES(lines_deleted), lines_deleted),
+                     files_changed = IF(VALUES(files_changed) IS NOT NULL, VALUES(files_changed), files_changed)`,
                     [
                       projectId,
                       commit.sha,
                       commit.message,
                       commit.author,
-                      commit.date,
-                      null, // lines_added (상세 정보 없음)
-                      null, // lines_deleted (상세 정보 없음)
-                      null  // files_changed (상세 정보 없음)
+                      convertToMySQLDateTime(commit.date), // ISO 8601 -> MySQL DATETIME
+                      stats ? stats.linesAdded : null,
+                      stats ? stats.linesDeleted : null,
+                      stats ? stats.filesChanged : null
                     ],
-                    function(err) {
-                      if (err && !err.message.includes('UNIQUE')) {
+                    (err) => {
+                      if (err) {
                         console.error('커밋 저장 오류:', err);
+                      } else {
+                        const savedStats = stats ? ` (통계: +${stats.linesAdded}/-${stats.linesDeleted}, 파일: ${stats.filesChanged})` : ' (통계 없음)';
+                        console.log(`커밋 ${commit.sha.substring(0, 7)} 저장 완료${savedStats}`);
+                        
+                        // 파일별 변경 내용 저장
+                        if (stats && stats.files && stats.files.length > 0) {
+                          stats.files.forEach((file) => {
+                            db.run(
+                              `INSERT INTO project_commit_files 
+                               (project_id, commit_sha, file_path, status, additions, deletions, patch)
+                               VALUES (?, ?, ?, ?, ?, ?, ?)
+                               ON DUPLICATE KEY UPDATE
+                               status = VALUES(status),
+                               additions = VALUES(additions),
+                               deletions = VALUES(deletions),
+                               patch = VALUES(patch)`,
+                              [
+                                projectId,
+                                commit.sha,
+                                file.filename,
+                                file.status || 'modified',
+                                file.additions || 0,
+                                file.deletions || 0,
+                                file.patch || null
+                              ],
+                              (fileErr) => {
+                                if (fileErr) {
+                                  console.error(`파일 ${file.filename} 저장 오류:`, fileErr);
+                                }
+                              }
+                            );
+                          });
+                        }
                       }
                     }
                   );
@@ -579,9 +642,9 @@ exports.connectGithub = function(req, res, next) {
                       issue.state,
                       JSON.stringify(issue.assignees || []),
                       JSON.stringify(issue.labels || []),
-                      issue.createdAt,
-                      issue.updatedAt,
-                      issue.closedAt || null
+                      convertToMySQLDateTime(issue.createdAt),
+                      convertToMySQLDateTime(issue.updatedAt),
+                      convertToMySQLDateTime(issue.closedAt)
                     ],
                     function(err) {
                       if (err) {

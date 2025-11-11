@@ -5,9 +5,22 @@ const { Octokit } = require('@octokit/rest');
  */
 class GitHubService {
   constructor(token = null) {
+    // 토큰이 제공되면 사용, 없으면 토큰 없이 사용
+    if (token && token.trim() !== '') {
+      // 토큰이 있지만 잘못된 형식일 수 있으므로 검증
+      const trimmedToken = token.trim();
+      if (!trimmedToken.startsWith('ghp_') && !trimmedToken.startsWith('github_pat_')) {
+        console.warn('[GitHubService] 토큰 형식이 예상과 다릅니다:', trimmedToken.substring(0, 10) + '...');
+      }
     this.octokit = new Octokit({
-      auth: token
+        auth: trimmedToken
     });
+      console.log('[GitHubService] 토큰으로 인증된 API 클라이언트 생성됨');
+    } else {
+      // 토큰 없이 공개 저장소만 조회 (Rate Limit: IP당 60회/시간)
+      this.octokit = new Octokit();
+      console.log('[GitHubService] 토큰 없이 공개 저장소만 조회 가능');
+    }
   }
 
   /**
@@ -19,14 +32,39 @@ class GitHubService {
       throw new Error('GitHub 저장소 URL이 필요합니다.');
     }
 
-    const match = repoUrl.match(/github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?\/?$/);
-    if (!match) {
-      throw new Error('유효하지 않은 GitHub 저장소 URL입니다.');
+    // URL 정리 (앞뒤 공백 제거)
+    const trimmedUrl = repoUrl.trim();
+    
+    // 다양한 GitHub URL 형식 지원
+    // https://github.com/owner/repo
+    // http://github.com/owner/repo
+    // github.com/owner/repo
+    // git@github.com:owner/repo.git
+    const patterns = [
+      /github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?\/?$/,  // 기본 형식
+      /^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/,  // http/https 명시
+      /^git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/,  // SSH 형식
+    ];
+
+    let match = null;
+    for (const pattern of patterns) {
+      match = trimmedUrl.match(pattern);
+      if (match) break;
     }
 
+    if (!match) {
+      console.error('[parseRepoUrl] URL 파싱 실패:', trimmedUrl);
+      throw new Error(`유효하지 않은 GitHub 저장소 URL입니다: ${trimmedUrl}`);
+    }
+
+    const owner = match[1];
+    const repo = match[2].replace('.git', '');
+
+    console.log(`[parseRepoUrl] 파싱 결과: owner=${owner}, repo=${repo}`);
+
     return {
-      owner: match[1],
-      repo: match[2].replace('.git', '')
+      owner,
+      repo
     };
   }
 
@@ -48,7 +86,9 @@ class GitHubService {
         params.since = since;
       }
 
+      console.log(`[getCommits] API 호출: ${owner}/${repo}, perPage: ${perPage}`);
       const response = await this.octokit.repos.listCommits(params);
+      console.log(`[getCommits] 응답 성공: ${response.data.length}개 커밋`);
       
       return response.data.map(commit => ({
         sha: commit.sha,
@@ -59,7 +99,30 @@ class GitHubService {
         stats: null // stats는 별도 API 호출 필요
       }));
     } catch (error) {
-      console.error('커밋 조회 오류:', error);
+      console.error('[getCommits] 커밋 조회 오류:', error);
+      console.error('[getCommits] 에러 상세:', {
+        status: error.status,
+        message: error.message,
+        response: error.response?.data
+      });
+      
+      // Bad credentials 에러인 경우 더 명확한 메시지 제공
+      if (error.status === 401 || error.message.includes('Bad credentials')) {
+        throw new Error(`인증 실패: GitHub 토큰이 잘못되었거나 만료되었습니다. 토큰을 확인하고 다시 시도해주세요.`);
+      }
+      
+      // Not Found 에러인 경우 더 명확한 메시지 제공
+      if (error.status === 404 || error.message.includes('Not Found')) {
+        let ownerRepo = '알 수 없음';
+        try {
+          const parsed = this.parseRepoUrl(repoUrl);
+          ownerRepo = `${parsed.owner}/${parsed.repo}`;
+        } catch (parseError) {
+          ownerRepo = repoUrl;
+        }
+        throw new Error(`저장소를 찾을 수 없습니다: ${ownerRepo}. 저장소 URL이 올바른지, Private 저장소인 경우 토큰에 'repo' 권한이 있는지 확인해주세요.`);
+      }
+      
       throw new Error(`커밋 조회 실패: ${error.message}`);
     }
   }
@@ -71,26 +134,58 @@ class GitHubService {
     try {
       const { owner, repo } = this.parseRepoUrl(repoUrl);
       
+      console.log(`[getCommitStats] 요청: ${owner}/${repo}, SHA: ${sha.substring(0, 7)}`);
+      
       const response = await this.octokit.repos.getCommit({
         owner,
         repo,
         ref: sha
       });
 
+      // 응답 데이터 구조 확인
+      console.log(`[getCommitStats] 응답 확인:`, {
+        hasStats: !!response.data.stats,
+        hasFiles: !!response.data.files,
+        stats: response.data.stats,
+        filesLength: response.data.files?.length
+      });
+
+      // stats가 없을 수도 있으므로 확인
       const stats = response.data.stats || { additions: 0, deletions: 0, total: 0 };
       const files = response.data.files || [];
 
-      return {
+      // 디버깅: stats 정보 확인
+      if (!response.data.stats) {
+        console.warn(`[getCommitStats] 커밋 ${sha.substring(0, 7)}의 stats가 없습니다.`);
+      }
+
+      const result = {
         sha: response.data.sha,
         message: response.data.commit.message,
         author: response.data.commit.author.name,
         date: response.data.commit.author.date,
-        linesAdded: stats.additions,
-        linesDeleted: stats.deletions,
-        filesChanged: files.length
+        linesAdded: stats.additions || 0,
+        linesDeleted: stats.deletions || 0,
+        filesChanged: files.length || 0,
+        files: files.map(file => ({
+          filename: file.filename,
+          status: file.status, // 'added', 'modified', 'removed', 'renamed'
+          additions: file.additions || 0,
+          deletions: file.deletions || 0,
+          changes: file.changes || 0,
+          patch: file.patch || null // 실제 코드 변경 내용 (diff)
+        }))
       };
+
+      console.log(`[getCommitStats] 반환값:`, {
+        ...result,
+        files: result.files.map(f => ({ filename: f.filename, status: f.status, additions: f.additions, deletions: f.deletions }))
+      });
+
+      return result;
     } catch (error) {
-      console.error('커밋 상세 조회 오류:', error);
+      console.error(`[getCommitStats] 커밋 ${sha.substring(0, 7)} 상세 조회 오류:`, error.message);
+      console.error(`[getCommitStats] 에러 상세:`, error);
       throw new Error(`커밋 상세 조회 실패: ${error.message}`);
     }
   }

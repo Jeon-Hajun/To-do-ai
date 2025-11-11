@@ -1,17 +1,22 @@
--- Todo AI 데이터베이스 스키마
--- MySQL Workbench에서 실행할 스크립트
--- 전체 내용을 복사해서 MySQL Workbench의 SQL Editor에서 실행하세요
+-- 데이터베이스 삭제 및 재생성 스크립트
+-- MySQL Workbench에서 실행하거나 MySQL 명령줄에서 실행하세요
 
--- 1. 데이터베이스 생성
-CREATE DATABASE IF NOT EXISTS todo_ai CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- 1. 외래 키 제약 조건 비활성화 (삭제 시 필요)
+SET FOREIGN_KEY_CHECKS = 0;
 
--- 2. 데이터베이스 선택
+-- 2. 기존 데이터베이스 삭제 (있으면)
+DROP DATABASE IF EXISTS todo_ai;
+
+-- 3. 데이터베이스 생성
+CREATE DATABASE todo_ai CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- 4. 데이터베이스 선택
 USE todo_ai;
 
--- 3. 외래 키 제약 조건 활성화
+-- 5. 외래 키 제약 조건 활성화
 SET FOREIGN_KEY_CHECKS = 1;
 
--- Users 테이블
+-- 6. Users 테이블
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   email VARCHAR(255) UNIQUE NOT NULL,
@@ -173,3 +178,4 @@ CREATE TABLE IF NOT EXISTS ai_logs (
   INDEX idx_ai_logs_type (type),
   INDEX idx_ai_logs_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

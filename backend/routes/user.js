@@ -11,15 +11,15 @@ var router = express.Router();
 var profileDir = path.join(__dirname, '../public/profile');
 if (!fs.existsSync(profileDir)) {
   fs.mkdirSync(profileDir, { recursive: true });
-}
-
+          }
+          
 var storage = multer.diskStorage({
   destination: function(req, file, cb) {
     cb(null, profileDir);
   },
   filename: function(req, file, cb) {
     cb(null, req.user.userId + '.png');
-  }
+    }
 });
 
 var upload = multer({ storage: storage });
