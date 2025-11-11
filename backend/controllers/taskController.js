@@ -251,13 +251,16 @@ exports.getInfo = function(req, res, next) {
           });
         }
         
-        // 작업 목록 조회
+        // 작업 목록 조회 (마감일 기준 정렬: 마감일이 가까운 순, NULL은 뒤로)
         db.all(
           `SELECT t.*, u.nickname as assigned_user_name 
            FROM tasks t 
            LEFT JOIN users u ON t.assigned_user_id = u.id 
            WHERE t.project_id = ? 
-           ORDER BY t.created_at DESC`,
+           ORDER BY 
+             CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END,
+             t.due_date ASC,
+             t.created_at DESC`,
           [projectId],
           function(err, tasks) {
             if (err) {
