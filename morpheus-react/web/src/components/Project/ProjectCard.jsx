@@ -1,3 +1,4 @@
+// src/components/Project/ProjectCard.jsx
 import React, { useEffect, useState } from "react";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -8,12 +9,15 @@ import Stack from "@mui/material/Stack";
 import Avatar from "@mui/material/Avatar";
 import AvatarGroup from "@mui/material/AvatarGroup";
 import { getMembers } from "../../api/projects";
+import { getUser } from "../../utils/auth";
 
-export default function ProjectCard({ project, currentUser, onLeave, onDelete, onUpdate }) {
+export default function ProjectCard({ project, onLeave, onDelete, onUpdate }) {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
 
-  if (!project) return null;
+  const currentUser = getUser();
+  if (!project || !currentUser) return null;
 
   useEffect(() => {
     const fetchMembers = async () => {
@@ -21,7 +25,12 @@ export default function ProjectCard({ project, currentUser, onLeave, onDelete, o
       try {
         const res = await getMembers(project.id);
         if (res.success) {
-          setMembers(res.data.members || []);
+          const membersList = res.data.members || [];
+          setMembers(membersList);
+
+          const owner = membersList.find((m) => m.role === "owner");
+          if (owner) setIsOwner(String(owner.id) === String(currentUser.id));
+          else setIsOwner(String(project.ownerId) === String(currentUser.id));
         }
       } catch (error) {
         console.error("멤버 조회 실패:", error);
@@ -31,17 +40,15 @@ export default function ProjectCard({ project, currentUser, onLeave, onDelete, o
     };
 
     fetchMembers();
-  }, [project.id]);
+  }, [project.id, currentUser.id, project.ownerId]);
 
   return (
     <Card variant="outlined" sx={{ mb: 2, borderRadius: 2 }}>
       <CardContent>
-        <Typography variant="h6">{project.title}</Typography>
-        {project.description && (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            {project.description}
-          </Typography>
-        )}
+        {/* 제목 */}
+        <Typography variant="h6" sx={{ mb: 1 }}>
+          {project.title}
+        </Typography>
 
         {/* 프로젝트 멤버 표시 */}
         {!loading && members.length > 0 && (
@@ -66,34 +73,25 @@ export default function ProjectCard({ project, currentUser, onLeave, onDelete, o
       {/* 버튼 영역 */}
       <CardActions>
         <Stack direction="row" spacing={1}>
-          {onLeave && (
-            <Button 
-              variant="outlined" 
-              color="secondary" 
-              onClick={() => onLeave(project.id)}
-            >
-              나가기
-            </Button>
-          )}
-
-          {onDelete && (
-            <Button 
-              variant="contained" 
-              color="error" 
-              onClick={() => onDelete(project.id)}
-            >
-              삭제
-            </Button>
-          )}
-
-          {onUpdate && (
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={() => onUpdate(project)}
-            >
-              수정
-            </Button>
+          {isOwner ? (
+            <>
+              {onUpdate && (
+                <Button variant="contained" color="primary" onClick={() => onUpdate(project)}>
+                  수정
+                </Button>
+              )}
+              {onDelete && (
+                <Button variant="contained" color="error" onClick={() => onDelete(project.id)}>
+                  삭제
+                </Button>
+              )}
+            </>
+          ) : (
+            onLeave && (
+              <Button variant="contained" color="primary" onClick={() => onLeave(project.id)}>
+                나가기
+              </Button>
+            )
           )}
         </Stack>
       </CardActions>

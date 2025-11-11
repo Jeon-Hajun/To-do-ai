@@ -36,8 +36,22 @@ const callApi = async (method, url, data = null) => {
 
 // ================= 프로젝트 API 함수 =================
 export const getProjects = async (projectId) => {
-  const url = projectId ? `${API_URL}/info?id=${projectId}` : `${API_URL}/info`;
-  return await callApi("get", url);
+  const res = await callApi("get", projectId ? `${API_URL}/info?id=${projectId}` : `${API_URL}/info`);
+
+  if (res.success && res.data) {
+    // 목록 조회일 경우 description 없으면 "설명이 없습니다." 처리
+    if (res.data.projects) {
+      res.data.projects = res.data.projects.map(p => ({
+        ...p,
+        description: p.description ?? "설명이 없습니다."
+      }));
+    } else if (res.data.project) {
+      // 상세 조회일 경우도 description 없으면 처리
+      res.data.project.description = res.data.project.description ?? "설명이 없습니다.";
+    }
+  }
+
+  return res;
 };
 
 export const createProject = async ({ title, description, isShared, password, githubRepo }) => {

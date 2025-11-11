@@ -1,10 +1,10 @@
+// src/components/Project/CreateProject.jsx
 import React, { useState } from "react";
 import { createProject } from "../../api/projects";
 import { TextField, Button, FormControlLabel, Checkbox, Box, Typography } from "@mui/material";
 
 export default function CreateProject({ onCreateSuccess }) {
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
   const [isShared, setIsShared] = useState(false);
   const [password, setPassword] = useState("");
   const [githubRepo, setGithubRepo] = useState("");
@@ -17,7 +17,6 @@ export default function CreateProject({ onCreateSuccess }) {
     try {
       const res = await createProject({
         title,
-        description,
         isShared,
         password: isShared ? password : null,
         githubRepo,
@@ -28,7 +27,6 @@ export default function CreateProject({ onCreateSuccess }) {
       } else {
         alert("프로젝트 생성 실패: " + (res.error?.message || ""));
       }
-
     } catch (err) {
       console.error(err);
       alert("서버 오류로 프로젝트 생성 실패");
@@ -47,16 +45,6 @@ export default function CreateProject({ onCreateSuccess }) {
         required
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        margin="normal"
-      />
-
-      <TextField
-        label="설명"
-        fullWidth
-        multiline
-        rows={3}
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
         margin="normal"
       />
 
@@ -81,6 +69,14 @@ export default function CreateProject({ onCreateSuccess }) {
           margin="normal"
         />
       )}
+
+      <TextField
+        label="GitHub Repository"
+        fullWidth
+        value={githubRepo}
+        onChange={(e) => setGithubRepo(e.target.value)}
+        margin="normal"
+      />
 
       <Button
         type="submit"

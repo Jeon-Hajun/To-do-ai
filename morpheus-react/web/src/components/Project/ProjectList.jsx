@@ -13,13 +13,25 @@ export default function ProjectList() {
   // 프로젝트 목록 불러오기
   const fetchProjects = async () => {
     setLoading(true);
-    const res = await getProjects();
-    if (res.success) {
-      setProjects(res.data.projects || []); // 벡엔드 구조에 맞춰 projects 배열 사용
-    } else {
-      setError(res.error?.message || "프로젝트를 불러오는 중 오류 발생");
+    setError(null);
+
+    try {
+      const res = await getProjects();
+      if (res.success) {
+        const mappedProjects = (res.data.projects || []).map((p) => ({
+          ...p,
+          ownerId: p.ownerId ?? p.owner_id ?? null,
+        }));
+        setProjects(mappedProjects);
+      } else {
+        setError(res.error?.message || "프로젝트를 불러오는 중 오류 발생");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("서버 요청 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -29,21 +41,15 @@ export default function ProjectList() {
   const handleLeave = async (projectId) => {
     if (!window.confirm("정말 프로젝트에서 나가시겠습니까?")) return;
     const res = await leaveProject(projectId);
-    if (res.success) {
-      setProjects(projects.filter((p) => p.id !== projectId));
-    } else {
-      alert(res.error?.message || "프로젝트 나가기 실패");
-    }
+    if (res.success) setProjects(projects.filter((p) => p.id !== projectId));
+    else alert(res.error?.message || "프로젝트 나가기 실패");
   };
 
   const handleDelete = async (projectId) => {
     if (!window.confirm("정말 프로젝트를 삭제하시겠습니까?")) return;
     const res = await deleteProject(projectId);
-    if (res.success) {
-      setProjects(projects.filter((p) => p.id !== projectId));
-    } else {
-      alert(res.error?.message || "프로젝트 삭제 실패");
-    }
+    if (res.success) setProjects(projects.filter((p) => p.id !== projectId));
+    else alert(res.error?.message || "프로젝트 삭제 실패");
   };
 
   const handleUpdate = async (project) => {
@@ -52,9 +58,7 @@ export default function ProjectList() {
 
     const res = await updateProject(project.id, { title: newTitle });
     if (res.success) {
-      setProjects(
-        projects.map((p) => (p.id === project.id ? { ...p, title: newTitle } : p))
-      );
+      setProjects(projects.map((p) => (p.id === project.id ? { ...p, title: newTitle } : p)));
     } else {
       alert(res.error?.message || "프로젝트 수정 실패");
     }

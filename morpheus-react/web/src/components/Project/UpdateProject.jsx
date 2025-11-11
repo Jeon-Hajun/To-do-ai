@@ -9,19 +9,18 @@ import { updateProject } from "../../api/projects";
 
 export default function UpdateProject({ project, onUpdateSuccess, onClose }) {
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
   const [isShared, setIsShared] = useState(false);
   const [password, setPassword] = useState("");
   const [githubRepo, setGithubRepo] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // 프로젝트 정보가 들어오면 입력 필드 초기화
   useEffect(() => {
     if (project) {
-      setTitle(project.title || "");
-      setDescription(project.description || "");
-      setIsShared(project.isShared || false);
-      setPassword(project.password || "");
-      setGithubRepo(project.githubRepo || "");
+      setTitle(project.title ?? project.name ?? "");
+      setIsShared(Boolean(project.isShared));
+      setPassword(project.password ?? "");
+      setGithubRepo(project.githubRepo ?? project.github_url ?? "");
     }
   }, [project]);
 
@@ -33,14 +32,13 @@ export default function UpdateProject({ project, onUpdateSuccess, onClose }) {
     try {
       const res = await updateProject(project.id, {
         title,
-        description,
         isShared,
         password: isShared ? password : "",
         githubRepo,
       });
       if (res.success) {
         onUpdateSuccess();
-        if (onClose) onClose();
+        onClose?.();
       } else {
         alert("프로젝트 수정 실패: " + (res.error?.message || "알 수 없는 오류"));
       }
@@ -63,14 +61,7 @@ export default function UpdateProject({ project, onUpdateSuccess, onClose }) {
         required
         fullWidth
       />
-      <TextField
-        label="설명"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        multiline
-        rows={3}
-        fullWidth
-      />
+
       <FormControlLabel
         control={
           <Checkbox
@@ -80,6 +71,7 @@ export default function UpdateProject({ project, onUpdateSuccess, onClose }) {
         }
         label="공유 프로젝트"
       />
+
       {isShared && (
         <TextField
           label="비밀번호"
@@ -89,6 +81,7 @@ export default function UpdateProject({ project, onUpdateSuccess, onClose }) {
           fullWidth
         />
       )}
+
       <TextField
         label="GitHub 저장소 URL"
         value={githubRepo}

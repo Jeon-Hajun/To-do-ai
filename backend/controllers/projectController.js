@@ -476,7 +476,7 @@ exports.connectGithub = function(req, res, next) {
   db.get(
     `SELECT p.*, pm.role 
      FROM projects p
-     JOIN project_members pm ON p.id = pm.project_id
+     JOIN project_members pm ON p.id = pm.praoject_id
      WHERE p.id = ? AND pm.user_id = ?`,
     [projectId, userId],
     function(err, result) {
