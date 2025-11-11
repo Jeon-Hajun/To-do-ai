@@ -37,7 +37,7 @@ export default function CreateProject({ onCreateSuccess }) {
 
   return (
     <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>프로젝트 생성</Typography>
+      
 
       <TextField
         label="프로젝트 제목"
@@ -45,7 +45,7 @@ export default function CreateProject({ onCreateSuccess }) {
         required
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        margin="normal"
+        //margin="normal"
       />
 
       <FormControlLabel

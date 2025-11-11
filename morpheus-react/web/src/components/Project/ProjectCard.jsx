@@ -1,22 +1,21 @@
-// src/components/Project/ProjectCard.jsx
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
-import CardActions from "@mui/material/CardActions";
 import Typography from "@mui/material/Typography";
-import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Avatar from "@mui/material/Avatar";
 import AvatarGroup from "@mui/material/AvatarGroup";
 import { getMembers } from "../../api/projects";
 import { getUser } from "../../utils/auth";
 
-export default function ProjectCard({ project, onLeave, onDelete, onUpdate }) {
+export default function ProjectCard({ project }) {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isOwner, setIsOwner] = useState(false);
 
   const currentUser = getUser();
+  const navigate = useNavigate();
+
   if (!project || !currentUser) return null;
 
   useEffect(() => {
@@ -24,77 +23,49 @@ export default function ProjectCard({ project, onLeave, onDelete, onUpdate }) {
       setLoading(true);
       try {
         const res = await getMembers(project.id);
-        if (res.success) {
-          const membersList = res.data.members || [];
-          setMembers(membersList);
-
-          const owner = membersList.find((m) => m.role === "owner");
-          if (owner) setIsOwner(String(owner.id) === String(currentUser.id));
-          else setIsOwner(String(project.ownerId) === String(currentUser.id));
-        }
+        if (res.success) setMembers(res.data.members || []);
       } catch (error) {
         console.error("멤버 조회 실패:", error);
       } finally {
         setLoading(false);
       }
     };
-
     fetchMembers();
-  }, [project.id, currentUser.id, project.ownerId]);
+  }, [project.id]);
+
+  const handleCardClick = () => {
+    if (project.id) navigate(`/project/${project.id}`, { state: { project } });
+  };
 
   return (
-    <Card variant="outlined" sx={{ mb: 2, borderRadius: 2 }}>
+    <Card
+      variant="outlined"
+      sx={{ mb: 2, borderRadius: 2, cursor: project.id ? "pointer" : "default" }}
+      onClick={handleCardClick}
+    >
       <CardContent>
-        {/* 제목 */}
         <Typography variant="h6" sx={{ mb: 1 }}>
-          {project.title}
+          {project.title || "제목 없음"}
         </Typography>
 
-        {/* 프로젝트 멤버 표시 */}
         {!loading && members.length > 0 && (
           <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
             <AvatarGroup max={5}>
               {members.map((m) => (
                 <Avatar
-                  key={m.id}
-                  alt={m.nickname || m.email}
+                  key={m.id || Math.random()}
+                  alt={m.nickname || m.email || "알 수 없음"}
                   src={m.avatarUrl || ""}
                   sx={{ width: 32, height: 32 }}
                 />
               ))}
             </AvatarGroup>
             <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-              {members.map((m) => m.nickname || m.email).join(", ")}
+              {members.map((m) => m.nickname || m.email || "알 수 없음").join(", ")}
             </Typography>
           </Stack>
         )}
       </CardContent>
-
-      {/* 버튼 영역 */}
-      <CardActions>
-        <Stack direction="row" spacing={1}>
-          {isOwner ? (
-            <>
-              {onUpdate && (
-                <Button variant="contained" color="primary" onClick={() => onUpdate(project)}>
-                  수정
-                </Button>
-              )}
-              {onDelete && (
-                <Button variant="contained" color="error" onClick={() => onDelete(project.id)}>
-                  삭제
-                </Button>
-              )}
-            </>
-          ) : (
-            onLeave && (
-              <Button variant="contained" color="primary" onClick={() => onLeave(project.id)}>
-                나가기
-              </Button>
-            )
-          )}
-        </Stack>
-      </CardActions>
     </Card>
   );
 }
