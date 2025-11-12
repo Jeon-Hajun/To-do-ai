@@ -362,15 +362,65 @@ pool.query('SET FOREIGN_KEY_CHECKS = 1');
 **Query Parameters:**
 - `id`: 프로젝트 ID (없으면 목록 조회)
 
+**응답 형식:**
+
+**목록 조회** (`id` 없음):
+```json
+{
+  "success": true,
+  "data": {
+    "projects": [
+      {
+        "id": 1,
+        "title": "프로젝트 제목",
+        "status": "active",
+        "memberCount": 3,
+        "isShared": true
+      }
+    ]
+  }
+}
+```
+
+**상세 조회** (`id` 있음):
+```json
+{
+  "success": true,
+  "data": {
+    "project": {
+      "id": 1,
+      "title": "프로젝트 제목",
+      "description": "프로젝트 설명",
+      "githubRepo": "https://github.com/owner/repo",
+      "hasGithubToken": true,
+      "status": "active",
+      "ownerId": 1,
+      "isShared": true,
+      "projectCode": "ABC123"
+    }
+  }
+}
+```
+
+**참고:**
+- `hasGithubToken`: GitHub 토큰 존재 여부 (보안상 전체 토큰은 반환하지 않음)
+- 목록 조회는 최소한의 정보만 포함 (리스트 표시용)
+- 상세 조회는 모든 정보 포함
+
 `200 OK`
 
 #### POST `/api/project/connect-github` ✅
-GitHub 저장소 연결 (인증 필요)
+GitHub 저장소 연결 (인증 필요, owner만)
 
 **Request Body:**
 - `projectId`: 프로젝트 ID
-- `githubRepo`: GitHub 저장소 URL
+- `githubRepo`: GitHub 저장소 URL (필수)
 - `githubToken`: GitHub Personal Access Token (선택사항)
+
+**토큰 처리 로직:**
+- 새 토큰이 입력되면: 프로젝트에 저장
+- 빈 문자열(`""`) 또는 마스킹된 값(`"••••••••••••••••"`)이면: 기존 토큰 유지
+- 토큰이 없으면: `null`로 저장 (공개 저장소만 접근 가능)
 
 `200 OK`
 
@@ -386,11 +436,14 @@ GitHub 저장소 연결 (인증 필요)
 - 토큰이 없으면 공개 저장소만 조회 가능 (Rate Limit: IP당 60회/시간)
 - 토큰이 있으면 Private 저장소도 접근 가능 (Rate Limit: 5,000회/시간, 토큰 소유자 기준)
 - 프로젝트의 모든 멤버가 같은 토큰을 공유하여 사용
+- 토큰은 DB에 저장되며, API 응답에는 포함하지 않음 (보안)
+- 프로젝트 상세 조회 시 `hasGithubToken` boolean으로 토큰 존재 여부만 확인 가능
 
 **참고:**
 - 커밋 상세 통계 정보(lines_added, lines_deleted, files_changed)도 함께 가져와서 저장
 - API 호출 수: 총 4 + 커밋 수 회 (커밋 목록 1회 + 각 커밋 상세 통계 커밋 수만큼 + 이슈 목록 1회 + 브랜치 목록 2회)
 - 통계 정보 가져오기 실패 시에도 기본 정보는 저장됨
+- 저장소 URL만 변경하고 토큰은 유지하려면 `githubToken`을 빈 문자열로 보내면 됨
 
 #### PUT `/api/project/update` ✅
 프로젝트 수정 (인증 필요, owner만)
@@ -694,6 +747,8 @@ exports.login = function(req, res, next) {
 - 토큰이 없으면 공개 저장소만 조회 (Rate Limit: IP당 60회/시간)
 - 프로젝트의 모든 멤버가 같은 토큰 공유
 - 프로젝트 멤버 중 1명만 토큰을 입력하면 모든 멤버가 사용 가능
+- 토큰 업데이트 시 빈 문자열이면 기존 토큰 유지 (저장소 URL만 변경 가능)
+- API 응답에는 토큰 값이 포함되지 않으며, `hasGithubToken` boolean으로 존재 여부만 확인
 
 **주요 메서드:**
 - `getCommits(repoUrl, options)`: 커밋 목록 가져오기 (기본 정보만)
@@ -735,7 +790,10 @@ throw new AppError('PROJECT_NOT_FOUND', '프로젝트를 찾을 수 없습니다
 - 비밀번호: bcrypt 해시 (salt rounds: 10)
 - SQL Injection 방지: 파라미터화된 쿼리 사용
 - GitHub 토큰: 프로젝트별로 DB에 저장, API 응답에는 포함하지 않음
+  - 프로젝트 상세 조회 시 `hasGithubToken` boolean으로 토큰 존재 여부만 반환
+  - 전체 토큰 값은 절대 응답에 포함하지 않음
 - GitHub 저장소: 토큰 없이 공개 저장소만 지원, 토큰 있으면 Private 저장소도 지원
+- 이메일: 회원 정보 수정 시 변경 불가 (중복 체크 및 수정 제한)
 
 ### 6.3 입력 검증
 - 모든 입력값 검증 (`utils/validators.js` 사용)
@@ -848,6 +906,8 @@ CORS_ORIGIN=http://localhost:5173
 - API 호출 수: 동기화 시 커밋 수만큼 추가 호출 (각 커밋의 상세 통계 정보)
 - 토큰은 프로젝트별로 저장되며, 프로젝트의 모든 멤버가 공유
 - 프로젝트 멤버 중 1명만 토큰을 입력하면 모든 멤버가 사용 가능
+- 토큰 업데이트 시 빈 문자열이면 기존 토큰 유지 기능 지원
+- 프로젝트 상세 조회 시 `hasGithubToken` 필드로 토큰 존재 여부 확인 가능
 
 **Progress API (1개)**
 - ✅ 프로젝트 진행도 조회

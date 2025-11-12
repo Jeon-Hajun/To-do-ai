@@ -48,6 +48,7 @@ export const getProjects = async (projectId) => {
     } else if (res.data.project) {
       // 상세 조회일 경우도 description 없으면 처리
       res.data.project.description = res.data.project.description ?? "설명이 없습니다.";
+      res.data.project.hasGithubToken = res.data.project.hasGithubToken || false;
     }
   }
 
@@ -105,6 +106,6 @@ export const validateProjectCode = async (projectCode) => {
   return await callApi("get", `${API_URL}/validate-code?projectCode=${projectCode}`);
 };
 
-export const connectGithubRepo = async (projectId, githubRepo) => {
-  return await callApi("post", `${API_URL}/connect-github`, { projectId, githubRepo });
+export const connectGithubRepo = async (projectId, githubRepo, githubToken = null) => {
+  return await callApi("post", `${API_URL}/connect-github`, { projectId, githubRepo, githubToken });
 };

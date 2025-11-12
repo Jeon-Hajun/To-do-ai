@@ -404,6 +404,7 @@ exports.getInfo = function(req, res, next) {
               title: project.title,
               description: project.description,
               githubRepo: project.github_repo,
+              hasGithubToken: !!project.github_token, // 토큰 존재 여부만 반환 (보안)
               status: project.status,
               ownerId: project.owner_id,
               isShared: !!project.project_code,
@@ -480,14 +481,11 @@ exports.connectGithub = function(req, res, next) {
     });
   }
   
-  // 프로젝트 멤버인지 확인 (owner 또는 admin만 수정 가능하도록 할 수도 있음)
+  // 프로젝트 오너인지 확인
   db.get(
-    `SELECT p.*, pm.role 
-     FROM projects p
-     JOIN project_members pm ON p.id = pm.praoject_id
-     WHERE p.id = ? AND pm.user_id = ?`,
+    `SELECT * FROM projects WHERE id = ? AND owner_id = ?`,
     [projectId, userId],
-    function(err, result) {
+    function(err, project) {
       if (err) {
         console.error('프로젝트 조회 오류:', err);
         return res.status(500).json({ 
@@ -499,37 +497,61 @@ exports.connectGithub = function(req, res, next) {
         });
       }
       
-      if (!result) {
-        return res.status(404).json({ 
+      if (!project) {
+        return res.status(403).json({ 
           success: false,
           error: { 
-            code: 'PROJECT_NOT_FOUND',
-            message: '프로젝트를 찾을 수 없거나 권한이 없습니다.' 
+            code: 'FORBIDDEN',
+            message: '프로젝트 오너만 GitHub 저장소를 연결할 수 있습니다.' 
           }
         });
       }
       
       // GitHub 저장소 정보 업데이트 (토큰 포함)
-      db.run(
-        'UPDATE projects SET github_repo = ?, github_token = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [githubRepo, githubToken || null, projectId],
-        function(err) {
-          if (err) {
-            console.error('GitHub 연결 오류:', err);
-            return res.status(500).json({ 
-              success: false,
-              error: { 
-                code: 'SERVER_ERROR',
-                message: '서버 오류가 발생했습니다.' 
-              }
-            });
+      // 토큰이 빈 문자열이거나 마스킹된 값이면 기존 토큰 유지
+      const shouldUpdateToken = githubToken && 
+                                 githubToken.trim() !== "" && 
+                                 githubToken !== "••••••••••••••••";
+      
+      let updateQuery;
+      let updateParams;
+      
+      if (shouldUpdateToken) {
+        // 새 토큰이 있으면 토큰도 업데이트
+        updateQuery = 'UPDATE projects SET github_repo = ?, github_token = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+        updateParams = [githubRepo, githubToken, projectId];
+      } else {
+        // 토큰이 없으면 저장소만 업데이트 (토큰은 기존 값 유지)
+        updateQuery = 'UPDATE projects SET github_repo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+        updateParams = [githubRepo, projectId];
+      }
+      
+      db.run(updateQuery, updateParams, function(err) {
+        if (err) {
+          console.error('GitHub 연결 오류:', err);
+          return res.status(500).json({ 
+            success: false,
+            error: { 
+              code: 'SERVER_ERROR',
+              message: '서버 오류가 발생했습니다.' 
+            }
+          });
+        }
+        
+        // 성공 응답 먼저 전송
+        res.json({
+          success: true,
+          data: {
+            message: 'GitHub 저장소가 연결되었습니다.',
+            githubRepo: githubRepo
           }
-          
-          // GitHub 정보 가져오기 (백그라운드에서 처리, 커밋 상세 제외)
-          (async () => {
-            try {
-              // 프로젝트 토큰 또는 전달받은 토큰 사용
-              const token = githubToken || result.github_token;
+        });
+        
+        // GitHub 정보 가져오기 (백그라운드에서 처리, 커밋 상세 제외)
+        (async () => {
+          try {
+            // 프로젝트 토큰 또는 전달받은 토큰 사용
+            const token = shouldUpdateToken ? githubToken : project.github_token;
               const githubService = new GitHubService(token);
               
               // 커밋 목록 가져오기 (통계 정보 포함)
@@ -704,11 +726,6 @@ exports.connectGithub = function(req, res, next) {
               console.error('GitHub 정보 불러오기 실패:', error.message);
             }
           })();
-          
-          res.json({
-            success: true,
-            message: 'GitHub 저장소가 연결되었습니다. 정보를 동기화하는 중입니다.'
-          });
         }
       );
     }

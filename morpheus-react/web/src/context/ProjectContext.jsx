@@ -31,6 +31,8 @@ export const ProjectProvider = ({ children }) => {
           ...p,
           description: p.description ?? "설명이 없습니다.",
           projectCode: p.project_code ?? null,
+          githubRepo: p.githubRepo || p.github_repo || null,
+          hasGithubToken: p.hasGithubToken || false,
         }));
 
         setProjects(projList);
@@ -84,12 +86,32 @@ export const ProjectProvider = ({ children }) => {
     }
   };
 
-  const updateProjectGithub = (projectId, newGithubUrl) => {
-    setProjects(prev =>
-      prev.map(p => (p.id === projectId ? { ...p, githubRepo: newGithubUrl } : p))
-    );
-    if (currentProject?.id === projectId) {
-      setCurrentProject(prev => ({ ...prev, githubRepo: newGithubUrl }));
+  const updateProjectGithub = async (projectId, newGithubUrl) => {
+    // 프로젝트 상세 정보를 다시 불러와서 최신 정보로 업데이트
+    try {
+      const res = await getProjects(projectId);
+      if (res.success && res.data.project) {
+        const updatedProject = {
+          ...res.data.project,
+          githubRepo: newGithubUrl || res.data.project.githubRepo,
+          hasGithubToken: res.data.project.hasGithubToken || false,
+        };
+        setProjects(prev =>
+          prev.map(p => (p.id === projectId ? updatedProject : p))
+        );
+        if (currentProject?.id === projectId) {
+          setCurrentProject(updatedProject);
+        }
+      }
+    } catch (err) {
+      console.error("프로젝트 정보 업데이트 실패:", err);
+      // 실패 시 기본 업데이트만 수행
+      setProjects(prev =>
+        prev.map(p => (p.id === projectId ? { ...p, githubRepo: newGithubUrl } : p))
+      );
+      if (currentProject?.id === projectId) {
+        setCurrentProject(prev => ({ ...prev, githubRepo: newGithubUrl }));
+      }
     }
   };
 

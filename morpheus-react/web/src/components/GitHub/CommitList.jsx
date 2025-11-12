@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Card from "@mui/material/Card";
@@ -7,18 +8,16 @@ import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import CircularProgress from "@mui/material/CircularProgress";
 import { getCommits } from "../../api/githubApi";
-import CommitDetailModal from "./CommitDetailModal";
 
 /**
  * 커밋 목록 컴포넌트
- * 프로젝트의 커밋 목록을 표시하고, 클릭 시 상세 정보를 모달로 표시합니다.
+ * 프로젝트의 커밋 목록을 표시하고, 클릭 시 상세 정보 페이지로 이동합니다.
  */
 export default function CommitList({ projectId }) {
+  const navigate = useNavigate();
   const [commits, setCommits] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [selectedCommitSha, setSelectedCommitSha] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
 
   const fetchCommits = useCallback(async () => {
     if (!projectId) return;
@@ -64,8 +63,7 @@ export default function CommitList({ projectId }) {
   }, [projectId, fetchCommits]);
 
   const handleCommitClick = (commitSha) => {
-    setSelectedCommitSha(commitSha);
-    setModalOpen(true);
+    navigate(`/project/${projectId}/commit/${commitSha}`);
   };
 
   const formatDate = (dateString) => {
@@ -175,19 +173,6 @@ export default function CommitList({ projectId }) {
           </Stack>
         )}
       </Box>
-
-      {/* 커밋 상세 모달 */}
-      {selectedCommitSha && (
-        <CommitDetailModal
-          projectId={projectId}
-          commitSha={selectedCommitSha}
-          open={modalOpen}
-          onClose={() => {
-            setModalOpen(false);
-            setSelectedCommitSha(null);
-          }}
-        />
-      )}
     </>
   );
 }

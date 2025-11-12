@@ -13,6 +13,7 @@ import SettingsPage from "./pages/SettingsPage";
 import AINextStepPage from "./pages/AINextStepPage";
 import NormalNextStepPage from "./pages/NormalNextStepPage";
 import DevProjectsPage from "./pages/Dev/DevProjectsPage";
+import CommitDetailPage from "./pages/CommitDetailPage";
 
 export default function App() {
   const ProtectedRoute = ({ children }) => {
@@ -44,6 +45,9 @@ export default function App() {
 
             {/* 프로젝트 상세 페이지 */}
             <Route path="/project/:id" element={<ProtectedRoute><ProjectDetailPage /></ProtectedRoute>} />
+            
+            {/* 커밋 상세 페이지 */}
+            <Route path="/project/:projectId/commit/:commitSha" element={<ProtectedRoute><CommitDetailPage /></ProtectedRoute>} />
 
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="/ai-next-step" element={<ProtectedRoute><AINextStepPage /></ProtectedRoute>} />
