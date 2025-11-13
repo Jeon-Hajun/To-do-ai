@@ -107,8 +107,8 @@ def create_optimized_progress_prompt(commits, tasks, projectDescription, project
     }
     
     # 최근 활동 (간단히)
-    from datetime import datetime, timedelta
-    now = datetime.now()
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
     week_ago = now - timedelta(days=7)
     recent_week = sum(1 for c in commits if c.get('date') and 
                      datetime.fromisoformat(c.get('date').replace('Z', '+00:00')) >= week_ago)
