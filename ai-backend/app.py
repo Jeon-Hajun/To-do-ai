@@ -452,12 +452,29 @@ def task_completion_check():
         taskDescription = task.get('description', '')
         currentStatus = task.get('status', 'todo')
 
-        if not commits:
+        # Task 상태가 'done'이면 완료로 판단 (커밋이 없어도)
+        if currentStatus == 'done':
+            if not commits:
+                return jsonify({
+                    'isCompleted': True,
+                    'completionPercentage': 100,
+                    'confidence': 'medium',
+                    'reason': f'Task 상태가 "완료(done)"로 설정되어 있습니다. 다만 관련 커밋이 없어 코드 변경사항을 확인할 수 없습니다.',
+                    'evidence': ['Task 상태: done'],
+                    'recommendation': 'Task가 완료 상태로 표시되어 있습니다. 실제 코드 변경사항을 확인하려면 관련 커밋을 추가하세요.'
+                })
+            else:
+                # 커밋이 있으면 AI로 더 정확히 판단
+                pass  # 아래 LLM 호출로 진행
+        elif not commits:
+            # 상태가 done이 아니고 커밋도 없으면 미완료로 판단
             return jsonify({
                 'isCompleted': False,
+                'completionPercentage': 0,
                 'confidence': 'low',
-                'reason': '관련 커밋이 없습니다.',
-                'recommendation': 'Task와 관련된 커밋이 없어 완료 여부를 판단할 수 없습니다.'
+                'reason': '관련 커밋이 없고 Task 상태도 완료가 아닙니다.',
+                'evidence': [f'Task 상태: {currentStatus}'],
+                'recommendation': 'Task와 관련된 커밋이 없어 완료 여부를 정확히 판단할 수 없습니다. 작업을 진행하고 커밋을 추가하세요.'
             })
 
         # 커밋 메시지와 파일 변경 정보 정리

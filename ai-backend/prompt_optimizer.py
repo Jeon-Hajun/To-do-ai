@@ -142,17 +142,34 @@ def create_optimized_completion_prompt(task, commits, projectDescription):
     
     commits_text = '\n'.join([f"- {c}" for c in commit_summary]) if commit_summary else "관련 커밋 없음"
     
+    task_status = task.get('status', 'todo')
+    status_kr = {
+        'todo': '대기',
+        'in_progress': '진행중',
+        'done': '완료'
+    }.get(task_status, task_status)
+    
     prompt = f"""Task 완료 여부 판단:
 
 Task: {task.get('title', '')[:80]}
 설명: {task.get('description', '')[:100] if task.get('description') else '없음'}
-상태: {task.get('status', 'todo')}
+현재 상태: {status_kr} ({task_status})
 
 관련 커밋:
 {commits_text}
 
+중요: Task 상태가 "완료(done)"이면 일반적으로 완료된 것으로 판단하되, 커밋 내용을 확인하여 실제로 작업이 완료되었는지 검증하세요.
+Task 상태가 "대기(todo)"나 "진행중(in_progress)"이면 커밋 내용을 분석하여 실제 완료 여부를 판단하세요.
+
 다음 JSON 형식으로 응답 (반드시 한국어로):
-{{"isCompleted": true|false, "completionPercentage": 0-100, "confidence": "high|medium|low", "reason": "...", "evidence": ["..."], "recommendation": "..."}}"""
+{{
+  "isCompleted": true 또는 false,
+  "completionPercentage": 0-100 숫자,
+  "confidence": "high" 또는 "medium" 또는 "low",
+  "reason": "판단 근거를 한국어로 설명",
+  "evidence": ["증거1", "증거2"],
+  "recommendation": "추천사항을 한국어로"
+}}"""
     
     return prompt
 
