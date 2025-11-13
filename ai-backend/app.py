@@ -465,34 +465,7 @@ def task_completion_check():
         prompt = create_optimized_completion_prompt(task, commits, projectDescription)
         
         # 기존 프롬프트는 prompt_optimizer.py로 이동됨
-
-## Task 정보
-제목: {taskTitle}
-설명: {taskDescription}
-현재 상태: {currentStatus}
-
-## 관련 커밋 및 코드 변경사항
-{chr(10).join([f"- 커밋: {c['message']} (+{c['linesAdded']}/-{c['linesDeleted']} 라인)" + (f" (파일: {', '.join(c['files'][:3])})" if c['files'] else "") for c in commitAnalysis])}
-
-## 판단 기준
-1. **요구사항 매칭**: Task의 제목과 설명에 명시된 요구사항이 커밋 메시지나 파일 변경사항에서 구현되었는지 확인
-2. **완성도 평가**: 부분적으로 완료되었는지, 완전히 완료되었는지 평가
-3. **신뢰도**: 판단의 신뢰도 (high/medium/low)
-
-## 응답 형식
-다음 형식의 JSON으로 응답해주세요:
-{{
-  "isCompleted": true|false,
-  "completionPercentage": 숫자 (0-100),
-  "confidence": "high|medium|low",
-  "reason": "판단 근거 (왜 완료되었거나 완료되지 않았는지)",
-  "evidence": [
-    "근거 1 (커밋 메시지나 파일 변경사항에서 발견된 증거)",
-    "근거 2"
-  ],
-  "recommendation": "추가 작업이 필요한지, 또는 완료 처리해도 되는지에 대한 제안"
-}}
-
+        
         system_prompt = """코드 리뷰 전문가. Task 완료 여부 판단. 반드시 한국어로 응답. JSON만 응답."""
 
         print(f'[AI Backend] task_completion_check - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
