@@ -383,13 +383,24 @@ def progress_analysis():
         print(f'[AI Backend] progress_analysis - LLM 응답 수신 (길이: {len(content)} 문자)')
         
         try:
+            # JSON 코드 블록 제거
             if '```json' in content:
                 content = content.split('```json')[1].split('```')[0].strip()
             elif '```' in content:
                 content = content.split('```')[1].split('```')[0].strip()
             
+            # 앞뒤 공백 및 불필요한 텍스트 제거
+            content = content.strip()
+            # JSON 객체 시작 부분 찾기
+            if '{' in content:
+                content = content[content.find('{'):]
+            # JSON 객체 끝 부분 찾기
+            if '}' in content:
+                content = content[:content.rfind('}')+1]
+            
+            print(f'[AI Backend] progress_analysis - 파싱할 내용 (처음 200자): {content[:200]}')
             analysis = json.loads(content)
-            print(f'[AI Backend] progress_analysis - 분석 완료')
+            print(f'[AI Backend] progress_analysis - 분석 완료: {list(analysis.keys())}')
             return jsonify(analysis)
         except json.JSONDecodeError as e:
             print(f"[AI Backend] progress_analysis - JSON 파싱 실패: {e}")

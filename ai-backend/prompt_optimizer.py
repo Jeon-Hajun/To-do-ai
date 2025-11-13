@@ -119,8 +119,15 @@ def create_optimized_progress_prompt(commits, tasks, projectDescription, project
 작업: 총{taskStats['total']}개 (완료:{taskStats['done']}, 진행중:{taskStats['inProgress']}, 대기:{taskStats['todo']})
 커밋: 총{commitStats['total']}개, +{commitStats['totalLinesAdded']}/-{commitStats['totalLinesDeleted']}줄, 최근7일:{recent_week}개
 
-다음 JSON 형식으로 응답 (반드시 한국어로):
-{{"currentProgress": 0-100, "activityTrend": "increasing|stable|decreasing", "estimatedCompletionDate": "YYYY-MM-DD 또는 null", "delayRisk": "Low|Medium|High", "insights": ["..."], "recommendations": ["..."]}}"""
+다음 JSON 형식으로만 응답 (반드시 한국어로, JSON만 응답):
+{{
+  "currentProgress": 숫자(0-100),
+  "activityTrend": "increasing" 또는 "stable" 또는 "decreasing",
+  "estimatedCompletionDate": "YYYY-MM-DD" 또는 null,
+  "delayRisk": "Low" 또는 "Medium" 또는 "High",
+  "insights": ["한국어 인사이트 1", "한국어 인사이트 2"],
+  "recommendations": ["한국어 제안 1", "한국어 제안 2"]
+}}"""
     
     return prompt
 
