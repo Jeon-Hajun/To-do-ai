@@ -207,17 +207,7 @@ def task_suggestion():
             commits, issues, currentTasks, projectDescription, githubRepo
         )
         
-        # 기존 프롬프트 (백업용, 필요시 사용)
-        """
-        # 현재 Task 정리
-        taskTitles = [task.get('title', '') for task in currentTasks]
-        taskStatuses = {}
-        for task in currentTasks:
-            status = task.get('status', 'todo')
-            taskStatuses[status] = taskStatuses.get(status, 0) + 1
-
-        # 프롬프트 생성 (기존 - 주석 처리)
-        prompt_old = f"""당신은 소프트웨어 엔지니어링 전문가입니다. 프로젝트의 코드 변경 이력, 이슈, 현재 작업을 종합적으로 분석하여 다음 관점에서 Task를 제안해주세요:
+        # 기존 프롬프트는 prompt_optimizer.py로 이동됨
 
 ## 분석 관점
 1. **기능 개발**: 누락된 기능이나 개선이 필요한 기능
@@ -439,9 +429,7 @@ def progress_analysis():
             commits, tasks, projectDescription, projectStartDate, projectDueDate
         )
         
-        # 기존 프롬프트 (백업용)
-        """
-        prompt_old = f"""당신은 프로젝트 관리 전문가입니다. 다음 정보를 분석하여 프로젝트의 진행도를 평가하고 예측해주세요.
+        # 기존 프롬프트는 prompt_optimizer.py로 이동됨
 
 ## 프로젝트 정보
 프로젝트: {projectDescription}
@@ -579,9 +567,7 @@ def task_completion_check():
         # 최적화된 프롬프트 사용
         prompt = create_optimized_completion_prompt(task, commits, projectDescription)
         
-        # 기존 프롬프트 (백업용)
-        """
-        prompt_old = f"""당신은 코드 리뷰 전문가입니다. Task의 요구사항과 실제 코드 변경사항을 비교하여 Task 완료 여부를 판단해주세요.
+        # 기존 프롬프트는 prompt_optimizer.py로 이동됨
 
 ## Task 정보
 제목: {taskTitle}
@@ -610,9 +596,6 @@ def task_completion_check():
   "recommendation": "추가 작업이 필요한지, 또는 완료 처리해도 되는지에 대한 제안"
 }}
 
-반드시 유효한 JSON 형식으로만 응답해주세요."""
-        """
-        
         system_prompt = """코드 리뷰 전문가. Task 완료 여부 판단. 반드시 한국어로 응답. JSON만 응답."""
 
         print(f'[AI Backend] task_completion_check - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
