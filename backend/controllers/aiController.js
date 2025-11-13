@@ -580,11 +580,11 @@ exports.taskCompletionCheck = async function(req, res, next) {
                   rows.map(async (r) => {
                     const files = await new Promise((resolveFiles) => {
                       db.all(
-                        `SELECT file_path, status, additions, deletions
+                        `SELECT file_path, status, additions, deletions, patch
                          FROM project_commit_files
                          WHERE project_id = ? AND commit_sha = ?
                          ORDER BY additions + deletions DESC
-                         LIMIT 10`,
+                         LIMIT 15`,
                         [projectId, r.commit_sha],
                         function(fileErr, fileRows) {
                           if (fileErr) {
@@ -594,7 +594,8 @@ exports.taskCompletionCheck = async function(req, res, next) {
                               path: f.file_path,
                               status: f.status,
                               additions: f.additions,
-                              deletions: f.deletions
+                              deletions: f.deletions,
+                              patch: f.patch || null  // 코드 변경사항 포함
                             })));
                           }
                         }
@@ -609,6 +610,7 @@ exports.taskCompletionCheck = async function(req, res, next) {
                       linesAdded: r.lines_added || 0,
                       linesDeleted: r.lines_deleted || 0,
                       filesChanged: r.files_changed || 0,
+                      taskId: r.task_id,  // 명시적 Task 연결 정보
                       files: files
                     };
                   })
