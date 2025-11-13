@@ -13,7 +13,7 @@ import {
   IconButton,
 } from "@mui/material";
 import { updateUser, setAuth } from "../utils/auth";
-import { API_ENDPOINTS } from "../../config/api";
+import { API_ENDPOINTS } from "../config/api";
 import { getProfileImageSrc } from "../utils/profileImage";
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 
