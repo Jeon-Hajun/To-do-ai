@@ -33,9 +33,25 @@ else:
     openai_client = None
     print(f"Ollama 모드로 실행됩니다. (모델: {OLLAMA_MODEL})")
 
+def check_ollama_model():
+    """Ollama 모델이 설치되어 있는지 확인"""
+    try:
+        response = httpx.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5.0)
+        response.raise_for_status()
+        models = response.json().get("models", [])
+        model_names = [m.get("name", "") for m in models]
+        return OLLAMA_MODEL in model_names
+    except Exception as e:
+        print(f"Ollama 모델 확인 실패: {e}")
+        return False
+
 def call_ollama(prompt, system_prompt="당신은 도움이 되는 AI 어시스턴트입니다."):
     """Ollama API 호출"""
     try:
+        # 모델 확인
+        if not check_ollama_model():
+            raise Exception(f"Ollama 모델 '{OLLAMA_MODEL}'이 설치되지 않았습니다. 다음 명령어로 설치하세요: ollama pull {OLLAMA_MODEL}")
+        
         response = httpx.post(
             f"{OLLAMA_BASE_URL}/api/chat",
             json={
@@ -50,6 +66,10 @@ def call_ollama(prompt, system_prompt="당신은 도움이 되는 AI 어시스�
         )
         response.raise_for_status()
         return response.json()["message"]["content"]
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            raise Exception(f"Ollama 모델 '{OLLAMA_MODEL}'을 찾을 수 없습니다. 다음 명령어로 설치하세요: ollama pull {OLLAMA_MODEL}")
+        raise Exception(f"Ollama API 오류 ({e.response.status_code}): {e.response.text}")
     except httpx.RequestError as e:
         raise Exception(f"Ollama 서버 연결 실패: {e}. Ollama가 실행 중인지 확인하세요. (ollama serve)")
     except Exception as e:
