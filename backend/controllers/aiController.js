@@ -194,7 +194,7 @@ exports.taskSuggestion = async function(req, res, next) {
             githubRepo: project.github_repo || null
           },
           {
-            timeout: 120000 // 2분 타임아웃
+            timeout: 360000 // 6분 타임아웃 (큰 모델의 경우 더 오래 걸릴 수 있음)
           }
         );
         
