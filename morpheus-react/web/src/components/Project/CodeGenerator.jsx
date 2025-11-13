@@ -1,6 +1,7 @@
 // src/components/Project/CodeGenerator.jsx
 import React, { useState } from "react";
 import axios from "axios";
+import { API_ENDPOINTS } from "../../config/api";
 
 export default function CodeGenerator({ onCodeReady }) {
   const [loading, setLoading] = useState(false);
@@ -17,7 +18,7 @@ export default function CodeGenerator({ onCodeReady }) {
       }
 
       // DB에 바로 저장
-      const res = await axios.post("http://localhost:5000/api/projects/create", {
+      const res = await axios.post(`${API_ENDPOINTS.PROJECT}/create`, {
         title: `Project-${newCode}`, // 제목은 임시로 코드 기반
         description: "자동 생성 프로젝트",
         projectCode: newCode,

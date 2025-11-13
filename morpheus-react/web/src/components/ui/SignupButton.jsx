@@ -3,7 +3,9 @@ import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 
-const API_URL = "http://localhost:5000/api/user";
+import { API_ENDPOINTS } from "../../config/api";
+
+const API_URL = API_ENDPOINTS.USER;
 
 export default function SignupButton({ email, nickname, password, onSignupSuccess, sx, ...props }) {
   const theme = useTheme();

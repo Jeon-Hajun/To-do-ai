@@ -1,8 +1,9 @@
 // src/api/task.js
 import axios from "axios";
 import { getToken } from "../utils/auth";
+import { API_ENDPOINTS } from "../config/api";
 
-const API_URL = "http://localhost:5000/api/task";
+const API_URL = API_ENDPOINTS.TASK;
 
 // 인증 헤더
 const getAuthHeaders = () => {

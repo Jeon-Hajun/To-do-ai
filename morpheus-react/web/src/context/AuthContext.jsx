@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios";
 import { getUser, setAuth, logout as localLogout } from "../utils/auth";
+import { API_ENDPOINTS } from "../config/api";
 
 const AuthContext = createContext();
 
@@ -14,7 +15,7 @@ export const AuthProvider = ({ children }) => {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      const res = await axios.get("http://localhost:5000/api/user/me", {
+      const res = await axios.get(`${API_ENDPOINTS.USER}/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

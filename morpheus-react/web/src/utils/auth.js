@@ -1,7 +1,8 @@
 // src/utils/auth.js
 import axios from "axios";
+import { API_ENDPOINTS } from "../config/api";
 
-const API_URL = "http://localhost:5000/api/user";
+const API_URL = API_ENDPOINTS.USER;
 
 // 로컬 스토리지에서 유저 정보 가져오기
 export function getUser() {

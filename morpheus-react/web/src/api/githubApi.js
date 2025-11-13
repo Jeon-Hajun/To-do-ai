@@ -1,7 +1,8 @@
 import axios from "axios";
 import { getToken } from "../utils/auth";
+import { API_ENDPOINTS } from "../config/api";
 
-const API_URL = "http://localhost:5000/api/github";
+const API_URL = API_ENDPOINTS.GITHUB;
 
 // 인증 헤더 가져오기
 const getAuthHeaders = () => {

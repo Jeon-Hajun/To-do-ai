@@ -13,6 +13,7 @@ import {
   IconButton,
 } from "@mui/material";
 import { updateUser, setAuth } from "../utils/auth";
+import { API_ENDPOINTS } from "../../config/api";
 import { getProfileImageSrc } from "../utils/profileImage";
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 
@@ -87,7 +88,7 @@ export default function EditProfileModal({ user, open, onClose, onSuccess }) {
           formData.append("profileImage", selectedFile);
 
           const token = localStorage.getItem("token");
-          const imageRes = await fetch("http://localhost:5000/api/user/me/profile-image", {
+          const imageRes = await fetch(`${API_ENDPOINTS.USER}/me/profile-image`, {
             method: "POST",
             headers: {
               Authorization: `Bearer ${token}`,

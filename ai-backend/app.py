@@ -203,7 +203,7 @@ GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
 ## 이슈 현황
 - 열린 이슈: {len(openIssues)}개
 - 주요 라벨: {', '.join(sorted(issueLabels.items(), key=lambda x: x[1], reverse=True)[:5]) if issueLabels else '없음'}
-{f"- 최근 이슈: {chr(10).join([f'  - #{i[\"number\"]}: {i[\"title\"]}' for i in openIssues[:5]])}" if openIssues else ""}
+{f"- 최근 이슈: {chr(10).join([f'  - #{{i[\"number\"]}}: {{i[\"title\"]}}' for i in openIssues[:5]])}" if openIssues else ""}
 
 ## 현재 작업 현황
 - 총 작업 수: {len(currentTasks)}개

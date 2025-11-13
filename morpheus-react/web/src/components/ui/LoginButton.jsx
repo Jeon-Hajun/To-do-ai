@@ -5,7 +5,9 @@ import { setAuth } from '../../utils/auth';
 import { useAuthContext } from '../../context/AuthContext';
 import { useTheme } from '@mui/material/styles';
 
-const API_URL = 'http://localhost:5000/api/user';
+import { API_ENDPOINTS } from '../../config/api';
+
+const API_URL = API_ENDPOINTS.USER;
 
 export default function LoginButton({ email, password, onLoginSuccess, sx, ...props }) {
     const theme = useTheme();
