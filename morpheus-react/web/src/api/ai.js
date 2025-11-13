@@ -14,8 +14,13 @@ const getAuthHeaders = () => {
 
 // 공통 API 호출 함수
 const callApi = async (method, url, data = null) => {
+  console.log('[AI API] 요청 시작:', { method, url, data });
+  
   const headers = getAuthHeaders();
-  if (!headers) return { success: false, error: { message: "로그인 필요" } };
+  if (!headers) {
+    console.error('[AI API] 인증 헤더 없음 - 로그인 필요');
+    return { success: false, error: { message: "로그인 필요" } };
+  }
 
   try {
     const config = { method, url, headers, withCredentials: true };
@@ -26,11 +31,23 @@ const callApi = async (method, url, data = null) => {
       config.data = data;
     }
 
+    console.log('[AI API] 요청 전송:', { url, method, hasData: !!data });
     const res = await axios(config);
+    console.log('[AI API] 응답 수신:', { status: res.status, success: res.data?.success, hasData: !!res.data?.data });
+    
     return res.data || { success: false, error: { message: "서버 응답 없음" } };
   } catch (err) {
+    console.error('[AI API] 요청 실패:', {
+      code: err.code,
+      message: err.message,
+      response: err.response?.data,
+      status: err.response?.status,
+      url: err.config?.url
+    });
+    
     // AI 백엔드 연결 실패 시 사용자 친화적 메시지
     if (err.code === 'ECONNREFUSED' || err.message.includes('Network Error')) {
+      console.error('[AI API] 연결 실패 - AI 백엔드가 실행 중인지 확인 필요');
       return {
         success: false,
         error: {
@@ -61,15 +78,23 @@ const callApi = async (method, url, data = null) => {
  * @returns {Promise<Object>} { success, data: { suggestions, analysis }, error }
  */
 export const getTaskSuggestions = async (projectId, options = {}) => {
-  if (!projectId) return { success: false, error: { message: "프로젝트 ID 필요" } };
+  console.log('[AI API] getTaskSuggestions 호출:', { projectId, options });
+  
+  if (!projectId) {
+    console.error('[AI API] getTaskSuggestions - projectId 없음');
+    return { success: false, error: { message: "프로젝트 ID 필요" } };
+  }
   
   const { includeCommits = true, includeIssues = true } = options;
   
-  return await callApi("post", `${API_URL}/task-suggestion`, {
+  const result = await callApi("post", `${API_URL}/task-suggestion`, {
     projectId,
     includeCommits,
     includeIssues,
   });
+  
+  console.log('[AI API] getTaskSuggestions 결과:', { success: result.success, hasSuggestions: !!result.data?.suggestions });
+  return result;
 };
 
 /**
@@ -78,11 +103,19 @@ export const getTaskSuggestions = async (projectId, options = {}) => {
  * @returns {Promise<Object>} { success, data: { ...analysis data }, error }
  */
 export const getProgressAnalysis = async (projectId) => {
-  if (!projectId) return { success: false, error: { message: "프로젝트 ID 필요" } };
+  console.log('[AI API] getProgressAnalysis 호출:', { projectId });
   
-  return await callApi("post", `${API_URL}/progress-analysis`, {
+  if (!projectId) {
+    console.error('[AI API] getProgressAnalysis - projectId 없음');
+    return { success: false, error: { message: "프로젝트 ID 필요" } };
+  }
+  
+  const result = await callApi("post", `${API_URL}/progress-analysis`, {
     projectId,
   });
+  
+  console.log('[AI API] getProgressAnalysis 결과:', { success: result.success, hasData: !!result.data });
+  return result;
 };
 
 /**
@@ -92,12 +125,23 @@ export const getProgressAnalysis = async (projectId) => {
  * @returns {Promise<Object>} { success, data: { isCompleted, confidence, reasoning, suggestions }, error }
  */
 export const checkTaskCompletion = async (projectId, taskId) => {
-  if (!projectId) return { success: false, error: { message: "프로젝트 ID 필요" } };
-  if (!taskId) return { success: false, error: { message: "Task ID 필요" } };
+  console.log('[AI API] checkTaskCompletion 호출:', { projectId, taskId });
   
-  return await callApi("post", `${API_URL}/task-completion-check`, {
+  if (!projectId) {
+    console.error('[AI API] checkTaskCompletion - projectId 없음');
+    return { success: false, error: { message: "프로젝트 ID 필요" } };
+  }
+  if (!taskId) {
+    console.error('[AI API] checkTaskCompletion - taskId 없음');
+    return { success: false, error: { message: "Task ID 필요" } };
+  }
+  
+  const result = await callApi("post", `${API_URL}/task-completion-check`, {
     projectId,
     taskId,
   });
+  
+  console.log('[AI API] checkTaskCompletion 결과:', { success: result.success, hasData: !!result.data });
+  return result;
 };
 

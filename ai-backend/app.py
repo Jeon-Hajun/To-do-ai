@@ -127,6 +127,7 @@ def task_suggestion():
         "githubRepo": "..."
     }
     """
+    print('[AI Backend] task_suggestion 요청 수신')
     try:
         data = request.json
         commits = data.get('commits', [])
@@ -134,6 +135,8 @@ def task_suggestion():
         currentTasks = data.get('currentTasks', [])
         projectDescription = data.get('projectDescription', '')
         githubRepo = data.get('githubRepo', '')
+        
+        print(f'[AI Backend] task_suggestion - 데이터 수신: commits={len(commits)}, issues={len(issues)}, tasks={len(currentTasks)}')
 
         # 정보가 충분한지 확인
         hasCommits = len(commits) > 0
@@ -265,10 +268,13 @@ GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
 응답은 반드시 유효한 JSON 배열 형식이어야 하며, 추가 설명 없이 JSON만 반환합니다."""
 
         # OpenAI 또는 Ollama 호출
+        print(f'[AI Backend] task_suggestion - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
         if USE_OPENAI:
             content = call_openai(prompt, system_prompt)
         else:
             content = call_ollama(prompt, system_prompt)
+        
+        print(f'[AI Backend] task_suggestion - LLM 응답 수신 (길이: {len(content)} 문자)')
         
         # JSON 파싱 시도
         try:
@@ -289,6 +295,8 @@ GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
                 category_order.get(x.get('category', 'maintenance'), 99),
                 {'High': 0, 'Medium': 1, 'Low': 2}.get(x.get('priority', 'Low'), 2)
             ))
+            
+            print(f'[AI Backend] task_suggestion - 제안 생성 완료: {len(suggestions)}개')
                 
             return jsonify({
                 'suggestions': suggestions,
@@ -301,8 +309,8 @@ GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
             })
         except json.JSONDecodeError as e:
             # JSON 파싱 실패 시 텍스트 기반으로 간단한 응답 반환
-            print(f"JSON 파싱 실패: {e}")
-            print(f"응답 내용: {content[:500]}")
+            print(f"[AI Backend] task_suggestion - JSON 파싱 실패: {e}")
+            print(f"[AI Backend] task_suggestion - 응답 내용 (처음 500자): {content[:500]}")
             return jsonify({
                 'suggestions': [
                     {
@@ -324,7 +332,9 @@ GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
             })
 
     except Exception as e:
-        print(f"Task 제안 오류: {str(e)}")
+        print(f"[AI Backend] task_suggestion - 예외 발생: {str(e)}")
+        import traceback
+        print(f"[AI Backend] task_suggestion - 트레이스백:\n{traceback.format_exc()}")
         return jsonify({
             'error': f'작업 제안 생성 실패: {str(e)}'
         }), 500
@@ -342,6 +352,7 @@ def progress_analysis():
         "projectDueDate": "..."  # 선택사항
     }
     """
+    print('[AI Backend] progress_analysis 요청 수신')
     try:
         data = request.json
         commits = data.get('commits', [])
@@ -349,6 +360,8 @@ def progress_analysis():
         projectDescription = data.get('projectDescription', '')
         projectStartDate = data.get('projectStartDate', None)
         projectDueDate = data.get('projectDueDate', None)
+        
+        print(f'[AI Backend] progress_analysis - 데이터 수신: commits={len(commits)}, tasks={len(tasks)}')
 
         # 데이터가 없어도 기본 분석 제공
         if not commits and not tasks:
@@ -458,10 +471,13 @@ def progress_analysis():
 Task 진행률, 코드 활동, 시간 경과를 종합적으로 분석하여 정확한 진행도 평가와 예측을 제공합니다.
 응답은 반드시 유효한 JSON 형식이어야 하며, 추가 설명 없이 JSON만 반환합니다."""
 
+        print(f'[AI Backend] progress_analysis - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
         if USE_OPENAI:
             content = call_openai(prompt, system_prompt)
         else:
             content = call_ollama(prompt, system_prompt)
+        
+        print(f'[AI Backend] progress_analysis - LLM 응답 수신 (길이: {len(content)} 문자)')
         
         try:
             if '```json' in content:
@@ -470,17 +486,20 @@ Task 진행률, 코드 활동, 시간 경과를 종합적으로 분석하여 정
                 content = content.split('```')[1].split('```')[0].strip()
             
             analysis = json.loads(content)
+            print(f'[AI Backend] progress_analysis - 분석 완료')
             return jsonify(analysis)
         except json.JSONDecodeError as e:
-            print(f"JSON 파싱 실패: {e}")
-            print(f"응답 내용: {content[:500]}")
+            print(f"[AI Backend] progress_analysis - JSON 파싱 실패: {e}")
+            print(f"[AI Backend] progress_analysis - 응답 내용 (처음 500자): {content[:500]}")
             return jsonify({
                 'error': '분석 결과 파싱 실패',
                 'rawResponse': content[:200]
             }), 500
 
     except Exception as e:
-        print(f"진행도 분석 오류: {str(e)}")
+        print(f"[AI Backend] progress_analysis - 예외 발생: {str(e)}")
+        import traceback
+        print(f"[AI Backend] progress_analysis - 트레이스백:\n{traceback.format_exc()}")
         return jsonify({
             'error': f'진행도 분석 실패: {str(e)}'
         }), 500
@@ -501,11 +520,14 @@ def task_completion_check():
         "projectDescription": "..."
     }
     """
+    print('[AI Backend] task_completion_check 요청 수신')
     try:
         data = request.json
         task = data.get('task', {})
         commits = data.get('commits', [])
         projectDescription = data.get('projectDescription', '')
+        
+        print(f'[AI Backend] task_completion_check - 데이터 수신: task={task.get("title", "N/A")}, commits={len(commits)}')
 
         if not task:
             return jsonify({
@@ -571,10 +593,13 @@ def task_completion_check():
 Task 요구사항과 실제 코드 변경사항을 정확히 비교하여 완료 여부를 판단합니다.
 응답은 반드시 유효한 JSON 형식이어야 하며, 추가 설명 없이 JSON만 반환합니다."""
 
+        print(f'[AI Backend] task_completion_check - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
         if USE_OPENAI:
             content = call_openai(prompt, system_prompt)
         else:
             content = call_ollama(prompt, system_prompt)
+        
+        print(f'[AI Backend] task_completion_check - LLM 응답 수신 (길이: {len(content)} 문자)')
         
         try:
             if '```json' in content:
@@ -583,10 +608,11 @@ Task 요구사항과 실제 코드 변경사항을 정확히 비교하여 완료
                 content = content.split('```')[1].split('```')[0].strip()
             
             result = json.loads(content)
+            print(f'[AI Backend] task_completion_check - 분석 완료: isCompleted={result.get("isCompleted", "N/A")}')
             return jsonify(result)
         except json.JSONDecodeError as e:
-            print(f"JSON 파싱 실패: {e}")
-            print(f"응답 내용: {content[:500]}")
+            print(f"[AI Backend] task_completion_check - JSON 파싱 실패: {e}")
+            print(f"[AI Backend] task_completion_check - 응답 내용 (처음 500자): {content[:500]}")
             return jsonify({
                 'isCompleted': False,
                 'confidence': 'low',
@@ -595,7 +621,9 @@ Task 요구사항과 실제 코드 변경사항을 정확히 비교하여 완료
             })
 
     except Exception as e:
-        print(f"Task 완료 여부 판단 오류: {str(e)}")
+        print(f"[AI Backend] task_completion_check - 예외 발생: {str(e)}")
+        import traceback
+        print(f"[AI Backend] task_completion_check - 트레이스백:\n{traceback.format_exc()}")
         return jsonify({
             'error': f'Task 완료 여부 판단 실패: {str(e)}'
         }), 500

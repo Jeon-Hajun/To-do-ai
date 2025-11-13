@@ -56,7 +56,10 @@ export default function AIadvisorPage() {
   }, [selectedProjectId, activeFeature]);
 
   const handleTaskSuggestion = async () => {
+    console.log('[AIadvisorPage] handleTaskSuggestion 시작:', { selectedProjectId });
+    
     if (!selectedProjectId) {
+      console.error('[AIadvisorPage] 프로젝트 미선택');
       setError("프로젝트를 선택해주세요.");
       return;
     }
@@ -67,12 +70,16 @@ export default function AIadvisorPage() {
     setActiveFeature('task-suggestion');
 
     try {
+      console.log('[AIadvisorPage] Task 제안 요청 전송');
       const res = await getTaskSuggestions(selectedProjectId, {
         includeCommits: true,
         includeIssues: true,
       });
 
+      console.log('[AIadvisorPage] Task 제안 응답:', { success: res.success, hasData: !!res.data, error: res.error });
+
       if (res.success) {
+        console.log('[AIadvisorPage] Task 제안 성공, 페이지 이동');
         // Task 제안 결과를 AI Next Step 페이지로 전달
         navigate("/ai-next-step", {
           state: {
@@ -82,9 +89,11 @@ export default function AIadvisorPage() {
           },
         });
       } else {
+        console.error('[AIadvisorPage] Task 제안 실패:', res.error);
         setError(res.error?.message || "Task 제안을 받는 중 오류가 발생했습니다.");
       }
     } catch (err) {
+      console.error('[AIadvisorPage] Task 제안 예외 발생:', err);
       setError(err.message || "Task 제안을 받는 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
@@ -92,7 +101,10 @@ export default function AIadvisorPage() {
   };
 
   const handleProgressAnalysis = async () => {
+    console.log('[AIadvisorPage] handleProgressAnalysis 시작:', { selectedProjectId });
+    
     if (!selectedProjectId) {
+      console.error('[AIadvisorPage] 프로젝트 미선택');
       setError("프로젝트를 선택해주세요.");
       return;
     }
@@ -103,14 +115,20 @@ export default function AIadvisorPage() {
     setActiveFeature('progress-analysis');
 
     try {
+      console.log('[AIadvisorPage] 진행도 분석 요청 전송');
       const res = await getProgressAnalysis(selectedProjectId);
 
+      console.log('[AIadvisorPage] 진행도 분석 응답:', { success: res.success, hasData: !!res.data, error: res.error });
+
       if (res.success) {
+        console.log('[AIadvisorPage] 진행도 분석 성공');
         setResult(res.data);
       } else {
+        console.error('[AIadvisorPage] 진행도 분석 실패:', res.error);
         setError(res.error?.message || "진행도 분석 중 오류가 발생했습니다.");
       }
     } catch (err) {
+      console.error('[AIadvisorPage] 진행도 분석 예외 발생:', err);
       setError(err.message || "진행도 분석 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
@@ -118,11 +136,15 @@ export default function AIadvisorPage() {
   };
 
   const handleTaskCompletionCheck = async () => {
+    console.log('[AIadvisorPage] handleTaskCompletionCheck 시작:', { selectedProjectId, selectedTaskId });
+    
     if (!selectedProjectId) {
+      console.error('[AIadvisorPage] 프로젝트 미선택');
       setError("프로젝트를 선택해주세요.");
       return;
     }
     if (!selectedTaskId) {
+      console.error('[AIadvisorPage] Task 미선택');
       setError("Task를 선택해주세요.");
       return;
     }
@@ -133,14 +155,20 @@ export default function AIadvisorPage() {
     setActiveFeature('task-completion');
 
     try {
+      console.log('[AIadvisorPage] Task 완료 확인 요청 전송');
       const res = await checkTaskCompletion(selectedProjectId, selectedTaskId);
 
+      console.log('[AIadvisorPage] Task 완료 확인 응답:', { success: res.success, hasData: !!res.data, error: res.error });
+
       if (res.success) {
+        console.log('[AIadvisorPage] Task 완료 확인 성공');
         setResult(res.data);
       } else {
+        console.error('[AIadvisorPage] Task 완료 확인 실패:', res.error);
         setError(res.error?.message || "Task 완료 확인 중 오류가 발생했습니다.");
       }
     } catch (err) {
+      console.error('[AIadvisorPage] Task 완료 확인 예외 발생:', err);
       setError(err.message || "Task 완료 확인 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
