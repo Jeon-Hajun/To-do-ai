@@ -313,38 +313,66 @@ export default function AIadvisorPage() {
                   진행도 분석 결과
                 </Typography>
                 <Box sx={{ mt: 2 }}>
-                  {result.predictedCompletionDate && (
+                  {result.currentProgress !== undefined && (
                     <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>예측 완료일:</strong> {new Date(result.predictedCompletionDate).toLocaleDateString()}
+                      <strong>현재 진행도:</strong> {result.currentProgress}%
                     </Typography>
                   )}
-                  {result.riskLevel && (
+                  {result.activityTrend && (
                     <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>지연 위험도:</strong> {result.riskLevel}
+                      <strong>활동 추세:</strong> {
+                        result.activityTrend === 'increasing' ? '증가 중' :
+                        result.activityTrend === 'decreasing' ? '감소 중' :
+                        result.activityTrend === 'stable' ? '안정적' : result.activityTrend
+                      }
                     </Typography>
                   )}
-                  {result.suggestions && result.suggestions.length > 0 && (
+                  {(result.estimatedCompletionDate || result.predictedCompletionDate) && (
+                    <Typography variant="body1" sx={{ mb: 1 }}>
+                      <strong>예측 완료일:</strong> {new Date(result.estimatedCompletionDate || result.predictedCompletionDate).toLocaleDateString()}
+                    </Typography>
+                  )}
+                  {(result.delayRisk || result.riskLevel) && (
+                    <Typography variant="body1" sx={{ mb: 1 }}>
+                      <strong>지연 위험도:</strong> {
+                        (result.delayRisk || result.riskLevel) === 'High' ? '높음' :
+                        (result.delayRisk || result.riskLevel) === 'Medium' ? '중간' :
+                        (result.delayRisk || result.riskLevel) === 'Low' ? '낮음' : (result.delayRisk || result.riskLevel)
+                      }
+                    </Typography>
+                  )}
+                  {((result.recommendations && result.recommendations.length > 0) || (result.suggestions && result.suggestions.length > 0)) && (
                     <Box sx={{ mt: 2 }}>
                       <Typography variant="subtitle1" gutterBottom>
                         <strong>제안사항:</strong>
                       </Typography>
                       <ul>
-                        {result.suggestions.map((suggestion, index) => (
+                        {(result.recommendations || result.suggestions || []).map((item, index) => (
                           <li key={index}>
-                            <Typography variant="body2">{suggestion}</Typography>
+                            <Typography variant="body2">{item}</Typography>
                           </li>
                         ))}
                       </ul>
                     </Box>
                   )}
-                  {result.analysis && (
+                  {((result.insights && result.insights.length > 0) || result.analysis) && (
                     <Box sx={{ mt: 2 }}>
                       <Typography variant="subtitle1" gutterBottom>
                         <strong>상세 분석:</strong>
                       </Typography>
-                      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                        {result.analysis}
-                      </Typography>
+                      {result.insights && result.insights.length > 0 ? (
+                        <ul>
+                          {result.insights.map((insight, index) => (
+                            <li key={index}>
+                              <Typography variant="body2">{insight}</Typography>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                          {result.analysis}
+                        </Typography>
+                      )}
                     </Box>
                   )}
                 </Box>
