@@ -514,12 +514,26 @@ def task_completion_check():
                 
                 print(f'[AI Backend] task_completion_check - 2차 분석 응답 수신 (길이: {len(followup_content)} 문자)')
                 
-                # JSON 파싱
+                # JSON 파싱 (강화된 전처리)
                 if '```json' in followup_content:
                     followup_content = followup_content.split('```json')[1].split('```')[0].strip()
                 elif '```' in followup_content:
                     followup_content = followup_content.split('```')[1].split('```')[0].strip()
                 
+                # 앞뒤 공백 제거
+                followup_content = followup_content.strip()
+                
+                # JSON 객체 시작 부분 찾기
+                if '{' in followup_content:
+                    start_idx = followup_content.find('{')
+                    followup_content = followup_content[start_idx:]
+                
+                # JSON 객체 끝 부분 찾기
+                if '}' in followup_content:
+                    last_brace_idx = followup_content.rfind('}')
+                    followup_content = followup_content[:last_brace_idx+1]
+                
+                print(f'[AI Backend] task_completion_check - 2차 분석 파싱할 내용 (처음 200자): {followup_content[:200]}')
                 final_result = json.loads(followup_content)
                 
                 # 1차 분석 결과와 통합
@@ -540,12 +554,29 @@ def task_completion_check():
                 
         except json.JSONDecodeError as e:
             print(f"[AI Backend] task_completion_check - JSON 파싱 실패: {e}")
-            print(f"[AI Backend] task_completion_check - 응답 내용 (처음 500자): {initial_content[:500]}")
+            print(f"[AI Backend] task_completion_check - 응답 내용 (전체): {initial_content}")
+            
+            # 재시도: 더 공격적인 전처리
+            try:
+                # JSON 부분만 추출 시도
+                import re
+                json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', initial_content, re.DOTALL)
+                if json_match:
+                    cleaned_content = json_match.group(0)
+                    print(f"[AI Backend] task_completion_check - 정규식으로 JSON 추출 시도")
+                    initial_result = json.loads(cleaned_content)
+                    initial_result['analysisSteps'] = 1
+                    print(f"[AI Backend] task_completion_check - 재시도 성공")
+                    return jsonify(initial_result)
+            except:
+                pass
+            
             return jsonify({
                 'isCompleted': False,
                 'confidence': 'low',
-                'reason': 'AI 응답 파싱 실패',
-                'recommendation': '수동으로 확인이 필요합니다.'
+                'reason': f'AI 응답 파싱 실패: {str(e)}',
+                'recommendation': '수동으로 확인이 필요합니다.',
+                'rawResponse': initial_content[:500] if len(initial_content) > 500 else initial_content
             })
 
     except Exception as e:
