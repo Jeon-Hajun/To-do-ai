@@ -144,7 +144,7 @@ Task: {task.get('title', '')[:80]}
 관련 커밋:
 {commits_text}
 
-다음 JSON 형식으로 응답:
+다음 JSON 형식으로 응답 (반드시 한국어로):
 {{"isCompleted": true|false, "completionPercentage": 0-100, "confidence": "high|medium|low", "reason": "...", "evidence": ["..."], "recommendation": "..."}}"""
     
     return prompt
