@@ -19,8 +19,8 @@ CORS(app)
 
 # Ollama 설정 (로컬 모델)
 OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
-# 더 작은 모델 옵션: qwen2.5:7b (빠름), qwen2.5:3b (매우 빠름), qwen2.5:14b (정확함)
-OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'qwen2.5:7b')  # 기본값을 더 작은 모델로 변경
+# 모델 옵션: qwen2.5:7b (빠름), qwen2.5:3b (매우 빠름), qwen2.5:14b (정확함)
+OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'qwen2.5:14b')  # 기본값을 14b 모델로 변경
 
 # OpenAI 설정 (클라우드 모델 사용 시, 선택사항)
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', None)
