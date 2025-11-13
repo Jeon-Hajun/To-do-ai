@@ -559,21 +559,16 @@ exports.taskCompletionCheck = async function(req, res, next) {
           );
         });
         
-        // Task와 관련된 커밋 조회 (커밋 메시지에 Task 제목이나 ID가 포함된 경우)
-        console.log('[AI Controller] taskCompletionCheck - 관련 커밋 조회 중...');
+        // 프로젝트의 최근 커밋들을 모두 조회 (AI가 관련성을 판단하도록)
+        console.log('[AI Controller] taskCompletionCheck - 프로젝트 커밋 조회 중... (AI가 관련성 판단)');
         const commits = await new Promise((resolve, reject) => {
           db.all(
-            `SELECT c.commit_sha, c.commit_message, c.author, c.commit_date, c.lines_added, c.lines_deleted, c.files_changed
+            `SELECT c.commit_sha, c.commit_message, c.author, c.commit_date, c.lines_added, c.lines_deleted, c.files_changed, c.task_id
              FROM project_commits c
              WHERE c.project_id = ?
-             AND (
-               c.commit_message LIKE ? OR
-               c.commit_message LIKE ? OR
-               c.task_id = ?
-             )
              ORDER BY c.commit_date DESC
-             LIMIT 50`,
-            [projectId, `%${task.title}%`, `%#${taskId}%`, taskId],
+             LIMIT 100`,
+            [projectId],
             async function(err, rows) {
               if (err) {
                 console.error('[AI Controller] taskCompletionCheck - 커밋 조회 오류:', err);

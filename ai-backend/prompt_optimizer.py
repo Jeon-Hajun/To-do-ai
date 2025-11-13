@@ -132,15 +132,7 @@ def create_optimized_progress_prompt(commits, tasks, projectDescription, project
     return prompt
 
 def create_optimized_completion_prompt(task, commits, projectDescription):
-    """최적화된 Task 완료 확인 프롬프트 생성"""
-    
-    # 커밋 요약
-    commit_summary = []
-    for commit in commits[:10]:  # 최대 10개만
-        msg = summarize_commit_message(commit.get('message', ''), 50)
-        commit_summary.append(f"{msg} (+{commit.get('linesAdded', 0)}/-{commit.get('linesDeleted', 0)})")
-    
-    commits_text = '\n'.join([f"- {c}" for c in commit_summary]) if commit_summary else "관련 커밋 없음"
+    """AI 기반 Task 완료 확인 프롬프트 생성 - 관련 커밋과 코드 변경사항 분석"""
     
     task_status = task.get('status', 'todo')
     status_kr = {
@@ -149,27 +141,77 @@ def create_optimized_completion_prompt(task, commits, projectDescription):
         'done': '완료'
     }.get(task_status, task_status)
     
-    prompt = f"""Task 완료 여부 판단:
+    # 커밋 상세 정보 구성 (AI가 관련성 판단)
+    commits_detail = []
+    for commit in commits[:50]:  # 최대 50개 커밋 분석
+        msg = commit.get('message', '')
+        files = commit.get('files', [])
+        task_id = commit.get('taskId')
+        
+        # 파일 정보 요약
+        file_info = []
+        for f in files[:10]:  # 각 커밋당 최대 10개 파일
+            path = f.get('path', '')
+            additions = f.get('additions', 0) or 0
+            deletions = f.get('deletions', 0) or 0
+            patch_preview = f.get('patch', '')[:200] if f.get('patch') else ''  # 패치 일부
+            file_info.append(f"  - {path} (+{additions}/-{deletions})")
+            if patch_preview:
+                file_info.append(f"    코드 변경: {patch_preview[:150]}...")
+        
+        commit_info = f"""
+커밋: {msg[:100]}
+SHA: {commit.get('sha', '')[:8]}
+날짜: {commit.get('date', '')}
+변경: +{commit.get('linesAdded', 0)}/-{commit.get('linesDeleted', 0)}줄, {commit.get('filesChanged', 0)}개 파일
+명시적 Task 연결: {'예 (Task ID: ' + str(task_id) + ')' if task_id else '아니오'}
+파일:
+{chr(10).join(file_info) if file_info else '  (파일 정보 없음)'}
+"""
+        commits_detail.append(commit_info)
+    
+    commits_text = '\n'.join(commits_detail) if commits_detail else "프로젝트에 커밋이 없습니다."
+    
+    prompt = f"""당신은 코드 리뷰 전문가입니다. Task 완료 여부를 지능적으로 분석하세요.
 
-Task: {task.get('title', '')[:80]}
-설명: {task.get('description', '')[:100] if task.get('description') else '없음'}
+## 분석 대상 Task
+제목: {task.get('title', '')}
+설명: {task.get('description', '') if task.get('description') else '(설명 없음)'}
 현재 상태: {status_kr} ({task_status})
 
-관련 커밋:
+## 분석 방법
+1. **관련 커밋 찾기**: Task 제목, 설명의 키워드와 커밋 메시지, 파일 경로, 코드 변경사항을 비교하여 관련 커밋을 찾으세요.
+   - Task 제목의 핵심 키워드 추출
+   - 커밋 메시지에서 유사한 내용 찾기
+   - 파일 경로와 코드 변경사항(patch)에서 Task와 관련된 작업 확인
+   - 명시적으로 Task ID가 연결된 커밋도 고려
+
+2. **완료 여부 판단**:
+   - 관련 커밋이 있고, 코드 변경사항이 Task 요구사항을 충족하는가?
+   - Task의 목적이 달성되었는가? (코드 변경 내용으로 판단)
+   - Task 상태가 "done"이면 완료 가능성이 높지만, 실제 코드로 검증 필요
+   - Task 상태가 "todo"/"in_progress"여도 관련 커밋이 충분하면 완료일 수 있음
+
+3. **신뢰도 결정**:
+   - high: 명확한 관련 커밋과 코드 변경사항이 Task 요구사항과 일치
+   - medium: 관련 커밋이 있지만 완전한 일치 여부가 불확실하거나, Task 상태만 "done"
+   - low: 관련 커밋이 없거나 매우 약한 연관성만 존재
+
+## 프로젝트 커밋 목록 (최근 50개)
 {commits_text}
 
-중요: Task 상태가 "완료(done)"이면 일반적으로 완료된 것으로 판단하되, 커밋 내용을 확인하여 실제로 작업이 완료되었는지 검증하세요.
-Task 상태가 "대기(todo)"나 "진행중(in_progress)"이면 커밋 내용을 분석하여 실제 완료 여부를 판단하세요.
-
-다음 JSON 형식으로 응답 (반드시 한국어로):
+## 응답 형식
+다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
 {{
   "isCompleted": true 또는 false,
   "completionPercentage": 0-100 숫자,
   "confidence": "high" 또는 "medium" 또는 "low",
-  "reason": "판단 근거를 한국어로 설명",
-  "evidence": ["증거1", "증거2"],
-  "recommendation": "추천사항을 한국어로"
-}}"""
+  "reason": "상세한 판단 근거를 한국어로 설명 (어떤 커밋이 관련있는지, 코드 변경사항이 Task를 완료했는지 등)",
+  "evidence": ["증거1 (예: '커밋 abc123에서 Task 제목과 관련된 파일 변경')", "증거2", ...],
+  "recommendation": "추천사항을 한국어로 (완료되지 않았다면 다음 단계, 완료되었다면 검증 방법 등)"
+}}
+
+중요: 단순히 Task 상태만 보지 말고, 실제 코드 변경사항을 분석하여 판단하세요."""
     
     return prompt
 
