@@ -467,10 +467,8 @@ def task_completion_check():
                 'linesDeleted': commit.get('linesDeleted', 0) or 0
             })
 
-        # 최적화된 프롬프트 사용
-        prompt = create_optimized_completion_prompt(task, commits, projectDescription)
-        
-        # 기존 프롬프트는 prompt_optimizer.py로 이동됨
+        # 에이전트 방식: 프롬프트 체이닝
+        from prompt_optimizer import create_initial_completion_prompt, create_followup_completion_prompt
         
         system_prompt = """당신은 코드 리뷰 전문가입니다. Task 완료 여부를 판단합니다.
 
@@ -479,30 +477,76 @@ def task_completion_check():
 2. JSON 형식으로만 응답하세요.
 3. 사용자가 지정한 Task만 분석하세요. 다른 Task는 무시하세요."""
 
-        print(f'[AI Backend] task_completion_check - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
+        # 1차 분석: 초기 평가 및 추가 탐색 필요성 판단
+        print(f'[AI Backend] task_completion_check - 1차 분석 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
+        initial_prompt = create_initial_completion_prompt(task, commits, projectDescription)
+        
         if USE_OPENAI:
-            content = call_openai(prompt, system_prompt)
+            initial_content = call_openai(initial_prompt, system_prompt)
         else:
-            content = call_ollama(prompt, system_prompt)
+            initial_content = call_ollama(initial_prompt, system_prompt)
         
-        print(f'[AI Backend] task_completion_check - LLM 응답 수신 (길이: {len(content)} 문자)')
+        print(f'[AI Backend] task_completion_check - 1차 분석 응답 수신 (길이: {len(initial_content)} 문자)')
         
+        # JSON 파싱
         try:
-            if '```json' in content:
-                content = content.split('```json')[1].split('```')[0].strip()
-            elif '```' in content:
-                content = content.split('```')[1].split('```')[0].strip()
+            if '```json' in initial_content:
+                initial_content = initial_content.split('```json')[1].split('```')[0].strip()
+            elif '```' in initial_content:
+                initial_content = initial_content.split('```')[1].split('```')[0].strip()
             
-            result = json.loads(content)
-            print(f'[AI Backend] task_completion_check - 분석 완료: isCompleted={result.get("isCompleted", "N/A")}, needsMoreInfo={result.get("needsMoreInfo", False)}')
+            initial_result = json.loads(initial_content)
+            print(f'[AI Backend] task_completion_check - 1차 분석 완료: needsMoreInfo={initial_result.get("needsMoreInfo", False)}')
             
-            # 추가 정보가 필요한 경우 처리
-            if result.get("needsMoreInfo", False):
-                print(f'[AI Backend] task_completion_check - 추가 정보 필요: {result.get("additionalInfoNeeded", "N/A")}')
-                # 현재는 추가 탐색을 하지 않고 결과 반환 (향후 개선 가능)
-                # TODO: 추가 정보가 필요하면 더 많은 커밋이나 다른 소스를 탐색
-            
-            return jsonify(result)
+            # 추가 정보가 필요한 경우 2차 분석 수행
+            if initial_result.get("needsMoreInfo", False):
+                print(f'[AI Backend] task_completion_check - 추가 탐색 필요: {initial_result.get("searchStrategy", "N/A")}')
+                print(f'[AI Backend] task_completion_check - 예상 위치: {initial_result.get("expectedLocation", "N/A")}')
+                
+                # 2차 분석: 추가 탐색 후 최종 판단
+                print(f'[AI Backend] task_completion_check - 2차 분석 시작')
+                followup_prompt = create_followup_completion_prompt(task, initial_result, commits, projectDescription)
+                
+                if USE_OPENAI:
+                    followup_content = call_openai(followup_prompt, system_prompt)
+                else:
+                    followup_content = call_ollama(followup_prompt, system_prompt)
+                
+                print(f'[AI Backend] task_completion_check - 2차 분석 응답 수신 (길이: {len(followup_content)} 문자)')
+                
+                # JSON 파싱
+                if '```json' in followup_content:
+                    followup_content = followup_content.split('```json')[1].split('```')[0].strip()
+                elif '```' in followup_content:
+                    followup_content = followup_content.split('```')[1].split('```')[0].strip()
+                
+                final_result = json.loads(followup_content)
+                
+                # 1차 분석 결과와 통합
+                final_result['initialAnalysis'] = {
+                    'expectedLocation': initial_result.get('expectedLocation'),
+                    'searchStrategy': initial_result.get('searchStrategy'),
+                    'currentAnalysis': initial_result.get('currentAnalysis')
+                }
+                final_result['analysisSteps'] = 2
+                
+                print(f'[AI Backend] task_completion_check - 최종 분석 완료: isCompleted={final_result.get("isCompleted", "N/A")}, confidence={final_result.get("confidence", "N/A")}')
+                return jsonify(final_result)
+            else:
+                # 충분한 정보가 있으면 1차 결과 반환
+                initial_result['analysisSteps'] = 1
+                print(f'[AI Backend] task_completion_check - 1차 분석으로 충분: isCompleted={initial_result.get("isCompleted", "N/A")}')
+                return jsonify(initial_result)
+                
+        except json.JSONDecodeError as e:
+            print(f"[AI Backend] task_completion_check - JSON 파싱 실패: {e}")
+            print(f"[AI Backend] task_completion_check - 응답 내용 (처음 500자): {initial_content[:500]}")
+            return jsonify({
+                'isCompleted': False,
+                'confidence': 'low',
+                'reason': 'AI 응답 파싱 실패',
+                'recommendation': '수동으로 확인이 필요합니다.'
+            })
         except json.JSONDecodeError as e:
             print(f"[AI Backend] task_completion_check - JSON 파싱 실패: {e}")
             print(f"[AI Backend] task_completion_check - 응답 내용 (처음 500자): {content[:500]}")
