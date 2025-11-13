@@ -121,7 +121,15 @@ export default function AIadvisorPage() {
       console.log('[AIadvisorPage] 진행도 분석 응답:', { success: res.success, hasData: !!res.data, error: res.error });
 
       if (res.success) {
-        console.log('[AIadvisorPage] 진행도 분석 성공');
+        console.log('[AIadvisorPage] 진행도 분석 성공, 데이터:', res.data);
+        console.log('[AIadvisorPage] result 필드 확인:', {
+          currentProgress: res.data?.currentProgress,
+          activityTrend: res.data?.activityTrend,
+          estimatedCompletionDate: res.data?.estimatedCompletionDate,
+          delayRisk: res.data?.delayRisk,
+          insights: res.data?.insights,
+          recommendations: res.data?.recommendations
+        });
         setResult(res.data);
       } else {
         console.error('[AIadvisorPage] 진행도 분석 실패:', res.error);
@@ -313,6 +321,12 @@ export default function AIadvisorPage() {
                   진행도 분석 결과
                 </Typography>
                 <Box sx={{ mt: 2 }}>
+                  {!result || Object.keys(result).length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">
+                      분석 결과가 없습니다. 결과 데이터: {JSON.stringify(result)}
+                    </Typography>
+                  ) : (
+                    <>
                   {result.currentProgress !== undefined && (
                     <Typography variant="body1" sx={{ mb: 1 }}>
                       <strong>현재 진행도:</strong> {result.currentProgress}%
