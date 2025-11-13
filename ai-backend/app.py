@@ -208,66 +208,7 @@ def task_suggestion():
         )
         
         # 기존 프롬프트는 prompt_optimizer.py로 이동됨
-
-## 분석 관점
-1. **기능 개발**: 누락된 기능이나 개선이 필요한 기능
-2. **코드 품질**: 리팩토링이 필요한 영역 (복잡도, 중복 코드, 코드 냄새)
-3. **보안**: 잠재적 보안 취약점이나 보안 강화 필요 영역
-4. **성능**: 최적화가 필요한 부분
-5. **유지보수성**: 기술 부채나 개선이 필요한 부분
-
-## 프로젝트 정보
-프로젝트: {projectDescription}
-GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
-
-## 코드 변경 통계
-- 총 커밋 수: {len(recentCommits)}개
-- 총 추가된 라인: {totalLinesAdded}줄
-- 총 삭제된 라인: {totalLinesDeleted}줄
-- 주요 변경 파일 유형: {', '.join(list(fileChangePatterns.keys())[:5]) if fileChangePatterns else '없음'}
-
-## 최근 커밋 분석 (최근 {len(recentCommits)}개)
-{chr(10).join([f"- [{c['linesAdded']}+/{c['linesDeleted']}-, {c['filesChanged']}파일] {c['message']}" + (f" (주요 파일: {', '.join(c['files'][:3])})" if c['files'] else "") for c in commitAnalysis[:20]])}
-
-## 이슈 현황
-- 열린 이슈: {len(openIssues)}개
-- 주요 라벨: {', '.join(sorted(issueLabels.items(), key=lambda x: x[1], reverse=True)[:5]) if issueLabels else '없음'}
-{f"- 최근 이슈: {chr(10).join([f'  - #{{i[\"number\"]}}: {{i[\"title\"]}}' for i in openIssues[:5]])}" if openIssues else ""}
-
-## 현재 작업 현황
-- 총 작업 수: {len(currentTasks)}개
-- 작업 상태: {', '.join([f'{k}: {v}개' for k, v in taskStatuses.items()])}
-- 현재 작업 목록:
-{chr(10).join([f"  - {title}" for title in taskTitles[:10]])}
-
-## 분석 지시사항
-1. **코드 변경 패턴 분석**: 커밋 메시지와 파일 변경 패턴을 분석하여 개발 방향성 파악
-2. **복잡도 분석**: 대량의 코드 변경이 있는 파일이나 반복적인 변경이 있는 영역 식별
-3. **보안 이슈**: 커밋 메시지나 파일 경로에서 보안 관련 키워드나 패턴 발견
-4. **기능 격차**: 현재 작업 목록과 커밋 이력을 비교하여 누락된 기능 식별
-5. **기술 부채**: 리팩토링이 필요한 영역 (중복 코드, 복잡한 로직, 오래된 패턴 등)
-
-## 제안 형식
-다음 형식의 JSON 배열로 응답해주세요:
-[
-  {{
-    "title": "작업 제목 (명확하고 구체적으로)",
-    "description": "상세 설명 (왜 필요한지, 어떤 문제를 해결하는지)",
-    "category": "feature|refactor|security|performance|maintenance",
-    "priority": "High|Medium|Low",
-    "estimatedHours": 숫자,
-    "reason": "이 작업이 필요한 이유 (분석 근거)"
-  }}
-]
-
-## 제안 규칙
-- 최대 8개까지만 제안
-- 실제로 필요한 작업만 제안 (추측하지 말 것)
-- 각 카테고리별로 균형있게 제안
-- 정보가 부족한 경우 해당 카테고리는 제안하지 않음
-- High 우선순위는 보안 이슈나 심각한 기술 부채에만 부여
-- 반드시 유효한 JSON 배열 형식으로만 응답 (설명 없이 JSON만)"""
-
+        
         system_prompt = """소프트웨어 엔지니어링 전문가. 코드 분석 후 Task 제안. 반드시 한국어로 응답. JSON만 응답."""
 
         # OpenAI 또는 Ollama 호출
@@ -430,51 +371,7 @@ def progress_analysis():
         )
         
         # 기존 프롬프트는 prompt_optimizer.py로 이동됨
-
-## 프로젝트 정보
-프로젝트: {projectDescription}
-프로젝트 시작일: {projectStartDate if projectStartDate else '알 수 없음'}
-프로젝트 마감일: {projectDueDate if projectDueDate else '알 수 없음'}
-
-## Task 현황
-- 총 Task: {taskStats['total']}개
-- 대기 중: {taskStats['todo']}개
-- 진행 중: {taskStats['inProgress']}개
-- 완료: {taskStats['done']}개
-- Task 진행률: {round((taskStats['done'] / taskStats['total'] * 100) if taskStats['total'] > 0 else 0)}%
-
-## 코드 활동 현황
-- 총 커밋 수: {commitStats['total']}개
-- 총 추가된 라인: {commitStats['totalLinesAdded']}줄
-- 총 삭제된 라인: {commitStats['totalLinesDeleted']}줄
-- 최근 7일 커밋: {len(recent_week_commits)}개
-- 최근 30일 커밋: {len(recent_month_commits)}개
-
-## 분석 요청사항
-1. **현재 진행도 평가**: Task 진행률과 코드 활동을 종합하여 실제 진행도를 평가 (0-100%)
-2. **활동 패턴 분석**: 최근 활동이 증가/감소 추세인지 분석
-3. **완료 예측**: 현재 속도로 예상되는 완료 시기
-4. **지연 위험도**: 마감일 대비 지연 가능성 평가 (Low/Medium/High)
-5. **개선 제안**: 진행도를 높이기 위한 구체적인 제안
-
-다음 형식의 JSON으로 응답해주세요:
-{{
-  "currentProgress": 숫자 (0-100),
-  "activityTrend": "increasing|stable|decreasing",
-  "estimatedCompletionDate": "YYYY-MM-DD 또는 null",
-  "delayRisk": "Low|Medium|High",
-  "insights": [
-    "분석 인사이트 1",
-    "분석 인사이트 2"
-  ],
-  "recommendations": [
-    "개선 제안 1",
-    "개선 제안 2"
-  ]
-}}
-
-반드시 유효한 JSON 형식으로만 응답해주세요."""
-
+        
         system_prompt = """프로젝트 관리 전문가. 진행도 분석 및 예측. 반드시 한국어로 응답. JSON만 응답."""
 
         print(f'[AI Backend] progress_analysis - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
