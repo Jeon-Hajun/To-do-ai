@@ -494,7 +494,14 @@ def task_completion_check():
                 content = content.split('```')[1].split('```')[0].strip()
             
             result = json.loads(content)
-            print(f'[AI Backend] task_completion_check - 분석 완료: isCompleted={result.get("isCompleted", "N/A")}')
+            print(f'[AI Backend] task_completion_check - 분석 완료: isCompleted={result.get("isCompleted", "N/A")}, needsMoreInfo={result.get("needsMoreInfo", False)}')
+            
+            # 추가 정보가 필요한 경우 처리
+            if result.get("needsMoreInfo", False):
+                print(f'[AI Backend] task_completion_check - 추가 정보 필요: {result.get("additionalInfoNeeded", "N/A")}')
+                # 현재는 추가 탐색을 하지 않고 결과 반환 (향후 개선 가능)
+                # TODO: 추가 정보가 필요하면 더 많은 커밋이나 다른 소스를 탐색
+            
             return jsonify(result)
         except json.JSONDecodeError as e:
             print(f"[AI Backend] task_completion_check - JSON 파싱 실패: {e}")
