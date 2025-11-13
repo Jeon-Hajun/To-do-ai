@@ -17,14 +17,14 @@ export default defineConfig({
     },
   },
   server: { 
-    port: 5173,
+    port: 5175,
     proxy: {
       "/api": {
-        target: "http://localhost:5000",
+        target: "http://localhost:3001",
         changeOrigin: true,
       },
-      "/file": "http://127.0.0.1:5000",
-      "/profile": "http://127.0.0.1:5000",
+      "/file": "http://127.0.0.1:3001",
+      "/profile": "http://127.0.0.1:3001",
     },
   },
 });

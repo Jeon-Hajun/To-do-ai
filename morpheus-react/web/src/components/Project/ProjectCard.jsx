@@ -18,9 +18,8 @@ export default function ProjectCard({ project }) {
   const { setCurrentProject } = useProject(); // ✅ context에서 프로젝트 선택 함수
   const navigate = useNavigate();
 
-  if (!project || !currentUser) return null;
-
   useEffect(() => {
+    if (!project || !currentUser) return;
     const fetchMembers = async () => {
       setLoading(true);
       try {
@@ -33,7 +32,9 @@ export default function ProjectCard({ project }) {
       }
     };
     fetchMembers();
-  }, [project.id, currentUser?.profileImage]);
+  }, [project?.id, currentUser?.profileImage]);
+
+  if (!project || !currentUser) return null;
 
   const handleCardClick = () => {
     if (!project?.id) return;
