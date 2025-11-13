@@ -201,7 +201,14 @@ export default function AINextStepPage() {
               <Typography variant="subtitle2" gutterBottom>
                 분석 요약
               </Typography>
-              <Typography variant="body2">{analysis}</Typography>
+              <Typography variant="body2">
+                {typeof analysis === 'string' 
+                  ? analysis 
+                  : analysis.hasEnoughData !== undefined
+                    ? `커밋: ${analysis.totalCommits || 0}개, 이슈: ${analysis.totalIssues || 0}개, 작업: ${analysis.totalTasks || 0}개`
+                    : JSON.stringify(analysis)
+                }
+              </Typography>
             </Alert>
           )}
 
