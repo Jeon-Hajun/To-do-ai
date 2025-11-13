@@ -389,6 +389,8 @@ export default function AIadvisorPage() {
                       )}
                     </Box>
                   )}
+                    </>
+                  )}
                 </Box>
               </CardContent>
             </Card>
