@@ -62,7 +62,7 @@ def create_optimized_task_suggestion_prompt(commits, issues, currentTasks, proje
         for file in commit.get('files', [])[:5]:
             ext = file.get('path', '').split('.')[-1] if '.' in file.get('path', '') else 'unknown'
             fileTypes[ext] = fileTypes.get(ext, 0) + 1
-    topFileTypes = ', '.join(sorted(fileTypes.items(), key=lambda x: x[1], reverse=True)[:5])
+    topFileTypes = ', '.join([f"{ext}({count})" for ext, count in sorted(fileTypes.items(), key=lambda x: x[1], reverse=True)[:5]]) if fileTypes else "없음"
     
     # 이슈 요약
     openIssues = [i for i in issues if i.get('state') == 'open']
