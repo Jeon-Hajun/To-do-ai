@@ -350,10 +350,22 @@ def progress_analysis():
         projectStartDate = data.get('projectStartDate', None)
         projectDueDate = data.get('projectDueDate', None)
 
+        # 데이터가 없어도 기본 분석 제공
         if not commits and not tasks:
             return jsonify({
-                'error': '분석할 데이터가 부족합니다.'
-            }), 400
+                'currentProgress': 0,
+                'activityTrend': 'stable',
+                'estimatedCompletionDate': None,
+                'delayRisk': 'Low',
+                'insights': [
+                    '프로젝트가 시작 단계입니다. 커밋이나 작업 데이터가 없어 정확한 분석이 어렵습니다.',
+                    'GitHub 저장소를 연결하고 작업을 추가하면 더 정확한 분석을 받을 수 있습니다.'
+                ],
+                'recommendations': [
+                    'GitHub 저장소를 연결하여 커밋 이력을 동기화하세요.',
+                    '프로젝트 작업(Task)을 추가하여 진행 상황을 추적하세요.'
+                ]
+            })
 
         # Task 통계
         taskStats = {
