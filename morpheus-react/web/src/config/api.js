@@ -1,7 +1,7 @@
 // API 설정 파일
 // 환경 변수에서 API URL을 가져오거나 기본값 사용
 // 서버 환경: REACT_APP_API_URL=http://220.69.240.143:3001
-const isProduction = process.env.NODE_ENV === 'production' || window.location.hostname !== 'localhost';
+const isProduction = process.env.NODE_ENV === 'production' || (typeof window !== 'undefined' && window.location.hostname !== 'localhost');
 const DEFAULT_API_URL = isProduction ? 'http://220.69.240.143:3001' : 'http://localhost:3001';
 const DEFAULT_AI_API_URL = isProduction ? 'http://220.69.240.143:5001' : 'http://localhost:5001';
 
