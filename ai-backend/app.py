@@ -488,13 +488,29 @@ def task_completion_check():
         
         print(f'[AI Backend] task_completion_check - 1차 분석 응답 수신 (길이: {len(initial_content)} 문자)')
         
-        # JSON 파싱
+        # JSON 파싱 (강화된 전처리)
         try:
+            # 코드 블록 제거
             if '```json' in initial_content:
                 initial_content = initial_content.split('```json')[1].split('```')[0].strip()
             elif '```' in initial_content:
                 initial_content = initial_content.split('```')[1].split('```')[0].strip()
             
+            # 앞뒤 공백 제거
+            initial_content = initial_content.strip()
+            
+            # JSON 객체 시작 부분 찾기
+            if '{' in initial_content:
+                start_idx = initial_content.find('{')
+                initial_content = initial_content[start_idx:]
+            
+            # JSON 객체 끝 부분 찾기
+            if '}' in initial_content:
+                # 마지막 } 찾기 (중첩된 객체 고려)
+                last_brace_idx = initial_content.rfind('}')
+                initial_content = initial_content[:last_brace_idx+1]
+            
+            print(f'[AI Backend] task_completion_check - 1차 분석 파싱할 내용 (처음 200자): {initial_content[:200]}')
             initial_result = json.loads(initial_content)
             print(f'[AI Backend] task_completion_check - 1차 분석 완료: needsMoreInfo={initial_result.get("needsMoreInfo", False)}')
             
