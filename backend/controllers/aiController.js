@@ -2,7 +2,7 @@ var axios = require('axios');
 var { db } = require('../database/db');
 
 // AI 백엔드 URL (환경변수에서 가져오거나 기본값 사용)
-var AI_BACKEND_URL = process.env.AI_BACKEND_URL || 'http://localhost:5000';
+var AI_BACKEND_URL = process.env.AI_BACKEND_URL || 'http://localhost:5001';
 
 // Task 제안
 exports.taskSuggestion = async function(req, res, next) {
