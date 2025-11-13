@@ -158,10 +158,15 @@ export default function AIadvisorPage() {
       console.log('[AIadvisorPage] Task 완료 확인 요청 전송');
       const res = await checkTaskCompletion(selectedProjectId, selectedTaskId);
 
-      console.log('[AIadvisorPage] Task 완료 확인 응답:', { success: res.success, hasData: !!res.data, error: res.error });
+      console.log('[AIadvisorPage] Task 완료 확인 응답:', { 
+        success: res.success, 
+        hasData: !!res.data, 
+        error: res.error,
+        data: res.data 
+      });
 
       if (res.success) {
-        console.log('[AIadvisorPage] Task 완료 확인 성공');
+        console.log('[AIadvisorPage] Task 완료 확인 성공, 데이터:', res.data);
         setResult(res.data);
       } else {
         console.error('[AIadvisorPage] Task 완료 확인 실패:', res.error);
@@ -359,33 +364,46 @@ export default function AIadvisorPage() {
                     <strong>완료 여부:</strong>{" "}
                     {result.isCompleted ? "완료됨" : result.isCompleted === false ? "미완료" : "불확실"}
                   </Typography>
-                  {result.confidence !== undefined && (
+                  {result.confidence && (
                     <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>신뢰도:</strong> {result.confidence}%
+                      <strong>신뢰도:</strong> {result.confidence}
+                      {result.completionPercentage !== undefined && (
+                        <span> (완성도: {result.completionPercentage}%)</span>
+                      )}
                     </Typography>
                   )}
-                  {result.reasoning && (
+                  {result.reason && (
                     <Box sx={{ mt: 2 }}>
                       <Typography variant="subtitle1" gutterBottom>
                         <strong>판단 근거:</strong>
                       </Typography>
                       <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                        {result.reasoning}
+                        {result.reason}
                       </Typography>
                     </Box>
                   )}
-                  {result.suggestions && result.suggestions.length > 0 && (
+                  {result.evidence && result.evidence.length > 0 && (
                     <Box sx={{ mt: 2 }}>
                       <Typography variant="subtitle1" gutterBottom>
-                        <strong>제안사항:</strong>
+                        <strong>증거:</strong>
                       </Typography>
                       <ul>
-                        {result.suggestions.map((suggestion, index) => (
+                        {result.evidence.map((item, index) => (
                           <li key={index}>
-                            <Typography variant="body2">{suggestion}</Typography>
+                            <Typography variant="body2">{item}</Typography>
                           </li>
                         ))}
                       </ul>
+                    </Box>
+                  )}
+                  {result.recommendation && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant="subtitle1" gutterBottom>
+                        <strong>추천사항:</strong>
+                      </Typography>
+                      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                        {result.recommendation}
+                      </Typography>
                     </Box>
                   )}
                 </Box>
