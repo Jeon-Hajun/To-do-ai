@@ -159,14 +159,29 @@ def create_optimized_completion_prompt(task, commits, projectDescription):
             if patch_preview:
                 file_info.append(f"    코드 변경: {patch_preview[:150]}...")
         
+        # 코드 변경사항 요약 (실제 patch 내용 포함)
+        code_changes = []
+        for f in files[:10]:  # 각 커밋당 최대 10개 파일
+            path = f.get('path', '')
+            patch = f.get('patch', '')
+            if patch:
+                # 패치의 핵심 부분만 추출 (너무 길면 제한)
+                patch_preview = patch[:800] if len(patch) > 800 else patch
+                code_changes.append(f"  파일: {path}")
+                code_changes.append(f"    코드 변경:\n{patch_preview}")
+                if len(patch) > 800:
+                    code_changes.append(f"    ... (총 {len(patch)}자, 일부만 표시)")
+            else:
+                code_changes.append(f"  파일: {path} (코드 변경사항 없음)")
+        
         commit_info = f"""
 커밋: {msg[:100]}
 SHA: {commit.get('sha', '')[:8]}
 날짜: {commit.get('date', '')}
 변경: +{commit.get('linesAdded', 0)}/-{commit.get('linesDeleted', 0)}줄, {commit.get('filesChanged', 0)}개 파일
 명시적 Task 연결: {'예 (Task ID: ' + str(task_id) + ')' if task_id else '아니오'}
-파일:
-{chr(10).join(file_info) if file_info else '  (파일 정보 없음)'}
+파일 및 코드 변경사항:
+{chr(10).join(code_changes) if code_changes else '  (파일 정보 없음)'}
 """
         commits_detail.append(commit_info)
     
@@ -180,22 +195,26 @@ SHA: {commit.get('sha', '')[:8]}
 현재 상태: {status_kr} ({task_status})
 
 ## 분석 방법
-1. **관련 커밋 찾기**: Task 제목, 설명의 키워드와 커밋 메시지, 파일 경로, 코드 변경사항을 비교하여 관련 커밋을 찾으세요.
-   - Task 제목의 핵심 키워드 추출
+1. **관련 커밋 찾기**: Task 제목, 설명의 키워드와 커밋 메시지, 파일 경로, 실제 코드 변경사항을 비교하여 관련 커밋을 찾으세요.
+   - Task 제목의 핵심 키워드 추출 (예: "Github 연동방식 변경" → "github", "연동", "변경")
    - 커밋 메시지에서 유사한 내용 찾기
-   - 파일 경로와 코드 변경사항(patch)에서 Task와 관련된 작업 확인
+   - 파일 경로에서 Task와 관련된 파일 확인 (예: github 관련 파일)
+   - **실제 코드 변경사항(patch)을 분석하여 Task 요구사항이 구현되었는지 확인** ⭐ 중요
    - 명시적으로 Task ID가 연결된 커밋도 고려
 
-2. **완료 여부 판단**:
-   - 관련 커밋이 있고, 코드 변경사항이 Task 요구사항을 충족하는가?
-   - Task의 목적이 달성되었는가? (코드 변경 내용으로 판단)
-   - Task 상태가 "done"이면 완료 가능성이 높지만, 실제 코드로 검증 필요
-   - Task 상태가 "todo"/"in_progress"여도 관련 커밋이 충분하면 완료일 수 있음
+2. **코드 레벨 완료 여부 판단** (가장 중요):
+   - **실제 코드 변경사항(patch)을 읽고 분석하세요**
+   - Task 제목/설명에서 요구하는 기능이 코드에 구현되어 있는가?
+   - 예: "Github 연동방식 변경" → 코드에서 GitHub API 호출 방식이 변경되었는지 확인
+   - 예: "로그인 기능 추가" → 로그인 관련 코드가 추가되었는지 확인
+   - 코드 변경사항이 Task의 목적을 달성하는가?
+   - Task 상태가 "done"이어도 실제 코드로 검증 필요
+   - Task 상태가 "todo"/"in_progress"여도 코드가 완료되었으면 완료로 판단
 
 3. **신뢰도 결정**:
-   - high: 명확한 관련 커밋과 코드 변경사항이 Task 요구사항과 일치
-   - medium: 관련 커밋이 있지만 완전한 일치 여부가 불확실하거나, Task 상태만 "done"
-   - low: 관련 커밋이 없거나 매우 약한 연관성만 존재
+   - high: 명확한 관련 커밋과 실제 코드 변경사항이 Task 요구사항을 완전히 구현
+   - medium: 관련 커밋과 코드 변경이 있지만 완전한 일치 여부가 불확실하거나, Task 상태만 "done"
+   - low: 관련 커밋이 없거나 코드 변경사항이 Task와 무관하거나 매우 약한 연관성만 존재
 
 ## 프로젝트 커밋 목록 (최근 50개)
 {commits_text}

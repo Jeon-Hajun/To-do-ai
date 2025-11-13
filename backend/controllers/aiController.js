@@ -559,67 +559,180 @@ exports.taskCompletionCheck = async function(req, res, next) {
           );
         });
         
-        // 프로젝트의 최근 커밋들을 모두 조회 (AI가 관련성을 판단하도록)
-        console.log('[AI Controller] taskCompletionCheck - 프로젝트 커밋 조회 중... (AI가 관련성 판단)');
-        const commits = await new Promise((resolve, reject) => {
-          db.all(
-            `SELECT c.commit_sha, c.commit_message, c.author, c.commit_date, c.lines_added, c.lines_deleted, c.files_changed, c.task_id
-             FROM project_commits c
-             WHERE c.project_id = ?
-             ORDER BY c.commit_date DESC
-             LIMIT 100`,
-            [projectId],
-            async function(err, rows) {
-              if (err) {
-                console.error('[AI Controller] taskCompletionCheck - 커밋 조회 오류:', err);
-                reject(err);
-              } else {
-                console.log('[AI Controller] taskCompletionCheck - 관련 커밋 조회 완료:', rows.length, '개');
-                // 각 커밋의 파일 변경 정보도 수집
-                const commitsWithFiles = await Promise.all(
-                  rows.map(async (r) => {
-                    const files = await new Promise((resolveFiles) => {
-                      db.all(
-                        `SELECT file_path, status, additions, deletions, patch
-                         FROM project_commit_files
-                         WHERE project_id = ? AND commit_sha = ?
-                         ORDER BY additions + deletions DESC
-                         LIMIT 15`,
-                        [projectId, r.commit_sha],
-                        function(fileErr, fileRows) {
-                          if (fileErr) {
-                            resolveFiles([]);
-                          } else {
-                            resolveFiles(fileRows.map(f => ({
-                              path: f.file_path,
-                              status: f.status,
-                              additions: f.additions,
-                              deletions: f.deletions,
-                              patch: f.patch || null  // 코드 변경사항 포함
-                            })));
+        // GitHub API를 직접 호출하여 최신 커밋과 코드 변경사항 가져오기
+        console.log('[AI Controller] taskCompletionCheck - GitHub API로 커밋 조회 중...');
+        let commits = [];
+        
+        if (project.github_repo) {
+          try {
+            const GitHubService = require('../services/githubService');
+            const githubService = new GitHubService(project.github_token);
+            
+            // GitHub에서 최신 커밋 가져오기 (최대 50개)
+            const githubCommits = await githubService.getCommits(project.github_repo, { perPage: 50 });
+            console.log(`[AI Controller] taskCompletionCheck - GitHub에서 ${githubCommits.length}개 커밋 가져옴`);
+            
+            // 각 커밋의 상세 정보(코드 변경사항 포함) 가져오기
+            commits = await Promise.all(
+              githubCommits.slice(0, 30).map(async (commit) => {  // 최대 30개만 상세 조회
+                try {
+                  const commitDetail = await githubService.getCommitStats(project.github_repo, commit.sha);
+                  return {
+                    sha: commitDetail.sha,
+                    message: commitDetail.message,
+                    author: commitDetail.author,
+                    date: commitDetail.date,
+                    linesAdded: commitDetail.linesAdded || 0,
+                    linesDeleted: commitDetail.linesDeleted || 0,
+                    filesChanged: commitDetail.filesChanged || 0,
+                    files: (commitDetail.files || []).map(f => ({
+                      path: f.filename,
+                      status: f.status,
+                      additions: f.additions || 0,
+                      deletions: f.deletions || 0,
+                      patch: f.patch || null  // 실제 코드 변경사항 (diff)
+                    }))
+                  };
+                } catch (error) {
+                  console.warn(`[AI Controller] taskCompletionCheck - 커밋 ${commit.sha.substring(0, 7)} 상세 조회 실패:`, error.message);
+                  // 상세 조회 실패 시 기본 정보만 반환
+                  return {
+                    sha: commit.sha,
+                    message: commit.message,
+                    author: commit.author,
+                    date: commit.date,
+                    linesAdded: 0,
+                    linesDeleted: 0,
+                    filesChanged: 0,
+                    files: []
+                  };
+                }
+              })
+            );
+            
+            console.log(`[AI Controller] taskCompletionCheck - ${commits.length}개 커밋의 코드 변경사항 수집 완료`);
+          } catch (error) {
+            console.error('[AI Controller] taskCompletionCheck - GitHub API 호출 실패:', error.message);
+            console.log('[AI Controller] taskCompletionCheck - DB에서 커밋 조회로 대체');
+            
+            // GitHub API 실패 시 DB에서 조회
+            commits = await new Promise((resolve, reject) => {
+              db.all(
+                `SELECT c.commit_sha, c.commit_message, c.author, c.commit_date, c.lines_added, c.lines_deleted, c.files_changed, c.task_id
+                 FROM project_commits c
+                 WHERE c.project_id = ?
+                 ORDER BY c.commit_date DESC
+                 LIMIT 50`,
+                [projectId],
+                async function(err, rows) {
+                  if (err) {
+                    reject(err);
+                  } else {
+                    const commitsWithFiles = await Promise.all(
+                      rows.map(async (r) => {
+                        const files = await new Promise((resolveFiles) => {
+                          db.all(
+                            `SELECT file_path, status, additions, deletions, patch
+                             FROM project_commit_files
+                             WHERE project_id = ? AND commit_sha = ?
+                             ORDER BY additions + deletions DESC
+                             LIMIT 15`,
+                            [projectId, r.commit_sha],
+                            function(fileErr, fileRows) {
+                              if (fileErr) {
+                                resolveFiles([]);
+                              } else {
+                                resolveFiles(fileRows.map(f => ({
+                                  path: f.file_path,
+                                  status: f.status,
+                                  additions: f.additions,
+                                  deletions: f.deletions,
+                                  patch: f.patch || null
+                                })));
+                              }
+                            }
+                          );
+                        });
+                        
+                        return {
+                          sha: r.commit_sha,
+                          message: r.commit_message,
+                          author: r.author,
+                          date: r.commit_date,
+                          linesAdded: r.lines_added || 0,
+                          linesDeleted: r.lines_deleted || 0,
+                          filesChanged: r.files_changed || 0,
+                          taskId: r.task_id,
+                          files: files
+                        };
+                      })
+                    );
+                    resolve(commitsWithFiles);
+                  }
+                }
+              );
+            });
+          }
+        } else {
+          console.log('[AI Controller] taskCompletionCheck - GitHub 저장소가 연결되지 않음, DB에서 조회');
+          // GitHub 저장소가 없으면 DB에서 조회
+          commits = await new Promise((resolve, reject) => {
+            db.all(
+              `SELECT c.commit_sha, c.commit_message, c.author, c.commit_date, c.lines_added, c.lines_deleted, c.files_changed, c.task_id
+               FROM project_commits c
+               WHERE c.project_id = ?
+               ORDER BY c.commit_date DESC
+               LIMIT 50`,
+              [projectId],
+              async function(err, rows) {
+                if (err) {
+                  reject(err);
+                } else {
+                  const commitsWithFiles = await Promise.all(
+                    rows.map(async (r) => {
+                      const files = await new Promise((resolveFiles) => {
+                        db.all(
+                          `SELECT file_path, status, additions, deletions, patch
+                           FROM project_commit_files
+                           WHERE project_id = ? AND commit_sha = ?
+                           ORDER BY additions + deletions DESC
+                           LIMIT 15`,
+                          [projectId, r.commit_sha],
+                          function(fileErr, fileRows) {
+                            if (fileErr) {
+                              resolveFiles([]);
+                            } else {
+                              resolveFiles(fileRows.map(f => ({
+                                path: f.file_path,
+                                status: f.status,
+                                additions: f.additions,
+                                deletions: f.deletions,
+                                patch: f.patch || null
+                              })));
+                            }
                           }
-                        }
-                      );
-                    });
-                    
-                    return {
-                      sha: r.commit_sha,
-                      message: r.commit_message,
-                      author: r.author,
-                      date: r.commit_date,
-                      linesAdded: r.lines_added || 0,
-                      linesDeleted: r.lines_deleted || 0,
-                      filesChanged: r.files_changed || 0,
-                      taskId: r.task_id,  // 명시적 Task 연결 정보
-                      files: files
-                    };
-                  })
-                );
-                resolve(commitsWithFiles);
+                        );
+                      });
+                      
+                      return {
+                        sha: r.commit_sha,
+                        message: r.commit_message,
+                        author: r.author,
+                        date: r.commit_date,
+                        linesAdded: r.lines_added || 0,
+                        linesDeleted: r.lines_deleted || 0,
+                        filesChanged: r.files_changed || 0,
+                        taskId: r.task_id,
+                        files: files
+                      };
+                    })
+                  );
+                  resolve(commitsWithFiles);
+                }
               }
-            }
-          );
-        });
+            );
+          });
+        }
         
         console.log('[AI Controller] taskCompletionCheck - 데이터 수집 완료:', {
           task: task.title,
