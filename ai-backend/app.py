@@ -541,7 +541,7 @@ def task_completion_check():
         except json.JSONDecodeError as e:
             print(f"[AI Backend] task_completion_check - JSON 파싱 실패: {e}")
             print(f"[AI Backend] task_completion_check - 응답 내용 (처음 500자): {initial_content[:500]}")
-                return jsonify({
+            return jsonify({
                 'isCompleted': False,
                 'confidence': 'low',
                 'reason': 'AI 응답 파싱 실패',
