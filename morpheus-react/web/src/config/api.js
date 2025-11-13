@@ -9,6 +9,6 @@ export const API_ENDPOINTS = {
   PROJECT: `${API_BASE_URL}/api/project`,
   TASK: `${API_BASE_URL}/api/task`,
   GITHUB: `${API_BASE_URL}/api/github`,
-  AI: `${AI_API_BASE_URL}/api/ai`,
+  AI: `${API_BASE_URL}/api/ai`, // Node.js 백엔드를 통해 AI 백엔드에 접근
 };
 
