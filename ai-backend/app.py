@@ -52,6 +52,9 @@ def call_ollama(prompt, system_prompt="당신은 도움이 되는 AI 어시스�
         if not check_ollama_model():
             raise Exception(f"Ollama 모델 '{OLLAMA_MODEL}'이 설치되지 않았습니다. 다음 명령어로 설치하세요: ollama pull {OLLAMA_MODEL}")
         
+        print(f'[AI Backend] call_ollama - 프롬프트 길이: {len(prompt)} 문자, 시스템 프롬프트: {len(system_prompt)} 문자')
+        print(f'[AI Backend] call_ollama - Ollama URL: {OLLAMA_BASE_URL}, 모델: {OLLAMA_MODEL}')
+        
         response = httpx.post(
             f"{OLLAMA_BASE_URL}/api/chat",
             json={
@@ -62,7 +65,7 @@ def call_ollama(prompt, system_prompt="당신은 도움이 되는 AI 어시스�
                 ],
                 "stream": False
             },
-            timeout=120.0
+            timeout=300.0  # 5분으로 증가 (큰 모델의 경우 더 오래 걸릴 수 있음)
         )
         response.raise_for_status()
         return response.json()["message"]["content"]
