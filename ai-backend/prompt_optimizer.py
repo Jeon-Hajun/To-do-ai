@@ -187,27 +187,36 @@ SHA: {commit.get('sha', '')[:8]}
     
     commits_text = '\n'.join(commits_detail) if commits_detail else "프로젝트에 커밋이 없습니다."
     
+    task_title = task.get('title', '')
+    task_description = task.get('description', '') if task.get('description') else '(설명 없음)'
+    
     prompt = f"""당신은 코드 리뷰 전문가입니다. Task 완료 여부를 지능적으로 분석하세요.
 
-## 분석 대상 Task
-제목: {task.get('title', '')}
-설명: {task.get('description', '') if task.get('description') else '(설명 없음)'}
+⚠️ 중요: 반드시 한국어로만 응답하세요. 중국어, 영어 등 다른 언어는 절대 사용하지 마세요.
+
+## ⭐ 분석 대상 Task (이 Task만 분석하세요)
+제목: {task_title}
+설명: {task_description}
 현재 상태: {status_kr} ({task_status})
 
-## 분석 방법
-1. **관련 커밋 찾기**: Task 제목, 설명의 키워드와 커밋 메시지, 파일 경로, 실제 코드 변경사항을 비교하여 관련 커밋을 찾으세요.
-   - Task 제목의 핵심 키워드 추출 (예: "Github 연동방식 변경" → "github", "연동", "변경")
-   - 커밋 메시지에서 유사한 내용 찾기
-   - 파일 경로에서 Task와 관련된 파일 확인 (예: github 관련 파일)
-   - **실제 코드 변경사항(patch)을 분석하여 Task 요구사항이 구현되었는지 확인** ⭐ 중요
-   - 명시적으로 Task ID가 연결된 커밋도 고려
+중요: 위에 명시된 Task만 분석하세요. 다른 Task나 프로젝트의 다른 작업은 무시하세요.
+Task 제목 "{task_title}"와 관련된 커밋과 코드 변경사항만 찾으세요.
 
-2. **코드 레벨 완료 여부 판단** (가장 중요):
+## 분석 방법
+1. **관련 커밋 찾기** (이 Task만 관련된 커밋):
+   - Task 제목 "{task_title}"의 핵심 키워드를 추출하세요
+   - Task 설명 "{task_description}"의 내용을 이해하세요
+   - 커밋 메시지에서 Task 제목/설명과 관련된 내용만 찾으세요
+   - 파일 경로에서 Task와 관련된 파일만 확인하세요
+   - **실제 코드 변경사항(patch)을 분석하여 이 Task 요구사항이 구현되었는지 확인** ⭐ 중요
+   - 다른 Task와 관련된 커밋은 무시하세요
+
+2. **코드 레벨 완료 여부 판단** (가장 중요 - 이 Task만):
    - **실제 코드 변경사항(patch)을 읽고 분석하세요**
-   - Task 제목/설명에서 요구하는 기능이 코드에 구현되어 있는가?
-   - 예: "Github 연동방식 변경" → 코드에서 GitHub API 호출 방식이 변경되었는지 확인
-   - 예: "로그인 기능 추가" → 로그인 관련 코드가 추가되었는지 확인
-   - 코드 변경사항이 Task의 목적을 달성하는가?
+   - Task 제목 "{task_title}"에서 요구하는 기능이 코드에 구현되어 있는가?
+   - Task 설명 "{task_description}"의 내용이 코드에 반영되었는가?
+   - 코드 변경사항이 이 Task의 목적을 달성하는가?
+   - 다른 Task와 관련된 코드 변경사항은 무시하세요
    - Task 상태가 "done"이어도 실제 코드로 검증 필요
    - Task 상태가 "todo"/"in_progress"여도 코드가 완료되었으면 완료로 판단
 
@@ -220,17 +229,20 @@ SHA: {commit.get('sha', '')[:8]}
 {commits_text}
 
 ## 응답 형식
-다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
+다음 JSON 형식으로만 응답하세요. ⚠️ 반드시 한국어로만 작성하세요. 중국어, 영어 등 다른 언어는 절대 사용하지 마세요:
 {{
   "isCompleted": true 또는 false,
   "completionPercentage": 0-100 숫자,
   "confidence": "high" 또는 "medium" 또는 "low",
-  "reason": "상세한 판단 근거를 한국어로 설명 (어떤 커밋이 관련있는지, 코드 변경사항이 Task를 완료했는지 등)",
-  "evidence": ["증거1 (예: '커밋 abc123에서 Task 제목과 관련된 파일 변경')", "증거2", ...],
-  "recommendation": "추천사항을 한국어로 (완료되지 않았다면 다음 단계, 완료되었다면 검증 방법 등)"
+  "reason": "상세한 판단 근거를 한국어로만 설명 (어떤 커밋이 이 Task와 관련있는지, 코드 변경사항이 이 Task를 완료했는지 등)",
+  "evidence": ["증거1 (예: '커밋 abc123에서 Task 제목 '{task_title}'와 관련된 파일 변경')", "증거2", ...],
+  "recommendation": "추천사항을 한국어로만 작성 (완료되지 않았다면 다음 단계, 완료되었다면 검증 방법 등)"
 }}
 
-중요: 단순히 Task 상태만 보지 말고, 실제 코드 변경사항을 분석하여 판단하세요."""
+⚠️ 중요 규칙:
+1. 반드시 한국어로만 응답하세요. 중국어, 영어 등 다른 언어는 절대 사용하지 마세요.
+2. Task 제목 "{task_title}"와 관련된 커밋과 코드만 분석하세요. 다른 Task는 무시하세요.
+3. 단순히 Task 상태만 보지 말고, 실제 코드 변경사항을 분석하여 판단하세요."""
     
     return prompt
 

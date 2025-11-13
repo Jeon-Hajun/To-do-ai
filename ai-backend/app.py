@@ -472,7 +472,12 @@ def task_completion_check():
         
         # 기존 프롬프트는 prompt_optimizer.py로 이동됨
         
-        system_prompt = """코드 리뷰 전문가. Task 완료 여부 판단. 반드시 한국어로 응답. JSON만 응답."""
+        system_prompt = """당신은 코드 리뷰 전문가입니다. Task 완료 여부를 판단합니다.
+
+중요 규칙:
+1. 반드시 한국어로만 응답하세요. 중국어, 영어 등 다른 언어는 절대 사용하지 마세요.
+2. JSON 형식으로만 응답하세요.
+3. 사용자가 지정한 Task만 분석하세요. 다른 Task는 무시하세요."""
 
         print(f'[AI Backend] task_completion_check - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
         if USE_OPENAI:
