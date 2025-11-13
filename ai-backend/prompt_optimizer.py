@@ -84,7 +84,7 @@ def create_optimized_task_suggestion_prompt(commits, issues, currentTasks, proje
 다음 형식의 JSON 배열로 최대 5개 Task 제안:
 [{{"title": "...", "description": "...", "category": "feature|refactor|security|performance|maintenance", "priority": "High|Medium|Low", "estimatedHours": 숫자, "reason": "..."}}]
 
-규칙: 실제 필요한 작업만, High는 보안/심각한 기술부채만, JSON만 응답."""
+규칙: 실제 필요한 작업만, High는 보안/심각한 기술부채만, 반드시 한국어로 응답, JSON만 응답."""
     
     return prompt
 
@@ -119,7 +119,7 @@ def create_optimized_progress_prompt(commits, tasks, projectDescription, project
 작업: 총{taskStats['total']}개 (완료:{taskStats['done']}, 진행중:{taskStats['inProgress']}, 대기:{taskStats['todo']})
 커밋: 총{commitStats['total']}개, +{commitStats['totalLinesAdded']}/-{commitStats['totalLinesDeleted']}줄, 최근7일:{recent_week}개
 
-다음 JSON 형식으로 응답:
+다음 JSON 형식으로 응답 (반드시 한국어로):
 {{"currentProgress": 0-100, "activityTrend": "increasing|stable|decreasing", "estimatedCompletionDate": "YYYY-MM-DD 또는 null", "delayRisk": "Low|Medium|High", "insights": ["..."], "recommendations": ["..."]}}"""
     
     return prompt

@@ -278,7 +278,7 @@ GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
 - High 우선순위는 보안 이슈나 심각한 기술 부채에만 부여
 - 반드시 유효한 JSON 배열 형식으로만 응답 (설명 없이 JSON만)"""
 
-        system_prompt = """소프트웨어 엔지니어링 전문가. 코드 분석 후 Task 제안. JSON만 응답."""
+        system_prompt = """소프트웨어 엔지니어링 전문가. 코드 분석 후 Task 제안. 반드시 한국어로 응답. JSON만 응답."""
 
         # OpenAI 또는 Ollama 호출
         print(f'[AI Backend] task_suggestion - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
@@ -487,7 +487,7 @@ def progress_analysis():
 
 반드시 유효한 JSON 형식으로만 응답해주세요."""
 
-        system_prompt = """프로젝트 관리 전문가. 진행도 분석 및 예측. JSON만 응답."""
+        system_prompt = """프로젝트 관리 전문가. 진행도 분석 및 예측. 반드시 한국어로 응답. JSON만 응답."""
 
         print(f'[AI Backend] progress_analysis - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
         if USE_OPENAI:
@@ -613,7 +613,7 @@ def task_completion_check():
 반드시 유효한 JSON 형식으로만 응답해주세요."""
         """
         
-        system_prompt = """코드 리뷰 전문가. Task 완료 여부 판단. JSON만 응답."""
+        system_prompt = """코드 리뷰 전문가. Task 완료 여부 판단. 반드시 한국어로 응답. JSON만 응답."""
 
         print(f'[AI Backend] task_completion_check - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
         if USE_OPENAI:
