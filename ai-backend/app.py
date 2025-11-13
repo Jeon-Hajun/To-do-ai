@@ -5,6 +5,11 @@ from datetime import datetime
 import os
 import json
 import httpx
+from prompt_optimizer import (
+    create_optimized_task_suggestion_prompt,
+    create_optimized_progress_prompt,
+    create_optimized_completion_prompt
+)
 
 # Load environment variables
 load_dotenv()
@@ -14,7 +19,8 @@ CORS(app)
 
 # Ollama 설정 (로컬 모델)
 OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
-OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'qwen2.5:14b')
+# 더 작은 모델 옵션: qwen2.5:7b (빠름), qwen2.5:3b (매우 빠름), qwen2.5:14b (정확함)
+OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'qwen2.5:7b')  # 기본값을 더 작은 모델로 변경
 
 # OpenAI 설정 (클라우드 모델 사용 시, 선택사항)
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', None)
@@ -196,6 +202,13 @@ def task_suggestion():
             for label in labels:
                 issueLabels[label] = issueLabels.get(label, 0) + 1
 
+        # 최적화된 프롬프트 사용
+        prompt = create_optimized_task_suggestion_prompt(
+            commits, issues, currentTasks, projectDescription, githubRepo
+        )
+        
+        # 기존 프롬프트 (백업용, 필요시 사용)
+        """
         # 현재 Task 정리
         taskTitles = [task.get('title', '') for task in currentTasks]
         taskStatuses = {}
@@ -203,8 +216,8 @@ def task_suggestion():
             status = task.get('status', 'todo')
             taskStatuses[status] = taskStatuses.get(status, 0) + 1
 
-        # 프롬프트 생성
-        prompt = f"""당신은 소프트웨어 엔지니어링 전문가입니다. 프로젝트의 코드 변경 이력, 이슈, 현재 작업을 종합적으로 분석하여 다음 관점에서 Task를 제안해주세요:
+        # 프롬프트 생성 (기존 - 주석 처리)
+        prompt_old = f"""당신은 소프트웨어 엔지니어링 전문가입니다. 프로젝트의 코드 변경 이력, 이슈, 현재 작업을 종합적으로 분석하여 다음 관점에서 Task를 제안해주세요:
 
 ## 분석 관점
 1. **기능 개발**: 누락된 기능이나 개선이 필요한 기능
@@ -265,10 +278,7 @@ GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
 - High 우선순위는 보안 이슈나 심각한 기술 부채에만 부여
 - 반드시 유효한 JSON 배열 형식으로만 응답 (설명 없이 JSON만)"""
 
-        system_prompt = """당신은 경험이 풍부한 소프트웨어 엔지니어링 전문가입니다. 
-코드 변경 이력, 이슈, 작업 목록을 종합적으로 분석하여 프로젝트의 개선점을 찾아냅니다.
-코드 품질, 보안, 성능, 유지보수성 등 다양한 관점에서 실용적이고 구체적인 제안을 합니다.
-응답은 반드시 유효한 JSON 배열 형식이어야 하며, 추가 설명 없이 JSON만 반환합니다."""
+        system_prompt = """소프트웨어 엔지니어링 전문가. 코드 분석 후 Task 제안. JSON만 응답."""
 
         # OpenAI 또는 Ollama 호출
         print(f'[AI Backend] task_suggestion - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
@@ -424,7 +434,14 @@ def progress_analysis():
                 except:
                     pass
 
-        prompt = f"""당신은 프로젝트 관리 전문가입니다. 다음 정보를 분석하여 프로젝트의 진행도를 평가하고 예측해주세요.
+        # 최적화된 프롬프트 사용
+        prompt = create_optimized_progress_prompt(
+            commits, tasks, projectDescription, projectStartDate, projectDueDate
+        )
+        
+        # 기존 프롬프트 (백업용)
+        """
+        prompt_old = f"""당신은 프로젝트 관리 전문가입니다. 다음 정보를 분석하여 프로젝트의 진행도를 평가하고 예측해주세요.
 
 ## 프로젝트 정보
 프로젝트: {projectDescription}
@@ -470,9 +487,7 @@ def progress_analysis():
 
 반드시 유효한 JSON 형식으로만 응답해주세요."""
 
-        system_prompt = """당신은 경험이 풍부한 프로젝트 관리 전문가입니다.
-Task 진행률, 코드 활동, 시간 경과를 종합적으로 분석하여 정확한 진행도 평가와 예측을 제공합니다.
-응답은 반드시 유효한 JSON 형식이어야 하며, 추가 설명 없이 JSON만 반환합니다."""
+        system_prompt = """프로젝트 관리 전문가. 진행도 분석 및 예측. JSON만 응답."""
 
         print(f'[AI Backend] progress_analysis - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
         if USE_OPENAI:
@@ -561,7 +576,12 @@ def task_completion_check():
                 'linesDeleted': commit.get('linesDeleted', 0) or 0
             })
 
-        prompt = f"""당신은 코드 리뷰 전문가입니다. Task의 요구사항과 실제 코드 변경사항을 비교하여 Task 완료 여부를 판단해주세요.
+        # 최적화된 프롬프트 사용
+        prompt = create_optimized_completion_prompt(task, commits, projectDescription)
+        
+        # 기존 프롬프트 (백업용)
+        """
+        prompt_old = f"""당신은 코드 리뷰 전문가입니다. Task의 요구사항과 실제 코드 변경사항을 비교하여 Task 완료 여부를 판단해주세요.
 
 ## Task 정보
 제목: {taskTitle}
@@ -591,10 +611,9 @@ def task_completion_check():
 }}
 
 반드시 유효한 JSON 형식으로만 응답해주세요."""
-
-        system_prompt = """당신은 경험이 풍부한 코드 리뷰 전문가입니다.
-Task 요구사항과 실제 코드 변경사항을 정확히 비교하여 완료 여부를 판단합니다.
-응답은 반드시 유효한 JSON 형식이어야 하며, 추가 설명 없이 JSON만 반환합니다."""
+        """
+        
+        system_prompt = """코드 리뷰 전문가. Task 완료 여부 판단. JSON만 응답."""
 
         print(f'[AI Backend] task_completion_check - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
         if USE_OPENAI:
