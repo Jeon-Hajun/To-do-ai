@@ -6,185 +6,52 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  Button,
-  Card,
-  CardContent,
-  CircularProgress,
   Alert,
-  Stack,
+  Card,
 } from "@mui/material";
 import { useAuthContext } from "../context/AuthContext";
 import { useProjects } from "../hooks/useProjects";
 import { Header, NavBar, ContainerBox, PageContainer } from "../components/layout";
-import { fetchTasksByProject } from "../api/tasks";
-import { getTaskSuggestions, getProgressAnalysis, checkTaskCompletion } from "../api/ai";
-import { useNavigate } from "react-router-dom";
+import { getChatHistory } from "../api/ai";
+import ChatBot from "../components/ai/ChatBot";
 
 export default function AIadvisorPage() {
   const { user } = useAuthContext();
   const { query } = useProjects();
-  const navigate = useNavigate();
   
   const [selectedProjectId, setSelectedProjectId] = useState("");
-  const [activeFeature, setActiveFeature] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [result, setResult] = useState(null);
-  
-  // Task 완료 확인용
-  const [tasks, setTasks] = useState([]);
-  const [selectedTaskId, setSelectedTaskId] = useState("");
+  const [conversationId, setConversationId] = useState(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
-  const handleTaskSuggestion = async () => {
-    console.log('[AIadvisorPage] handleTaskSuggestion 시작:', { selectedProjectId });
-    
-    if (!selectedProjectId) {
-      console.error('[AIadvisorPage] 프로젝트 미선택');
-      setError("프로젝트를 선택해주세요.");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    setActiveFeature('task-suggestion');
-
-    try {
-      console.log('[AIadvisorPage] Task 제안 요청 전송');
-      const res = await getTaskSuggestions(selectedProjectId, {
-        includeCommits: true,
-        includeIssues: true,
-      });
-
-      console.log('[AIadvisorPage] Task 제안 응답:', { success: res.success, hasData: !!res.data, error: res.error });
-
-      if (res.success) {
-        console.log('[AIadvisorPage] Task 제안 성공, 페이지 이동');
-        // Task 제안 결과를 AI Next Step 페이지로 전달
-        navigate("/ai-next-step", {
-          state: {
-            projectId: selectedProjectId,
-            suggestions: res.data.suggestions || [],
-            analysis: res.data.analysis || null,
-          },
-        });
-      } else {
-        console.error('[AIadvisorPage] Task 제안 실패:', res.error);
-        setError(res.error?.message || "Task 제안을 받는 중 오류가 발생했습니다.");
-      }
-    } catch (err) {
-      console.error('[AIadvisorPage] Task 제안 예외 발생:', err);
-      setError(err.message || "Task 제안을 받는 중 오류가 발생했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleProgressAnalysis = async () => {
-    console.log('[AIadvisorPage] handleProgressAnalysis 시작:', { selectedProjectId });
-    
-    if (!selectedProjectId) {
-      console.error('[AIadvisorPage] 프로젝트 미선택');
-      setError("프로젝트를 선택해주세요.");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    setActiveFeature('progress-analysis');
-
-    try {
-      console.log('[AIadvisorPage] 진행도 분석 요청 전송');
-      const res = await getProgressAnalysis(selectedProjectId);
-
-      console.log('[AIadvisorPage] 진행도 분석 응답:', { success: res.success, hasData: !!res.data, error: res.error });
-
-      if (res.success) {
-        console.log('[AIadvisorPage] 진행도 분석 성공, 데이터:', res.data);
-        console.log('[AIadvisorPage] result 필드 확인:', {
-          currentProgress: res.data?.currentProgress,
-          activityTrend: res.data?.activityTrend,
-          estimatedCompletionDate: res.data?.estimatedCompletionDate,
-          delayRisk: res.data?.delayRisk,
-          insights: res.data?.insights,
-          recommendations: res.data?.recommendations
-        });
-        setResult(res.data);
-      } else {
-        console.error('[AIadvisorPage] 진행도 분석 실패:', res.error);
-        setError(res.error?.message || "진행도 분석 중 오류가 발생했습니다.");
-      }
-    } catch (err) {
-      console.error('[AIadvisorPage] 진행도 분석 예외 발생:', err);
-      setError(err.message || "진행도 분석 중 오류가 발생했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 프로젝트 선택 시 Task 목록 가져오기 (Task 완료 확인용)
+  // 프로젝트 선택 시 대화 히스토리 로드
   useEffect(() => {
-    if (selectedProjectId && activeFeature === 'task-completion') {
-      const fetchTasks = async () => {
-        try {
-          const tasksData = await fetchTasksByProject(selectedProjectId);
-          setTasks(tasksData || []);
-        } catch (err) {
-          console.error("Task 목록 조회 실패:", err);
-          setTasks([]);
-        }
-      };
-      fetchTasks();
+    if (selectedProjectId) {
+      loadChatHistory();
     } else {
-      setTasks([]);
-      setSelectedTaskId("");
+      setConversationId(null);
     }
-  }, [selectedProjectId, activeFeature]);
+  }, [selectedProjectId]);
 
-  const handleTaskCompletionCheck = async () => {
-    console.log('[AIadvisorPage] handleTaskCompletionCheck 시작:', { selectedProjectId, selectedTaskId });
-    
-    if (!selectedProjectId) {
-      console.error('[AIadvisorPage] 프로젝트 미선택');
-      setError("프로젝트를 선택해주세요.");
-      return;
-    }
-    if (!selectedTaskId) {
-      console.error('[AIadvisorPage] Task 미선택');
-      setError("Task를 선택해주세요.");
-      return;
-    }
+  const loadChatHistory = async () => {
+    if (!selectedProjectId) return;
 
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    setActiveFeature('task-completion');
-
+    setLoadingHistory(true);
     try {
-      console.log('[AIadvisorPage] Task 완료 확인 요청 전송');
-      const res = await checkTaskCompletion(selectedProjectId, selectedTaskId);
-
-      console.log('[AIadvisorPage] Task 완료 확인 응답:', { 
-        success: res.success, 
-        hasData: !!res.data, 
-        error: res.error,
-        data: res.data 
-      });
-
-      if (res.success) {
-        console.log('[AIadvisorPage] Task 완료 확인 성공, 데이터:', res.data);
-        setResult(res.data);
-      } else {
-        console.error('[AIadvisorPage] Task 완료 확인 실패:', res.error);
-        setError(res.error?.message || "Task 완료 확인 중 오류가 발생했습니다.");
+      const res = await getChatHistory(selectedProjectId);
+      if (res.success && res.data) {
+        setConversationId(res.data.conversationId);
+        // ChatBot 컴포넌트에 메시지를 전달할 수 있도록 상태 관리
+        // 현재는 ChatBot이 자체적으로 메시지를 관리하므로 여기서는 conversationId만 설정
       }
     } catch (err) {
-      console.error('[AIadvisorPage] Task 완료 확인 예외 발생:', err);
-      setError(err.message || "Task 완료 확인 중 오류가 발생했습니다.");
+      console.error("대화 히스토리 로드 실패:", err);
     } finally {
-      setLoading(false);
+      setLoadingHistory(false);
     }
+  };
+
+  const handleError = (error) => {
+    console.error("ChatBot 오류:", error);
   };
 
   return (
@@ -192,265 +59,53 @@ export default function AIadvisorPage() {
       <Header title="AI Advisor" />
 
       <PageContainer
-        title="AI Advisor"
-        subtitle="AI 기반 추천, 분석, 조언 등을 표시합니다."
-        maxWidth="md"
+        title="AI 어시스턴트"
+        subtitle="프로젝트를 선택하고 자연어로 질문하세요."
+        maxWidth="lg"
         sx={{ flex: 1, pt: 4 }}
       >
         <Box sx={{ mt: 4 }}>
           {/* 프로젝트 선택 */}
-          <FormControl fullWidth sx={{ mb: 3 }}>
-            <InputLabel>프로젝트 선택</InputLabel>
-            <Select
-              value={selectedProjectId}
-              onChange={(e) => {
-                setSelectedProjectId(e.target.value);
-                setActiveFeature(null);
-                setResult(null);
-                setError(null);
-              }}
-              label="프로젝트 선택"
-              disabled={query.isLoading}
-            >
-              {!query.data || query.data.length === 0 ? (
-                <MenuItem disabled>프로젝트가 없습니다</MenuItem>
-              ) : (
-                query.data.map((project) => (
-                  <MenuItem key={project.id} value={project.id}>
-                    {project.title}
-                  </MenuItem>
-                ))
-              )}
-            </Select>
-          </FormControl>
-
-          {(!query.data || query.data.length === 0) && (
-            <Alert severity="info" sx={{ mb: 3 }}>
-              프로젝트를 먼저 생성해주세요.
-            </Alert>
-          )}
-
-          {/* 기능 버튼들 */}
-          <Stack direction="row" spacing={2} sx={{ mb: 3 }} flexWrap="wrap" gap={2}>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={handleTaskSuggestion}
-              disabled={!selectedProjectId || loading}
-              sx={{ flex: 1, minWidth: 150 }}
-            >
-              Task 제안 받기
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={handleProgressAnalysis}
-              disabled={!selectedProjectId || loading}
-              sx={{ flex: 1, minWidth: 150 }}
-            >
-              진행도 분석하기
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => setActiveFeature('task-completion')}
-              disabled={!selectedProjectId || loading}
-              sx={{ flex: 1, minWidth: 150 }}
-            >
-              Task 완료 확인
-            </Button>
-          </Stack>
-
-          {/* Task 완료 확인용 Task 선택 */}
-          {activeFeature === 'task-completion' && selectedProjectId && (
-            <Box sx={{ mb: 3 }}>
-              <FormControl fullWidth>
-                <InputLabel>Task 선택</InputLabel>
-                <Select
-                  value={selectedTaskId}
-                  onChange={(e) => setSelectedTaskId(e.target.value)}
-                  label="Task 선택"
-                >
-                  {tasks.length === 0 ? (
-                    <MenuItem disabled>Task가 없습니다</MenuItem>
-                  ) : (
-                    tasks.map((task) => (
-                      <MenuItem key={task.id} value={task.id}>
-                        {task.title} ({task.status})
-                      </MenuItem>
-                    ))
-                  )}
-                </Select>
-              </FormControl>
-              <Button
-                variant="contained"
-                color="secondary"
-                onClick={handleTaskCompletionCheck}
-                disabled={!selectedTaskId || loading}
-                fullWidth
-                sx={{ mt: 2 }}
+          <Card sx={{ p: 3, mb: 3 }}>
+            <FormControl fullWidth>
+              <InputLabel>프로젝트 선택</InputLabel>
+              <Select
+                value={selectedProjectId}
+                onChange={(e) => {
+                  setSelectedProjectId(e.target.value);
+                }}
+                label="프로젝트 선택"
+                disabled={query.isLoading || loadingHistory}
               >
-                확인하기
-              </Button>
-            </Box>
-          )}
+                {!query.data || query.data.length === 0 ? (
+                  <MenuItem disabled>프로젝트가 없습니다</MenuItem>
+                ) : (
+                  query.data.map((project) => (
+                    <MenuItem key={project.id} value={project.id}>
+                      {project.title}
+                    </MenuItem>
+                  ))
+                )}
+              </Select>
+            </FormControl>
 
-          {/* 로딩 상태 */}
-          {loading && (
-            <Box sx={{ display: "flex", justifyContent: "center", my: 4 }}>
-              <CircularProgress />
-              <Typography sx={{ ml: 2, alignSelf: "center" }}>
-                AI 분석 중... 잠시만 기다려주세요.
-              </Typography>
-            </Box>
-          )}
+            {(!query.data || query.data.length === 0) && (
+              <Alert severity="info" sx={{ mt: 2 }}>
+                프로젝트를 먼저 생성해주세요.
+              </Alert>
+            )}
+          </Card>
 
-          {/* 에러 메시지 */}
-          {error && (
-            <Alert severity="error" sx={{ mb: 3 }}>
-              {error}
-            </Alert>
-          )}
-
-          {/* 진행도 분석 결과 */}
-          {result && activeFeature === 'progress-analysis' && (
-            <Card sx={{ mt: 3 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  진행도 분석 결과
-                </Typography>
-                <Box sx={{ mt: 2 }}>
-                  {!result || Object.keys(result).length === 0 ? (
-                    <Typography variant="body2" color="text.secondary">
-                      분석 결과가 없습니다. 결과 데이터: {JSON.stringify(result)}
-                    </Typography>
-                  ) : (
-                    <>
-                  {result.currentProgress !== undefined && (
-                    <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>현재 진행도:</strong> {result.currentProgress}%
-                    </Typography>
-                  )}
-                  {result.activityTrend && (
-                    <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>활동 추세:</strong> {
-                        result.activityTrend === 'increasing' ? '증가 중' :
-                        result.activityTrend === 'decreasing' ? '감소 중' :
-                        result.activityTrend === 'stable' ? '안정적' : result.activityTrend
-                      }
-                    </Typography>
-                  )}
-                  {(result.estimatedCompletionDate || result.predictedCompletionDate) && (
-                    <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>예측 완료일:</strong> {new Date(result.estimatedCompletionDate || result.predictedCompletionDate).toLocaleDateString()}
-                    </Typography>
-                  )}
-                  {(result.delayRisk || result.riskLevel) && (
-                    <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>지연 위험도:</strong> {
-                        (result.delayRisk || result.riskLevel) === 'High' ? '높음' :
-                        (result.delayRisk || result.riskLevel) === 'Medium' ? '중간' :
-                        (result.delayRisk || result.riskLevel) === 'Low' ? '낮음' : (result.delayRisk || result.riskLevel)
-                      }
-                    </Typography>
-                  )}
-                  {((result.recommendations && result.recommendations.length > 0) || (result.suggestions && result.suggestions.length > 0)) && (
-                    <Box sx={{ mt: 2 }}>
-                      <Typography variant="subtitle1" gutterBottom>
-                        <strong>제안사항:</strong>
-                      </Typography>
-                      <ul>
-                        {(result.recommendations || result.suggestions || []).map((item, index) => (
-                          <li key={index}>
-                            <Typography variant="body2">{item}</Typography>
-                          </li>
-                        ))}
-                      </ul>
-                    </Box>
-                  )}
-                  {((result.insights && result.insights.length > 0) || result.analysis) && (
-                    <Box sx={{ mt: 2 }}>
-                      <Typography variant="subtitle1" gutterBottom>
-                        <strong>상세 분석:</strong>
-                      </Typography>
-                      {result.insights && result.insights.length > 0 ? (
-                        <ul>
-                          {result.insights.map((insight, index) => (
-                            <li key={index}>
-                              <Typography variant="body2">{insight}</Typography>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                          {result.analysis}
-                        </Typography>
-                      )}
-                    </Box>
-                  )}
-                    </>
-                  )}
-                </Box>
-              </CardContent>
+          {/* 챗봇 */}
+          {selectedProjectId ? (
+            <Card sx={{ height: 600 }}>
+              <ChatBot projectId={selectedProjectId} onError={handleError} />
             </Card>
-          )}
-
-          {/* Task 완료 확인 결과 */}
-          {result && activeFeature === 'task-completion' && (
-            <Card sx={{ mt: 3 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Task 완료 여부 확인 결과
-                </Typography>
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="body1" sx={{ mb: 1 }}>
-                    <strong>완료 여부:</strong>{" "}
-                    {result.isCompleted ? "완료됨" : result.isCompleted === false ? "미완료" : "불확실"}
-                  </Typography>
-                  {result.confidence && (
-                    <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>신뢰도:</strong> {result.confidence}
-                      {result.completionPercentage !== undefined && (
-                        <span> (완성도: {result.completionPercentage}%)</span>
-                      )}
-                    </Typography>
-                  )}
-                  {result.reason && (
-                    <Box sx={{ mt: 2 }}>
-                      <Typography variant="subtitle1" gutterBottom>
-                        <strong>판단 근거:</strong>
-                      </Typography>
-                      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                        {result.reason}
-                      </Typography>
-                    </Box>
-                  )}
-                  {result.evidence && result.evidence.length > 0 && (
-                    <Box sx={{ mt: 2 }}>
-                      <Typography variant="subtitle1" gutterBottom>
-                        <strong>증거:</strong>
-                      </Typography>
-                      <ul>
-                        {result.evidence.map((item, index) => (
-                          <li key={index}>
-                            <Typography variant="body2">{item}</Typography>
-                          </li>
-                        ))}
-                      </ul>
-                    </Box>
-                  )}
-                  {result.recommendation && (
-                    <Box sx={{ mt: 2 }}>
-                      <Typography variant="subtitle1" gutterBottom>
-                        <strong>추천사항:</strong>
-                      </Typography>
-                      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                        {result.recommendation}
-                      </Typography>
-                    </Box>
-                  )}
-                </Box>
-              </CardContent>
+          ) : (
+            <Card sx={{ p: 4, textAlign: "center" }}>
+              <Typography variant="body1" color="text.secondary">
+                프로젝트를 선택하면 AI 어시스턴트와 대화를 시작할 수 있습니다.
+              </Typography>
             </Card>
           )}
         </Box>

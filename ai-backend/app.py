@@ -10,6 +10,7 @@ from prompt_optimizer import (
     create_optimized_progress_prompt,
     create_optimized_completion_prompt
 )
+from agent_router import classify_intent, route_to_agent
 
 # Load environment variables
 load_dotenv()
@@ -601,6 +602,87 @@ def task_completion_check():
         print(f"[AI Backend] task_completion_check - 트레이스백:\n{traceback.format_exc()}")
         return jsonify({
             'error': f'Task 완료 여부 판단 실패: {str(e)}'
+        }), 500
+
+@app.route('/api/ai/chat', methods=['POST'])
+def chat():
+    """
+    챗봇 API - 사용자 메시지를 받아 적절한 agent를 선택하고 실행
+    Request Body:
+    {
+        "message": "사용자 메시지",
+        "projectId": 1,
+        "conversationHistory": [...],  # 선택사항: 대화 히스토리
+        "context": {
+            "commits": [...],
+            "issues": [...],
+            "tasks": [...],
+            "currentTasks": [...],
+            "projectDescription": "...",
+            "githubRepo": "...",
+            "projectStartDate": "...",
+            "projectDueDate": "...",
+            "task": {...}  # task_completion_agent인 경우
+        }
+    }
+    """
+    print('[AI Backend] chat 요청 수신')
+    try:
+        data = request.json
+        user_message = data.get('message', '').strip()
+        conversation_history = data.get('conversationHistory', [])
+        context = data.get('context', {})
+        
+        if not user_message:
+            return jsonify({
+                'error': '메시지가 필요합니다.'
+            }), 400
+        
+        print(f'[AI Backend] chat - 메시지: {user_message[:50]}..., 히스토리: {len(conversation_history)}개')
+        
+        # LLM 호출 함수 정의
+        def call_llm(prompt, system_prompt):
+            if USE_OPENAI:
+                return call_openai(prompt, system_prompt)
+            else:
+                return call_ollama(prompt, system_prompt)
+        
+        # 1. 의도 분류
+        print('[AI Backend] chat - 의도 분류 시작')
+        intent_result = classify_intent(user_message, conversation_history, call_llm)
+        agent_type = intent_result.get('agent_type', 'progress_analysis_agent')
+        confidence = intent_result.get('confidence', 'medium')
+        
+        print(f'[AI Backend] chat - 선택된 agent: {agent_type}, 신뢰도: {confidence}')
+        
+        # 2. Agent 실행
+        print(f'[AI Backend] chat - {agent_type} 실행 시작')
+        agent_result = route_to_agent(agent_type, context, call_llm)
+        
+        # 3. 응답 구성
+        response = {
+            'agent_type': agent_type,
+            'intent_classification': {
+                'confidence': confidence,
+                'reason': intent_result.get('reason', ''),
+                'extracted_info': intent_result.get('extracted_info', {})
+            },
+            'response': agent_result.get('response', {}),
+            'message': agent_result.get('response', {}).get('message', '응답을 생성했습니다.')
+        }
+        
+        if 'error' in agent_result:
+            response['error'] = agent_result['error']
+        
+        print(f'[AI Backend] chat - 응답 생성 완료')
+        return jsonify(response)
+        
+    except Exception as e:
+        print(f"[AI Backend] chat - 예외 발생: {str(e)}")
+        import traceback
+        print(f"[AI Backend] chat - 트레이스백:\n{traceback.format_exc()}")
+        return jsonify({
+            'error': f'챗봇 응답 생성 실패: {str(e)}'
         }), 500
 
 if __name__ == '__main__':

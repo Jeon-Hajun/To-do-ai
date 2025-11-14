@@ -314,3 +314,53 @@ SHA: {commit.get('sha', '')[:8]}
 def create_optimized_completion_prompt(task, commits, projectDescription):
     """최적화된 Task 완료 확인 프롬프트 생성 (기존 호환성 유지)"""
     return create_initial_completion_prompt(task, commits, projectDescription)
+
+def create_intent_classification_prompt(user_message, conversation_history=None):
+    """사용자 질의의 의도를 분석하여 적절한 agent를 선택하는 프롬프트 생성"""
+    
+    # 대화 히스토리 요약 (최근 3개만)
+    history_context = ""
+    if conversation_history:
+        recent_messages = conversation_history[-6:] if len(conversation_history) > 6 else conversation_history
+        history_context = "\n\n## 최근 대화 히스토리:\n"
+        for msg in recent_messages:
+            role = msg.get('role', 'user')
+            content = msg.get('content', '')[:100]  # 최대 100자만
+            history_context += f"- {role}: {content}\n"
+    
+    prompt = f"""당신은 프로젝트 관리 AI 어시스턴트의 의도 분류기입니다.
+
+사용자의 질의를 분석하여 다음 3가지 agent 중 하나를 선택해야 합니다:
+
+1. **task_suggestion_agent**: 새로운 Task 제안이 필요한 경우
+   - 예시: "할 일 추천해줘", "새로운 작업 제안해줘", "다음에 뭘 해야 할까?", "추가로 해야 할 일이 있어?"
+
+2. **progress_analysis_agent**: 프로젝트 진행도 분석이 필요한 경우
+   - 예시: "진행도 알려줘", "프로젝트 상태 분석해줘", "지금까지 얼마나 진행됐어?", "지연 위험이 있어?"
+
+3. **task_completion_agent**: 특정 Task의 완료 여부 확인이 필요한 경우
+   - 예시: "이 작업 완료됐어?", "Task 완료 확인해줘", "이 작업 상태 알려줘", "작업이 끝났는지 확인해줘"
+
+{history_context}
+
+## 사용자 질의:
+"{user_message}"
+
+## 응답 형식
+다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
+{{
+  "agent_type": "task_suggestion_agent|progress_analysis_agent|task_completion_agent",
+  "confidence": "high|medium|low",
+  "reason": "선택한 agent를 선택한 이유를 한국어로 설명",
+  "extracted_info": {{
+    "task_title": "질의에서 추출한 Task 제목 (task_completion_agent인 경우만)",
+    "keywords": ["키워드1", "키워드2"]
+  }}
+}}
+
+규칙:
+- 질의가 모호한 경우 progress_analysis_agent를 기본값으로 선택
+- Task 제목이 명시되지 않은 경우 task_completion_agent를 선택하지 마세요
+- 반드시 한국어로만 응답하세요."""
+    
+    return prompt

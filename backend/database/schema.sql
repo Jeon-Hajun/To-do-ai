@@ -173,3 +173,31 @@ CREATE TABLE IF NOT EXISTS ai_logs (
   INDEX idx_ai_logs_type (type),
   INDEX idx_ai_logs_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- AI_Chat_Conversations 테이블 (챗봇 대화 세션)
+CREATE TABLE IF NOT EXISTS ai_chat_conversations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  project_id INT NOT NULL,
+  user_id INT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
+  INDEX idx_chat_conversations_project_user (project_id, user_id),
+  INDEX idx_chat_conversations_updated (updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- AI_Chat_Messages 테이블 (챗봇 대화 메시지)
+CREATE TABLE IF NOT EXISTS ai_chat_messages (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  conversation_id INT NOT NULL,
+  role VARCHAR(20) NOT NULL COMMENT 'user 또는 assistant',
+  content TEXT NOT NULL,
+  agent_type VARCHAR(50) COMMENT '사용된 agent 타입 (task_suggestion_agent, progress_analysis_agent, task_completion_agent)',
+  metadata JSON COMMENT '추가 메타데이터 (JSON 형식)',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (conversation_id) REFERENCES ai_chat_conversations(id) ON DELETE CASCADE,
+  INDEX idx_chat_messages_conversation (conversation_id),
+  INDEX idx_chat_messages_created (created_at),
+  INDEX idx_chat_messages_agent_type (agent_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
