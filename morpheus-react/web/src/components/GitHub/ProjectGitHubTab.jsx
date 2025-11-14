@@ -17,9 +17,8 @@ import CloseIcon from "@mui/icons-material/Close";
 import CommitIcon from "@mui/icons-material/Commit";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import BugReportIcon from "@mui/icons-material/BugReport";
-import { syncGitHub } from "../../api/githubApi";
-import { connectGithubRepo } from "../../api/projects";
-import { useProject } from "../../context/ProjectContext";
+import { syncGitHub } from "../../api/github";
+import { updateProject } from "../../api/projects";
 import CommitList from "./CommitList";
 import BranchList from "./BranchList";
 import IssueList from "./IssueList";
@@ -29,7 +28,6 @@ import IssueList from "./IssueList";
  * 동기화 버튼과 아코디언으로 커밋/브랜치/이슈를 표시합니다.
  */
 export default function ProjectGitHubTab({ projectId, githubRepo: initialGithubRepo, hasGithubToken: initialHasGithubToken = false, isOwner, onRepoUpdate }) {
-  const { updateProjectGithub } = useProject();
   const [syncing, setSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
   const [syncError, setSyncError] = useState(null);
@@ -63,8 +61,6 @@ export default function ProjectGitHubTab({ projectId, githubRepo: initialGithubR
         setTimeout(() => {
           setSyncSuccess(false);
         }, 3000);
-        // 커밋/브랜치/이슈 목록을 다시 불러오기 위해 각 컴포넌트가 자동으로 다시 fetch하도록 함
-        // window.location.reload() 제거 - 페이지 리로드 시 프로젝트 정보가 초기화될 수 있음
       } else {
         setSyncError(res.error?.message || "동기화 실패");
       }
@@ -98,26 +94,23 @@ export default function ProjectGitHubTab({ projectId, githubRepo: initialGithubR
     setConnectError(null);
     
     try {
-      const res = await connectGithubRepo(projectId, githubRepoInput, githubTokenInput);
+      // PM to the AM 구조에 맞게 updateProject 사용
+      const res = await updateProject({
+        projectId,
+        update: {
+          githubRepo: githubRepoInput,
+          githubToken: githubTokenInput && githubTokenInput !== "••••••••••••••••" ? githubTokenInput : undefined,
+        }
+      });
+      
       if (res.success) {
         setGithubRepo(githubRepoInput);
         setShowRepoInput(false);
         setGithubTokenInput("");
         // 토큰이 입력되었거나 기존 토큰이 유지되면 true로 설정
-        // 마스킹된 값이거나 빈 문자열이면 기존 토큰 유지
         const tokenWasUpdated = githubTokenInput.trim() !== "" && 
                                  githubTokenInput !== "••••••••••••••••";
         setHasGithubToken(tokenWasUpdated || hasGithubToken);
-        
-        // ProjectContext 업데이트 (프로젝트 정보 다시 불러오기)
-        // 프로젝트 상세 정보를 다시 불러와서 hasGithubToken 업데이트
-        const { getProjects } = await import("../../api/projects");
-        const projectRes = await getProjects(projectId);
-        if (projectRes.success && projectRes.data.project) {
-          setHasGithubToken(projectRes.data.project.hasGithubToken || false);
-        }
-        
-        updateProjectGithub(projectId, githubRepoInput);
         
         if (onRepoUpdate) {
           onRepoUpdate(githubRepoInput);
@@ -305,4 +298,6 @@ export default function ProjectGitHubTab({ projectId, githubRepo: initialGithubR
     </Box>
   );
 }
+
+
 

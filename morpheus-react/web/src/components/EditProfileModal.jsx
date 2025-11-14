@@ -1,4 +1,4 @@
-// src/components/UserProfile/EditProfileModal.jsx
+// src/components/EditProfileModal.jsx
 import React, { useState, useEffect } from "react";
 import {
   Dialog,
@@ -16,37 +16,27 @@ import { updateUser, setAuth } from "../utils/auth";
 import { API_ENDPOINTS } from "../config/api";
 import { getProfileImageSrc } from "../utils/profileImage";
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
+import { Box } from "@mui/material";
+import { getToken } from "../utils/auth";
 
 export default function EditProfileModal({ user, open, onClose, onSuccess }) {
-  const [nickname, setNickname] = useState(user.nickname);
+  const [nickname, setNickname] = useState(user?.nickname || "");
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [profileImage, setProfileImage] = useState(user.profileImage);
+  const [profileImage, setProfileImage] = useState(user?.profileImage);
   const [selectedFile, setSelectedFile] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, severity: "success", message: "" });
 
   // 모달이 열릴 때마다 user 정보를 최신화
   useEffect(() => {
     if (open && user) {
-      setNickname(user.nickname);
+      setNickname(user.nickname || "");
       setPassword("");
       setNewPassword("");
       setSelectedFile(null);
-      // 모달이 열릴 때는 항상 최신 프로필 이미지로 초기화
       setProfileImage(user.profileImage);
     }
   }, [open, user?.nickname, user?.profileImage]);
-  
-  // 모달이 열려있는 동안 user.profileImage가 변경될 때 업데이트 (미리보기 중이 아닐 때)
-  useEffect(() => {
-    if (open && user?.profileImage && !selectedFile) {
-      // blob URL이 아니고 값이 다를 때만 업데이트
-      const isBlob = profileImage?.startsWith('blob:');
-      if (!isBlob && user.profileImage !== profileImage) {
-        setProfileImage(user.profileImage);
-      }
-    }
-  }, [user?.profileImage, open, selectedFile, profileImage]);
 
   // 컴포넌트 언마운트 시 blob URL 정리
   useEffect(() => {
@@ -77,8 +67,18 @@ export default function EditProfileModal({ user, open, onClose, onSuccess }) {
     }
 
     try {
-      // 1. 회원 정보 수정 (이메일은 현재 이메일 그대로 전송)
+      // 1. 회원 정보 수정
       const res = await updateUser({ email: user.email, nickname, password, newPassword });
+      
+      // 응답 구조 확인 및 에러 처리
+      if (!res || res.success === false) {
+        const errorMessage = res?.error?.message || res?.message || "회원 정보 수정 실패";
+        setSnackbar({ open: true, severity: "error", message: errorMessage });
+        setPassword("");
+        setNewPassword("");
+        return;
+      }
+      
       if (res.success) {
         let updatedProfileImage = user.profileImage;
         
@@ -87,7 +87,7 @@ export default function EditProfileModal({ user, open, onClose, onSuccess }) {
           const formData = new FormData();
           formData.append("profileImage", selectedFile);
 
-          const token = localStorage.getItem("token");
+          const token = getToken();
           const imageRes = await fetch(`${API_ENDPOINTS.USER}/me/profile-image`, {
             method: "POST",
             headers: {
@@ -104,7 +104,7 @@ export default function EditProfileModal({ user, open, onClose, onSuccess }) {
           }
           
           // blob URL 정리
-          if (profileImage.startsWith('blob:')) {
+          if (profileImage?.startsWith('blob:')) {
             URL.revokeObjectURL(profileImage);
           }
         }
@@ -116,20 +116,21 @@ export default function EditProfileModal({ user, open, onClose, onSuccess }) {
         setSelectedFile(null);
 
         // 최신 정보 저장 및 콜백 호출
-        // res.data.user에 id가 없을 수 있으므로 원래 user.id를 포함시킴
         const updatedUser = {
-          ...res.data.user,
-          id: res.data.user?.id || user.id, // res.data.user.id가 있으면 사용, 없으면 원래 user.id 사용
+          ...res.data?.user,
+          id: res.data?.user?.id || user.id,
+          email: res.data?.user?.email || user.email,
+          nickname: res.data?.user?.nickname || nickname,
           profileImage: updatedProfileImage,
         };
-        setAuth(updatedUser);
+        setAuth(updatedUser, getToken());
         
-        // 모달 내부의 프로필 이미지도 업데이트 (blob URL이 아닌 경우)
-        if (!updatedProfileImage.startsWith('blob:')) {
+        if (!updatedProfileImage?.startsWith('blob:')) {
           setProfileImage(updatedProfileImage);
         }
         
-        if (onSuccess) {
+        // onSuccess 콜백이 함수인 경우에만 호출
+        if (onSuccess && typeof onSuccess === 'function') {
           onSuccess(updatedUser);
         }
 
@@ -137,7 +138,9 @@ export default function EditProfileModal({ user, open, onClose, onSuccess }) {
         onClose();
       }
     } catch (err) {
-      setSnackbar({ open: true, severity: "error", message: err.error?.message || "회원 정보 수정 실패" });
+      console.error('회원 정보 수정 오류:', err);
+      const errorMessage = err?.error?.message || err?.response?.data?.error?.message || err?.message || "회원 정보 수정 실패";
+      setSnackbar({ open: true, severity: "error", message: errorMessage });
       setPassword("");
       setNewPassword("");
     }
@@ -148,7 +151,7 @@ export default function EditProfileModal({ user, open, onClose, onSuccess }) {
       <Dialog open={open} onClose={onClose}>
         <DialogTitle>회원 정보 수정</DialogTitle>
         <DialogContent>
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1rem" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1rem" }}>
             <Avatar 
               src={getProfileImageSrc(profileImage, true)} 
               sx={{ width: 64, height: 64 }} 
@@ -165,7 +168,7 @@ export default function EditProfileModal({ user, open, onClose, onSuccess }) {
                 <PhotoCameraIcon />
               </IconButton>
             </label>
-          </div>
+          </Box>
 
           <TextField
             margin="dense"
@@ -173,7 +176,7 @@ export default function EditProfileModal({ user, open, onClose, onSuccess }) {
             type="email"
             fullWidth
             variant="outlined"
-            value={user.email}
+            value={user?.email || ""}
             disabled
             helperText="이메일은 변경할 수 없습니다"
           />
@@ -233,3 +236,4 @@ export default function EditProfileModal({ user, open, onClose, onSuccess }) {
     </>
   );
 }
+

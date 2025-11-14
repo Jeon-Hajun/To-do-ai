@@ -1,15 +1,8 @@
-// src/pages/ProjectPage.jsx
 import React from "react";
-import useAuth from "../hooks/useAuth";
-import Header from "../components/ui/Header";
-import NavBar from "../components/ui/NavBar";
-import ContainerBox from "../components/ui/ContainerBox";
-import PageContainer from "../components/ui/PageContainer";
-import { ProjectManager } from "../components/Project";
+import ProjectManager from "../components/projects/ProjectManager";
+import { Header, NavBar, ContainerBox, PageContainer } from "../components/layout";
 
 export default function ProjectPage() {
-  useAuth();
-
   return (
     <ContainerBox>
       <Header title="Project" />
@@ -20,7 +13,7 @@ export default function ProjectPage() {
         maxWidth="md"
         sx={{ flex: 1, pt: 4 }}
       >
-        <ProjectManager devMode={false} />
+        <ProjectManager />
       </PageContainer>
 
       <NavBar />

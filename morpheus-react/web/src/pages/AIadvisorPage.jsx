@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -13,23 +13,20 @@ import {
   Alert,
   Stack,
 } from "@mui/material";
-import useAuth from "../hooks/useAuth";
-import Header from "../components/ui/Header";
-import NavBar from "../components/ui/NavBar";
-import ContainerBox from "../components/ui/ContainerBox";
-import PageContainer from "../components/ui/PageContainer";
-import { useProject } from "../context/ProjectContext";
-import { useNavigate } from "react-router-dom";
+import { useAuthContext } from "../context/AuthContext";
+import { useProjects } from "../hooks/useProjects";
+import { Header, NavBar, ContainerBox, PageContainer } from "../components/layout";
+import { fetchTasksByProject } from "../api/tasks";
 import { getTaskSuggestions, getProgressAnalysis, checkTaskCompletion } from "../api/ai";
-import { getTasksByProject } from "../api/task";
+import { useNavigate } from "react-router-dom";
 
 export default function AIadvisorPage() {
-  useAuth(); // 로그인 체크
+  const { user } = useAuthContext();
+  const { query } = useProjects();
   const navigate = useNavigate();
-  const { projects, loading: projectsLoading } = useProject();
   
   const [selectedProjectId, setSelectedProjectId] = useState("");
-  const [activeFeature, setActiveFeature] = useState(null); // 'task-suggestion', 'progress-analysis', 'task-completion'
+  const [activeFeature, setActiveFeature] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
@@ -38,25 +35,11 @@ export default function AIadvisorPage() {
   const [tasks, setTasks] = useState([]);
   const [selectedTaskId, setSelectedTaskId] = useState("");
 
-  // 프로젝트 선택 시 Task 목록 가져오기 (Task 완료 확인용)
-  React.useEffect(() => {
-    if (selectedProjectId && activeFeature === 'task-completion') {
-      const fetchTasks = async () => {
-        try {
-          const res = await getTasksByProject(selectedProjectId);
-          if (res.success) {
-            setTasks(res.data.tasks || []);
-          }
-        } catch (err) {
-          console.error("Task 목록 조회 실패:", err);
-        }
-      };
-      fetchTasks();
-    }
-  }, [selectedProjectId, activeFeature]);
-
   const handleTaskSuggestion = async () => {
+    console.log('[AIadvisorPage] handleTaskSuggestion 시작:', { selectedProjectId });
+    
     if (!selectedProjectId) {
+      console.error('[AIadvisorPage] 프로젝트 미선택');
       setError("프로젝트를 선택해주세요.");
       return;
     }
@@ -67,12 +50,16 @@ export default function AIadvisorPage() {
     setActiveFeature('task-suggestion');
 
     try {
+      console.log('[AIadvisorPage] Task 제안 요청 전송');
       const res = await getTaskSuggestions(selectedProjectId, {
         includeCommits: true,
         includeIssues: true,
       });
 
+      console.log('[AIadvisorPage] Task 제안 응답:', { success: res.success, hasData: !!res.data, error: res.error });
+
       if (res.success) {
+        console.log('[AIadvisorPage] Task 제안 성공, 페이지 이동');
         // Task 제안 결과를 AI Next Step 페이지로 전달
         navigate("/ai-next-step", {
           state: {
@@ -82,9 +69,11 @@ export default function AIadvisorPage() {
           },
         });
       } else {
+        console.error('[AIadvisorPage] Task 제안 실패:', res.error);
         setError(res.error?.message || "Task 제안을 받는 중 오류가 발생했습니다.");
       }
     } catch (err) {
+      console.error('[AIadvisorPage] Task 제안 예외 발생:', err);
       setError(err.message || "Task 제안을 받는 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
@@ -92,7 +81,10 @@ export default function AIadvisorPage() {
   };
 
   const handleProgressAnalysis = async () => {
+    console.log('[AIadvisorPage] handleProgressAnalysis 시작:', { selectedProjectId });
+    
     if (!selectedProjectId) {
+      console.error('[AIadvisorPage] 프로젝트 미선택');
       setError("프로젝트를 선택해주세요.");
       return;
     }
@@ -103,26 +95,63 @@ export default function AIadvisorPage() {
     setActiveFeature('progress-analysis');
 
     try {
+      console.log('[AIadvisorPage] 진행도 분석 요청 전송');
       const res = await getProgressAnalysis(selectedProjectId);
 
+      console.log('[AIadvisorPage] 진행도 분석 응답:', { success: res.success, hasData: !!res.data, error: res.error });
+
       if (res.success) {
+        console.log('[AIadvisorPage] 진행도 분석 성공, 데이터:', res.data);
+        console.log('[AIadvisorPage] result 필드 확인:', {
+          currentProgress: res.data?.currentProgress,
+          activityTrend: res.data?.activityTrend,
+          estimatedCompletionDate: res.data?.estimatedCompletionDate,
+          delayRisk: res.data?.delayRisk,
+          insights: res.data?.insights,
+          recommendations: res.data?.recommendations
+        });
         setResult(res.data);
       } else {
+        console.error('[AIadvisorPage] 진행도 분석 실패:', res.error);
         setError(res.error?.message || "진행도 분석 중 오류가 발생했습니다.");
       }
     } catch (err) {
+      console.error('[AIadvisorPage] 진행도 분석 예외 발생:', err);
       setError(err.message || "진행도 분석 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
   };
 
+  // 프로젝트 선택 시 Task 목록 가져오기 (Task 완료 확인용)
+  useEffect(() => {
+    if (selectedProjectId && activeFeature === 'task-completion') {
+      const fetchTasks = async () => {
+        try {
+          const tasksData = await fetchTasksByProject(selectedProjectId);
+          setTasks(tasksData || []);
+        } catch (err) {
+          console.error("Task 목록 조회 실패:", err);
+          setTasks([]);
+        }
+      };
+      fetchTasks();
+    } else {
+      setTasks([]);
+      setSelectedTaskId("");
+    }
+  }, [selectedProjectId, activeFeature]);
+
   const handleTaskCompletionCheck = async () => {
+    console.log('[AIadvisorPage] handleTaskCompletionCheck 시작:', { selectedProjectId, selectedTaskId });
+    
     if (!selectedProjectId) {
+      console.error('[AIadvisorPage] 프로젝트 미선택');
       setError("프로젝트를 선택해주세요.");
       return;
     }
     if (!selectedTaskId) {
+      console.error('[AIadvisorPage] Task 미선택');
       setError("Task를 선택해주세요.");
       return;
     }
@@ -133,14 +162,25 @@ export default function AIadvisorPage() {
     setActiveFeature('task-completion');
 
     try {
+      console.log('[AIadvisorPage] Task 완료 확인 요청 전송');
       const res = await checkTaskCompletion(selectedProjectId, selectedTaskId);
 
+      console.log('[AIadvisorPage] Task 완료 확인 응답:', { 
+        success: res.success, 
+        hasData: !!res.data, 
+        error: res.error,
+        data: res.data 
+      });
+
       if (res.success) {
+        console.log('[AIadvisorPage] Task 완료 확인 성공, 데이터:', res.data);
         setResult(res.data);
       } else {
+        console.error('[AIadvisorPage] Task 완료 확인 실패:', res.error);
         setError(res.error?.message || "Task 완료 확인 중 오류가 발생했습니다.");
       }
     } catch (err) {
+      console.error('[AIadvisorPage] Task 완료 확인 예외 발생:', err);
       setError(err.message || "Task 완료 확인 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
@@ -170,12 +210,12 @@ export default function AIadvisorPage() {
                 setError(null);
               }}
               label="프로젝트 선택"
-              disabled={projectsLoading}
+              disabled={query.isLoading}
             >
-              {projects.length === 0 ? (
+              {!query.data || query.data.length === 0 ? (
                 <MenuItem disabled>프로젝트가 없습니다</MenuItem>
               ) : (
-                projects.map((project) => (
+                query.data.map((project) => (
                   <MenuItem key={project.id} value={project.id}>
                     {project.title}
                   </MenuItem>
@@ -184,7 +224,7 @@ export default function AIadvisorPage() {
             </Select>
           </FormControl>
 
-          {projects.length === 0 && (
+          {(!query.data || query.data.length === 0) && (
             <Alert severity="info" sx={{ mb: 3 }}>
               프로젝트를 먼저 생성해주세요.
             </Alert>
@@ -280,39 +320,75 @@ export default function AIadvisorPage() {
                   진행도 분석 결과
                 </Typography>
                 <Box sx={{ mt: 2 }}>
-                  {result.predictedCompletionDate && (
+                  {!result || Object.keys(result).length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">
+                      분석 결과가 없습니다. 결과 데이터: {JSON.stringify(result)}
+                    </Typography>
+                  ) : (
+                    <>
+                  {result.currentProgress !== undefined && (
                     <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>예측 완료일:</strong> {new Date(result.predictedCompletionDate).toLocaleDateString()}
+                      <strong>현재 진행도:</strong> {result.currentProgress}%
                     </Typography>
                   )}
-                  {result.riskLevel && (
+                  {result.activityTrend && (
                     <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>지연 위험도:</strong> {result.riskLevel}
+                      <strong>활동 추세:</strong> {
+                        result.activityTrend === 'increasing' ? '증가 중' :
+                        result.activityTrend === 'decreasing' ? '감소 중' :
+                        result.activityTrend === 'stable' ? '안정적' : result.activityTrend
+                      }
                     </Typography>
                   )}
-                  {result.suggestions && result.suggestions.length > 0 && (
+                  {(result.estimatedCompletionDate || result.predictedCompletionDate) && (
+                    <Typography variant="body1" sx={{ mb: 1 }}>
+                      <strong>예측 완료일:</strong> {new Date(result.estimatedCompletionDate || result.predictedCompletionDate).toLocaleDateString()}
+                    </Typography>
+                  )}
+                  {(result.delayRisk || result.riskLevel) && (
+                    <Typography variant="body1" sx={{ mb: 1 }}>
+                      <strong>지연 위험도:</strong> {
+                        (result.delayRisk || result.riskLevel) === 'High' ? '높음' :
+                        (result.delayRisk || result.riskLevel) === 'Medium' ? '중간' :
+                        (result.delayRisk || result.riskLevel) === 'Low' ? '낮음' : (result.delayRisk || result.riskLevel)
+                      }
+                    </Typography>
+                  )}
+                  {((result.recommendations && result.recommendations.length > 0) || (result.suggestions && result.suggestions.length > 0)) && (
                     <Box sx={{ mt: 2 }}>
                       <Typography variant="subtitle1" gutterBottom>
                         <strong>제안사항:</strong>
                       </Typography>
                       <ul>
-                        {result.suggestions.map((suggestion, index) => (
+                        {(result.recommendations || result.suggestions || []).map((item, index) => (
                           <li key={index}>
-                            <Typography variant="body2">{suggestion}</Typography>
+                            <Typography variant="body2">{item}</Typography>
                           </li>
                         ))}
                       </ul>
                     </Box>
                   )}
-                  {result.analysis && (
+                  {((result.insights && result.insights.length > 0) || result.analysis) && (
                     <Box sx={{ mt: 2 }}>
                       <Typography variant="subtitle1" gutterBottom>
                         <strong>상세 분석:</strong>
                       </Typography>
-                      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                        {result.analysis}
-                      </Typography>
+                      {result.insights && result.insights.length > 0 ? (
+                        <ul>
+                          {result.insights.map((insight, index) => (
+                            <li key={index}>
+                              <Typography variant="body2">{insight}</Typography>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                          {result.analysis}
+                        </Typography>
+                      )}
                     </Box>
+                  )}
+                    </>
                   )}
                 </Box>
               </CardContent>
@@ -331,33 +407,46 @@ export default function AIadvisorPage() {
                     <strong>완료 여부:</strong>{" "}
                     {result.isCompleted ? "완료됨" : result.isCompleted === false ? "미완료" : "불확실"}
                   </Typography>
-                  {result.confidence !== undefined && (
+                  {result.confidence && (
                     <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>신뢰도:</strong> {result.confidence}%
+                      <strong>신뢰도:</strong> {result.confidence}
+                      {result.completionPercentage !== undefined && (
+                        <span> (완성도: {result.completionPercentage}%)</span>
+                      )}
                     </Typography>
                   )}
-                  {result.reasoning && (
+                  {result.reason && (
                     <Box sx={{ mt: 2 }}>
                       <Typography variant="subtitle1" gutterBottom>
                         <strong>판단 근거:</strong>
                       </Typography>
                       <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                        {result.reasoning}
+                        {result.reason}
                       </Typography>
                     </Box>
                   )}
-                  {result.suggestions && result.suggestions.length > 0 && (
+                  {result.evidence && result.evidence.length > 0 && (
                     <Box sx={{ mt: 2 }}>
                       <Typography variant="subtitle1" gutterBottom>
-                        <strong>제안사항:</strong>
+                        <strong>증거:</strong>
                       </Typography>
                       <ul>
-                        {result.suggestions.map((suggestion, index) => (
+                        {result.evidence.map((item, index) => (
                           <li key={index}>
-                            <Typography variant="body2">{suggestion}</Typography>
+                            <Typography variant="body2">{item}</Typography>
                           </li>
                         ))}
                       </ul>
+                    </Box>
+                  )}
+                  {result.recommendation && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant="subtitle1" gutterBottom>
+                        <strong>추천사항:</strong>
+                      </Typography>
+                      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                        {result.recommendation}
+                      </Typography>
                     </Box>
                   )}
                 </Box>

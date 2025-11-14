@@ -32,27 +32,6 @@ export function logout() {
   localStorage.removeItem("user");
 }
 
-// 회원가입
-export async function registerUser(email, nickname, password) {
-  try {
-    const res = await axios.post(`${API_URL}/signup`, { email, nickname, password });
-    return res.data;
-  } catch (err) {
-    throw err.response?.data || err;
-  }
-}
-
-// 로그인
-export async function loginUser(email, password) {
-  try {
-    const res = await axios.post(`${API_URL}/login`, { email, password });
-    setAuth(res.data.data.user, res.data.data.token);
-    return res.data;
-  } catch (err) {
-    throw err.response?.data || err;
-  }
-}
-
 // 회원 정보 수정
 export async function updateUser({ email, nickname, password, newPassword }) {
   const token = getToken();
@@ -62,8 +41,18 @@ export async function updateUser({ email, nickname, password, newPassword }) {
     const res = await axios.put(
       `${API_URL}/me`,
       { email, nickname, password, newPassword },
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${token}` }, withCredentials: true }
     );
+
+    // 응답이 없거나 success가 false인 경우 에러 처리
+    if (!res.data || res.data.success === false) {
+      const errorData = res.data || {};
+      throw {
+        error: {
+          message: errorData.error?.message || errorData.message || "회원 정보 수정 실패"
+        }
+      };
+    }
 
     // 수정 성공 시 로컬스토리지 업데이트
     if (res.data?.success && res.data.data?.user) {
@@ -73,7 +62,12 @@ export async function updateUser({ email, nickname, password, newPassword }) {
 
     return res.data;
   } catch (err) {
-    throw err.response?.data || err;
+    // axios 에러인 경우
+    if (err.response) {
+      throw err.response.data || err;
+    }
+    // 그 외 에러
+    throw err;
   }
 }
 
@@ -85,7 +79,7 @@ export async function deleteUser() {
   try {
     const res = await axios.delete(
       `${API_URL}/me`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${token}` }, withCredentials: true }
     );
 
     // 탈퇴 성공 시 로컬스토리지 정리
@@ -97,19 +91,4 @@ export async function deleteUser() {
   } catch (err) {
     throw err.response?.data || err;
   }
-}
-
-// ============================================
-// 프로젝트 오너인지 확인 (기존 isOwner 함수)
-export function isOwner(project) {
-  const user = getUser();
-  if (!user || !project || !project.ownerId) return false;
-  return String(user.id) === String(project.ownerId);
-}
-
-// 새로운 범용 함수: 프로젝트 객체에서 ownerId 혹은 owner_id를 자동 처리
-export function isProjectOwner(user, project) {
-  if (!user || !project) return false;
-  const ownerId = project.ownerId ?? project.owner_id;
-  return ownerId && String(user.id) === String(ownerId);
 }

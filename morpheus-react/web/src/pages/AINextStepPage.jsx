@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
@@ -21,16 +21,13 @@ import {
   TextField,
   Snackbar,
 } from "@mui/material";
-import useAuth from "../hooks/useAuth";
-import Header from "../components/ui/Header";
-import NavBar from "../components/ui/NavBar";
-import ContainerBox from "../components/ui/ContainerBox";
-import PageContainer from "../components/ui/PageContainer";
-import { createTask } from "../api/task";
-import { getProjects } from "../api/projects";
+import { useAuthContext } from "../context/AuthContext";
+import { Header, NavBar, ContainerBox, PageContainer } from "../components/layout";
+import { createTask } from "../api/tasks";
+import { fetchProjectById } from "../api/projects";
 
 export default function AINextStepPage() {
-  useAuth(); // 로그인 체크
+  const { user } = useAuthContext();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -66,9 +63,9 @@ export default function AINextStepPage() {
     if (projectId) {
       const fetchProject = async () => {
         try {
-          const res = await getProjects(projectId);
-          if (res.success && res.data?.project) {
-            setProjectTitle(res.data.project.title);
+          const project = await fetchProjectById(projectId);
+          if (project) {
+            setProjectTitle(project.title);
           }
         } catch (err) {
           console.error("프로젝트 조회 실패:", err);
@@ -105,7 +102,7 @@ export default function AINextStepPage() {
   };
 
   // 필터링 및 정렬된 제안 목록
-  const filteredAndSortedSuggestions = React.useMemo(() => {
+  const filteredAndSortedSuggestions = useMemo(() => {
     let filtered = suggestions;
 
     // 우선순위 필터
@@ -145,14 +142,15 @@ export default function AINextStepPage() {
     setError(null);
 
     try {
-      const res = await createTask(projectId, {
+      const taskData = await createTask({
+        projectId,
         title: taskTitle,
         description: taskDescription,
         assignedUserId: null,
         dueDate: null,
       });
 
-      if (res.success) {
+      if (taskData) {
         setCreateDialogOpen(false);
         setSelectedSuggestion(null);
         setTaskTitle("");
@@ -163,7 +161,7 @@ export default function AINextStepPage() {
         );
         setSuccessMessage("Task가 성공적으로 생성되었습니다!");
       } else {
-        setError(res.error?.message || "Task 생성에 실패했습니다.");
+        setError("Task 생성에 실패했습니다.");
       }
     } catch (err) {
       setError(err.message || "Task 생성에 실패했습니다.");
@@ -201,7 +199,14 @@ export default function AINextStepPage() {
               <Typography variant="subtitle2" gutterBottom>
                 분석 요약
               </Typography>
-              <Typography variant="body2">{analysis}</Typography>
+              <Typography variant="body2">
+                {typeof analysis === 'string' 
+                  ? analysis 
+                  : analysis.hasEnoughData !== undefined
+                    ? `커밋: ${analysis.totalCommits || 0}개, 이슈: ${analysis.totalIssues || 0}개, 작업: ${analysis.totalTasks || 0}개`
+                    : JSON.stringify(analysis)
+                }
+              </Typography>
             </Alert>
           )}
 
@@ -352,3 +357,6 @@ export default function AINextStepPage() {
     </ContainerBox>
   );
 }
+
+
+

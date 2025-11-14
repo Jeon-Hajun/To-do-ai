@@ -1,16 +1,25 @@
-// src/hooks/useTasks.js
-import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchTasksByProject, fetchTaskDetail } from "../api/tasks";
 
-export default function useTasks() {
-  const [tasks, setTasks] = useState([
-    { id: 1, title: "프로젝트 계획 작성", dueDate: "2025-11-10" },
-    { id: 2, title: "디자인 시안 검토", dueDate: "2025-11-12" },
-  ]);
 
-  const addTask = (title, dueDate) => {
-    const newTask = { id: Date.now(), title, dueDate };
-    setTasks([...tasks, newTask]);
-  };
+/**
+ * 특정 프로젝트의 전체 작업 목록을 가져오는 React Query Hook
+ */
+export function useProjectTasks(projectId) {
+  return useQuery({
+    queryKey: ["tasks", projectId],
+    queryFn: () => getTasksByProject(projectId),
+    enabled: !!projectId, // projectId가 있을 때만 실행
+  });
+}
 
-  return { tasks, addTask };
+/**
+ * 특정 작업 상세 정보를 가져오는 React Query Hook
+ */
+export function useTaskDetail(taskId) {
+  return useQuery({
+    queryKey: ["task", taskId],
+    queryFn: () => getTaskDetail(taskId),
+    enabled: !!taskId, // taskId가 있을 때만 실행
+  });
 }

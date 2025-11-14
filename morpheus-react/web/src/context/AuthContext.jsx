@@ -1,61 +1,60 @@
+// src/context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from "react";
-import axios from "axios";
-import { getUser, setAuth, logout as localLogout } from "../utils/auth";
-import { API_ENDPOINTS } from "../config/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { loginUser, fetchCurrentUser } from "../api/auth";
 
 const AuthContext = createContext();
 
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
+  const queryClient = useQueryClient();
+  const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // 서버에서 사용자 정보 가져오기
-  const fetchUserFromServer = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) return;
-
-      const res = await axios.get(`${API_ENDPOINTS.USER}/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      // 서버에서 가져온 사용자 정보를 user로 설정
-      setUser(res.data.data); 
-      setAuth(res.data.data); // localStorage에도 저장
-    } catch (err) {
-      console.error("Failed to fetch user info:", err);
-      localLogout();
-      setUser(null);
-    }
-  };
-
+  // 초기화: localStorage에서 토큰 읽기
   useEffect(() => {
-    const savedUser = getUser();
-    if (savedUser) {
-      setUser(savedUser);
-      fetchUserFromServer(); // 서버 정보 최신화
+    const localToken = localStorage.getItem("token");
+    if (localToken) {
+      setToken(localToken);
+      fetchCurrentUser(localToken)
+        .then(res => setUser(res.data))
+        .catch(() => {
+          localStorage.removeItem("token");
+          setToken(null);
+          setUser(null);
+        })
+        .finally(() => setIsLoading(false));
     } else {
-      fetchUserFromServer();
+      setIsLoading(false);
     }
-    setLoading(false);
   }, []);
 
-  const login = async (token) => {
-    localStorage.setItem("token", token);
-    await fetchUserFromServer();
+  // 로그인
+  const login = async (email, password) => {
+    const res = await loginUser(email, password);
+    if (res.success) {
+      localStorage.setItem("token", res.data.token);
+      setToken(res.data.token);
+      setUser(res.data.user);
+    }
+    return res;
   };
 
+  // 로그아웃
   const logout = () => {
-    localLogout();
     localStorage.removeItem("token");
+    setToken(null);
     setUser(null);
+    queryClient.clear(); // React Query 캐시도 초기화
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, setUser }}>
+    <AuthContext.Provider value={{ user, token, login, logout, isLoading, setUser }}>
       {children}
     </AuthContext.Provider>
   );
-};
-
+}
 export const useAuthContext = () => useContext(AuthContext);
+export function useAuth() {
+  return useContext(AuthContext);
+}

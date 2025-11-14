@@ -6,7 +6,10 @@ import CardContent from "@mui/material/CardContent";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import CircularProgress from "@mui/material/CircularProgress";
-import { getBranches } from "../../api/githubApi";
+import Pagination from "@mui/material/Pagination";
+import { getBranches } from "../../api/github";
+
+const ITEMS_PER_PAGE = 10;
 
 /**
  * 브랜치 목록 컴포넌트
@@ -16,17 +19,23 @@ export default function BranchList({ projectId }) {
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
 
-  const fetchBranches = useCallback(async () => {
+  const fetchBranches = useCallback(async (currentPage = 1) => {
     if (!projectId) return;
     
     setLoading(true);
     setError(null);
     try {
-      const res = await getBranches(projectId);
+      const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+      const res = await getBranches(projectId, { limit: ITEMS_PER_PAGE, offset });
       if (res.success) {
         const branchList = res.data.branches || [];
         setBranches(branchList);
+        const totalCount = Number(res.data.total) || 0;
+        setTotal(totalCount);
+        console.log('[BranchList] 페이지네이션 정보:', { total: totalCount, currentPage, itemsPerPage: ITEMS_PER_PAGE });
       } else {
         setError(res.error?.message || "브랜치 목록을 불러올 수 없습니다.");
       }
@@ -40,9 +49,13 @@ export default function BranchList({ projectId }) {
 
   useEffect(() => {
     if (projectId) {
-      fetchBranches();
+      fetchBranches(page);
     }
-  }, [projectId, fetchBranches]);
+  }, [projectId, page, fetchBranches]);
+
+  const handlePageChange = (event, value) => {
+    setPage(value);
+  };
 
   const formatDate = (dateString) => {
     if (!dateString) return "";
@@ -74,46 +87,65 @@ export default function BranchList({ projectId }) {
     );
   }
 
+  const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
+  console.log('[BranchList] 렌더링:', { total, totalPages, branchesCount: branches.length, showPagination: totalPages > 1 });
+
   return (
     <Box>
+      <Typography variant="h6" gutterBottom>
+        브랜치 목록 ({total}개)
+      </Typography>
       {branches.length === 0 ? (
-        <Box sx={{ p: 2, bgcolor: "grey.100", borderRadius: 1 }}>
+        <Box sx={{ p: 2, bgcolor: "background.paper", borderRadius: 1, border: 1, borderColor: "divider" }}>
           <Typography variant="body2" color="text.secondary">
             브랜치가 없습니다.
           </Typography>
         </Box>
       ) : (
-        <Stack spacing={2} sx={{ mt: 2 }}>
-          {branches.map((branch) => (
-            <Card
-              key={branch.name || branch.branch_name}
-              sx={{
-                "&:hover": {
-                  boxShadow: 3,
-                },
-              }}
-            >
-              <CardContent>
-                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                  <Typography variant="subtitle1" sx={{ fontFamily: "monospace", fontWeight: 600 }}>
-                    {branch.name || branch.branch_name}
-                  </Typography>
-                  {(branch.isDefault || branch.is_default) && (
-                    <Chip label="기본" size="small" color="primary" variant="outlined" />
+        <>
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            {branches.map((branch) => (
+              <Card
+                key={branch.name || branch.branch_name}
+                sx={{
+                  "&:hover": {
+                    boxShadow: 3,
+                  },
+                }}
+              >
+                <CardContent>
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                    <Typography variant="subtitle1" sx={{ fontFamily: "monospace", fontWeight: 600 }}>
+                      {branch.name || branch.branch_name}
+                    </Typography>
+                    {(branch.isDefault || branch.is_default) && (
+                      <Chip label="기본" size="small" color="primary" variant="outlined" />
+                    )}
+                    {(branch.protected || branch.is_protected) && (
+                      <Chip label="보호됨" size="small" color="warning" variant="outlined" />
+                    )}
+                  </Stack>
+                  {(branch.sha || branch.commit_sha) && (
+                    <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "monospace", mt: 1, display: "block" }}>
+                      {(branch.sha || branch.commit_sha).substring(0, 7)}
+                    </Typography>
                   )}
-                  {(branch.protected || branch.is_protected) && (
-                    <Chip label="보호됨" size="small" color="warning" variant="outlined" />
-                  )}
-                </Stack>
-                {(branch.sha || branch.commit_sha) && (
-                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "monospace", mt: 1, display: "block" }}>
-                    {(branch.sha || branch.commit_sha).substring(0, 7)}
-                  </Typography>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </Stack>
+                </CardContent>
+              </Card>
+            ))}
+          </Stack>
+          {totalPages > 1 && (
+            <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+              <Pagination
+                count={totalPages}
+                page={page}
+                onChange={handlePageChange}
+                color="primary"
+                size="large"
+              />
+            </Box>
+          )}
+        </>
       )}
     </Box>
   );

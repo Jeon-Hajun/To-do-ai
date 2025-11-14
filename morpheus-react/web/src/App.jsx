@@ -1,64 +1,22 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router } from "react-router-dom";
+import AppRoutes from "./routes";
 import { AuthProvider, useAuthContext } from "./context/AuthContext";
-import { ProjectProvider } from "./context/ProjectContext"; // ✅ 추가
 
-import LoginPage from "./pages/LoginPage";
-import SignupPage from "./pages/SignupPage";
-import MainPage from "./pages/MainPage";
-import AIadvisorPage from "./pages/AIadvisorPage";
-import ProjectPage from "./pages/ProjectPage";
-import ProjectDetailPage from "./pages/ProjectDetailPage"; // 상세 페이지
-import SettingsPage from "./pages/SettingsPage";
-import AINextStepPage from "./pages/AINextStepPage";
-import NormalNextStepPage from "./pages/NormalNextStepPage";
-import DevProjectsPage from "./pages/Dev/DevProjectsPage";
-import CommitDetailPage from "./pages/CommitDetailPage";
-
-export default function App() {
-  const ProtectedRoute = ({ children }) => {
-    const { user, loading } = useAuthContext();
-    if (loading) return <div>Loading...</div>;
-    return user ? children : <Navigate to="/login" replace />;
-  };
-
-  const GuestRoute = ({ children }) => {
-    const { user, loading } = useAuthContext();
-    if (loading) return <div>Loading...</div>;
-    return !user ? children : <Navigate to="/main" replace />;
-  };
-
+function App() {
   return (
     <AuthProvider>
-      <ProjectProvider> {/* ✅ 프로젝트 Context 감싸기 */}
-        <Router>
-          <Routes>
-            {/* 로그인/회원가입 */}
-            <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
-            <Route path="/signup" element={<GuestRoute><SignupPage /></GuestRoute>} />
-            <Route path="/" element={<Navigate to="/main" replace />} />
-
-            {/* 보호 라우트 */}
-            <Route path="/main" element={<ProtectedRoute><MainPage /></ProtectedRoute>} />
-            <Route path="/aiadvisor" element={<ProtectedRoute><AIadvisorPage /></ProtectedRoute>} />
-            <Route path="/project" element={<ProtectedRoute><ProjectPage /></ProtectedRoute>} />
-
-            {/* 프로젝트 상세 페이지 */}
-            <Route path="/project/:id" element={<ProtectedRoute><ProjectDetailPage /></ProtectedRoute>} />
-            
-            {/* 커밋 상세 페이지 */}
-            <Route path="/project/:projectId/commit/:commitSha" element={<ProtectedRoute><CommitDetailPage /></ProtectedRoute>} />
-
-            <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-            <Route path="/ai-next-step" element={<ProtectedRoute><AINextStepPage /></ProtectedRoute>} />
-            <Route path="/normal-next-step" element={<ProtectedRoute><NormalNextStepPage /></ProtectedRoute>} />
-            <Route path="/dev/projects" element={<ProtectedRoute><DevProjectsPage /></ProtectedRoute>} />
-
-            {/* 기타 경로 */}
-            <Route path="*" element={<Navigate to="/main" replace />} />
-          </Routes>
-        </Router>
-      </ProjectProvider>
+      <Router>
+        <AppRoutesWrapper />
+      </Router>
     </AuthProvider>
   );
 }
+
+function AppRoutesWrapper() {
+  const { user } = useAuthContext();
+
+  return <AppRoutes user={user} />;
+}
+
+export default App;

@@ -7,7 +7,10 @@ import CardContent from "@mui/material/CardContent";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import CircularProgress from "@mui/material/CircularProgress";
-import { getCommits } from "../../api/githubApi";
+import Pagination from "@mui/material/Pagination";
+import { getCommits } from "../../api/github";
+
+const ITEMS_PER_PAGE = 10;
 
 /**
  * 커밋 목록 컴포넌트
@@ -18,14 +21,17 @@ export default function CommitList({ projectId }) {
   const [commits, setCommits] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
 
-  const fetchCommits = useCallback(async () => {
+  const fetchCommits = useCallback(async (currentPage = 1) => {
     if (!projectId) return;
     
     setLoading(true);
     setError(null);
     try {
-      const res = await getCommits(projectId);
+      const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+      const res = await getCommits(projectId, { limit: ITEMS_PER_PAGE, offset });
       if (res.success) {
         // 백엔드에서 받은 데이터를 프론트엔드 형식으로 변환
         const rawCommits = res.data.commits || [];
@@ -45,6 +51,9 @@ export default function CommitList({ projectId }) {
             : commit.filesChanged,
         }));
         setCommits(transformedCommits);
+        const totalCount = Number(res.data.total) || 0;
+        setTotal(totalCount);
+        console.log('[CommitList] 페이지네이션 정보:', { total: totalCount, currentPage, itemsPerPage: ITEMS_PER_PAGE });
       } else {
         setError(res.error?.message || "커밋 목록을 불러올 수 없습니다.");
       }
@@ -58,12 +67,16 @@ export default function CommitList({ projectId }) {
 
   useEffect(() => {
     if (projectId) {
-      fetchCommits();
+      fetchCommits(page);
     }
-  }, [projectId, fetchCommits]);
+  }, [projectId, page, fetchCommits]);
+
+  const handlePageChange = (event, value) => {
+    setPage(value);
+  };
 
   const handleCommitClick = (commitSha) => {
-    navigate(`/project/${projectId}/commit/${commitSha}`);
+    navigate(`/projects/${projectId}/commit/${commitSha}`);
   };
 
   const formatDate = (dateString) => {
@@ -97,80 +110,95 @@ export default function CommitList({ projectId }) {
     );
   }
 
+  const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
+
   return (
     <>
       <Box>
         <Typography variant="h6" gutterBottom>
-          커밋 목록 ({commits.length}개)
+          커밋 목록 ({total}개)
         </Typography>
         {commits.length === 0 ? (
-          <Box sx={{ p: 2, bgcolor: "grey.100", borderRadius: 1 }}>
+          <Box sx={{ p: 2, bgcolor: "background.paper", borderRadius: 1, border: 1, borderColor: "divider" }}>
             <Typography variant="body2" color="text.secondary">
               커밋이 없습니다.
             </Typography>
           </Box>
         ) : (
-          <Stack spacing={2} sx={{ mt: 2 }}>
-            {commits
-              .filter((commit) => commit && commit.sha)
-              .map((commit) => (
-                <Card
-                  key={commit.sha}
-                  sx={{
-                    cursor: "pointer",
-                    "&:hover": {
-                      boxShadow: 3,
-                    },
-                  }}
-                  onClick={() => handleCommitClick(commit.sha)}
-                >
-                  <CardContent>
-                    <Typography variant="subtitle1" gutterBottom sx={{ wordBreak: "break-word" }}>
-                      {commit.message || "커밋 메시지 없음"}
-                    </Typography>
-                    <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }}>
-                      {commit.author && (
-                        <Typography variant="caption" color="text.secondary">
-                          {commit.author}
-                        </Typography>
-                      )}
-                      {commit.date && (
-                        <Typography variant="caption" color="text.secondary">
-                          • {formatDate(commit.date)}
-                        </Typography>
-                      )}
-                      {commit.sha && (
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ fontFamily: "monospace" }}
-                        >
-                          • {commit.sha.substring(0, 7)}
-                        </Typography>
-                      )}
-                      {commit.linesAdded !== null && commit.linesAdded !== undefined && (
-                        <>
-                          <Chip
-                            label={`+${commit.linesAdded}`}
-                            size="small"
-                            color="success"
-                            variant="outlined"
-                            sx={{ height: 20, fontSize: "0.7rem" }}
-                          />
-                          <Chip
-                            label={`-${commit.linesDeleted || 0}`}
-                            size="small"
-                            color="error"
-                            variant="outlined"
-                            sx={{ height: 20, fontSize: "0.7rem" }}
-                          />
-                        </>
-                      )}
-                    </Stack>
-                  </CardContent>
-                </Card>
-              ))}
-          </Stack>
+          <>
+            <Stack spacing={2} sx={{ mt: 2 }}>
+              {commits
+                .filter((commit) => commit && commit.sha)
+                .map((commit) => (
+                  <Card
+                    key={commit.sha}
+                    sx={{
+                      cursor: "pointer",
+                      "&:hover": {
+                        boxShadow: 3,
+                      },
+                    }}
+                    onClick={() => handleCommitClick(commit.sha)}
+                  >
+                    <CardContent>
+                      <Typography variant="subtitle1" gutterBottom sx={{ wordBreak: "break-word" }}>
+                        {commit.message || "커밋 메시지 없음"}
+                      </Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }}>
+                        {commit.author && (
+                          <Typography variant="caption" color="text.secondary">
+                            {commit.author}
+                          </Typography>
+                        )}
+                        {commit.date && (
+                          <Typography variant="caption" color="text.secondary">
+                            • {formatDate(commit.date)}
+                          </Typography>
+                        )}
+                        {commit.sha && (
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ fontFamily: "monospace" }}
+                          >
+                            • {commit.sha.substring(0, 7)}
+                          </Typography>
+                        )}
+                        {commit.linesAdded !== null && commit.linesAdded !== undefined && (
+                          <>
+                            <Chip
+                              label={`+${commit.linesAdded}`}
+                              size="small"
+                              color="success"
+                              variant="outlined"
+                              sx={{ height: 20, fontSize: "0.7rem" }}
+                            />
+                            <Chip
+                              label={`-${commit.linesDeleted || 0}`}
+                              size="small"
+                              color="error"
+                              variant="outlined"
+                              sx={{ height: 20, fontSize: "0.7rem" }}
+                            />
+                          </>
+                        )}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                ))}
+            </Stack>
+            {totalPages > 1 && (
+              <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
+                <Pagination
+                  count={totalPages}
+                  page={page}
+                  onChange={handlePageChange}
+                  color="primary"
+                  size="large"
+                />
+              </Box>
+            )}
+          </>
         )}
       </Box>
     </>

@@ -1,26 +1,39 @@
-import React, { useState } from 'react';
-import { Box, Paper, Avatar, Typography, Divider, Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Snackbar, Alert, Stack } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Paper, Avatar, Typography, Divider, Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Snackbar, Alert, Stack, RadioGroup, FormControlLabel, Radio, FormControl, FormLabel } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
-import { setAuth, deleteUser } from '../utils/auth';
+import { deleteUser } from '../utils/auth';
 import { getProfileImageSrc } from '../utils/profileImage';
-import Header from '../components/ui/Header';
-import NavBar from '../components/ui/NavBar';
 import EditProfileModal from '../components/EditProfileModal';
+import { Header, NavBar, ContainerBox } from '../components/layout';
+import { themes } from '../theme';
 
 export default function SettingsPage() {
     const { user, loading, setUser, logout } = useAuthContext();
     const navigate = useNavigate();
     const [openEditModal, setOpenEditModal] = useState(false);
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+    const [openThemeDialog, setOpenThemeDialog] = useState(false);
+    const [currentTheme, setCurrentTheme] = useState(() => {
+        return localStorage.getItem("theme") || "light";
+    });
     const [snackbar, setSnackbar] = useState({ open: false, severity: 'success', message: '' });
+
+    useEffect(() => {
+        // 테마 변경 감지
+        const handleStorageChange = (e) => {
+            if (e.key === "theme") {
+                setCurrentTheme(e.newValue || "light");
+            }
+        };
+        window.addEventListener("storage", handleStorageChange);
+        return () => window.removeEventListener("storage", handleStorageChange);
+    }, []);
 
     const imgSrc = getProfileImageSrc(user?.profileImage, true);
 
     const handleUpdate = (updatedUser) => {
-        const newUser = { ...updatedUser };
-        setUser(newUser);
-        setAuth(newUser);
+        setUser(updatedUser);
         setTimeout(() => window.dispatchEvent(new Event('profileUpdated')), 100);
     };
 
@@ -40,11 +53,17 @@ export default function SettingsPage() {
     };
 
     if (loading) {
-        return <Box sx={{ p: 3 }}>로딩 중...</Box>;
+        return (
+            <ContainerBox sx={{ pb: 8 }}>
+                <Header title="설정" />
+                <Box sx={{ p: 3 }}>로딩 중...</Box>
+                <NavBar />
+            </ContainerBox>
+        );
     }
 
     return (
-        <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
+        <ContainerBox sx={{ pb: 8 }}>
             <Header title="설정" />
             
             <Box sx={{ flex: 1, pt: 3, px: 2, display: 'flex', justifyContent: 'center' }}>
@@ -66,7 +85,7 @@ export default function SettingsPage() {
                             계정 정보 수정
                         </Button>
                         <Divider sx={{ my: 1 }} />
-                        <Button fullWidth variant="outlined">
+                        <Button fullWidth variant="outlined" onClick={() => setOpenThemeDialog(true)}>
                             디스플레이 설정
                         </Button>
                         <Button fullWidth variant="outlined">
@@ -105,6 +124,39 @@ export default function SettingsPage() {
                 </DialogActions>
             </Dialog>
 
+            <Dialog open={openThemeDialog} onClose={() => setOpenThemeDialog(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>테마 설정</DialogTitle>
+                <DialogContent>
+                    <FormControl component="fieldset" fullWidth>
+                        <FormLabel component="legend" sx={{ mb: 2 }}>테마 선택</FormLabel>
+                        <RadioGroup
+                            value={currentTheme}
+                            onChange={(e) => {
+                                const newTheme = e.target.value;
+                                setCurrentTheme(newTheme);
+                                localStorage.setItem("theme", newTheme);
+                                // 테마 변경 함수 호출 (현재 탭에서 즉시 반영)
+                                if (window.changeTheme) {
+                                    window.changeTheme(newTheme);
+                                }
+                            }}
+                        >
+                            {Object.entries(themes).map(([key, themeConfig]) => (
+                                <FormControlLabel
+                                    key={key}
+                                    value={key}
+                                    control={<Radio />}
+                                    label={themeConfig.name}
+                                />
+                            ))}
+                        </RadioGroup>
+                    </FormControl>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setOpenThemeDialog(false)}>닫기</Button>
+                </DialogActions>
+            </Dialog>
+
             <Snackbar
                 open={snackbar.open}
                 autoHideDuration={3000}
@@ -117,6 +169,6 @@ export default function SettingsPage() {
             </Snackbar>
 
             <NavBar />
-        </Box>
+        </ContainerBox>
     );
 }

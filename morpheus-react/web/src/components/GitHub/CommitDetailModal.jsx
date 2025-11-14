@@ -15,7 +15,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CloseIcon from "@mui/icons-material/Close";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
-import { getCommit } from "../../api/githubApi";
+import { getCommit } from "../../api/github";
 import DiffViewer from "./DiffViewer";
 
 export default function CommitDetailModal({ projectId, commitSha, open, onClose }) {
@@ -251,4 +251,6 @@ export default function CommitDetailModal({ projectId, commitSha, open, onClose 
     </Modal>
   );
 }
+
+
 
