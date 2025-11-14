@@ -313,6 +313,7 @@ exports.sync = async function(req, res, next) {
 exports.getCommits = function(req, res, next) {
   const { projectId } = req.params;
   const userId = req.user.userId;
+  const { limit = 10, offset = 0 } = req.query;
 
   db.get(
     'SELECT * FROM projects WHERE id = ? AND (owner_id = ? OR EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = projects.id AND pm.user_id = ?))',
@@ -339,10 +340,35 @@ exports.getCommits = function(req, res, next) {
         });
       }
 
-      db.all(
-        'SELECT * FROM project_commits WHERE project_id = ? ORDER BY commit_date DESC LIMIT 50',
+      // 전체 개수 조회
+      db.get(
+        'SELECT COUNT(*) as total FROM project_commits WHERE project_id = ?',
         [projectId],
-        function(err, commits) {
+        function(err, countResult) {
+          if (err) {
+            console.error('커밋 개수 조회 오류:', err);
+            return res.status(500).json({ 
+              success: false,
+              error: { 
+                code: 'SERVER_ERROR',
+                message: '서버 오류가 발생했습니다.' 
+              }
+            });
+          }
+
+          console.log('[getCommits] COUNT 쿼리 결과:', countResult);
+          let total = 0;
+          if (countResult) {
+            total = countResult.total !== undefined ? Number(countResult.total) : 
+                     (countResult[Object.keys(countResult)[0]] !== undefined ? Number(countResult[Object.keys(countResult)[0]]) : 0);
+          }
+          console.log(`[getCommits] 전체 커밋 개수: ${total} (원본: ${JSON.stringify(countResult)}), limit: ${limit}, offset: ${offset}`);
+
+          // 페이지네이션 적용하여 커밋 조회
+          db.all(
+            'SELECT * FROM project_commits WHERE project_id = ? ORDER BY commit_date DESC LIMIT ? OFFSET ?',
+            [projectId, parseInt(limit), parseInt(offset)],
+            function(err, commits) {
           if (err) {
             console.error('커밋 목록 조회 오류:', err);
             return res.status(500).json({ 
@@ -355,34 +381,45 @@ exports.getCommits = function(req, res, next) {
           }
 
           console.log(`[조회] 프로젝트 ${projectId}의 커밋 조회 결과:`, {
-            total: commits ? commits.length : 0,
+            total: total,
+            currentPageItems: commits ? commits.length : 0,
             hasCommits: commits && commits.length > 0
           });
 
-          // 디버깅: DB에서 가져온 값 확인
-          if (commits && commits.length > 0) {
-            console.log(`[조회] 커밋 ${commits.length}개 조회됨`);
-            console.log(`[조회] 첫 번째 커밋 데이터:`, {
-              sha: commits[0].commit_sha?.substring(0, 7),
-              lines_added: commits[0].lines_added,
-              lines_deleted: commits[0].lines_deleted,
-              files_changed: commits[0].files_changed,
-              타입: {
-                lines_added: typeof commits[0].lines_added,
-                lines_deleted: typeof commits[0].lines_deleted,
-                files_changed: typeof commits[0].files_changed
+          // 만약 total이 0인데 실제 데이터가 있으면, 실제 데이터 개수로 대체
+          if (total === 0 && commits && commits.length > 0) {
+            db.get('SELECT COUNT(*) as total FROM project_commits WHERE project_id = ?', [projectId], function(err2, allCountResult) {
+              if (!err2 && allCountResult) {
+                total = allCountResult.total !== undefined ? Number(allCountResult.total) : 
+                         (allCountResult[Object.keys(allCountResult)[0]] !== undefined ? Number(allCountResult[Object.keys(allCountResult)[0]]) : commits.length);
+                console.log(`[getCommits] 재계산된 전체 개수: ${total}`);
+              } else {
+                total = commits.length;
               }
+              
+              res.json({ 
+                success: true,
+                data: { 
+                  commits: commits || [],
+                  total: total,
+                  limit: parseInt(limit),
+                  offset: parseInt(offset)
+                }
+              });
             });
           } else {
-            console.warn(`[조회] 프로젝트 ${projectId}에 저장된 커밋이 없습니다.`);
+            res.json({ 
+              success: true,
+              data: { 
+                commits: commits || [],
+                total: total,
+                limit: parseInt(limit),
+                offset: parseInt(offset)
+              }
+            });
           }
-
-          res.json({ 
-            success: true,
-            data: { 
-              commits: commits || [] 
             }
-          });
+          );
         }
       );
     }
@@ -420,21 +457,18 @@ exports.getIssues = function(req, res, next) {
         });
       }
 
-      // DB에서 이슈 조회
-      let query = 'SELECT * FROM project_issues WHERE project_id = ?';
-      let params = [projectId];
+      // 전체 개수 조회
+      let countQuery = 'SELECT COUNT(*) as total FROM project_issues WHERE project_id = ?';
+      let countParams = [projectId];
       
       if (state && state !== 'all') {
-        query += ' AND state = ?';
-        params.push(state);
+        countQuery += ' AND state = ?';
+        countParams.push(state);
       }
-      
-      query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-      params.push(parseInt(limit), parseInt(offset));
 
-      db.all(query, params, function(err, issues) {
+      db.get(countQuery, countParams, function(err, countResult) {
         if (err) {
-          console.error('이슈 목록 조회 오류:', err);
+          console.error('이슈 개수 조회 오류:', err);
           return res.status(500).json({ 
             success: false,
             error: { 
@@ -444,20 +478,100 @@ exports.getIssues = function(req, res, next) {
           });
         }
 
-        res.json({ 
-          success: true,
-          data: { 
-            issues: (issues || []).map(issue => ({
-              number: issue.issue_number,
-              title: issue.title,
-              body: issue.body,
-              state: issue.state,
-              assignees: issue.assignees ? JSON.parse(issue.assignees) : [],
-              labels: issue.labels ? JSON.parse(issue.labels) : [],
-              createdAt: issue.created_at,
-              updatedAt: issue.updated_at,
-              closedAt: issue.closed_at
-            }))
+        console.log('[getIssues] COUNT 쿼리 결과:', countResult);
+        // SQLite의 COUNT(*) 결과는 { total: 숫자 } 형태로 반환됨
+        let total = 0;
+        if (countResult) {
+          // total 키가 있으면 사용, 없으면 첫 번째 값 사용
+          total = countResult.total !== undefined ? Number(countResult.total) : 
+                   (countResult[Object.keys(countResult)[0]] !== undefined ? Number(countResult[Object.keys(countResult)[0]]) : 0);
+        }
+        console.log(`[getIssues] 전체 이슈 개수: ${total} (원본: ${JSON.stringify(countResult)}), limit: ${limit}, offset: ${offset}`);
+
+        // DB에서 이슈 조회
+        let query = 'SELECT * FROM project_issues WHERE project_id = ?';
+        let params = [projectId];
+        
+        if (state && state !== 'all') {
+          query += ' AND state = ?';
+          params.push(state);
+        }
+        
+        query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+        params.push(parseInt(limit), parseInt(offset));
+
+        db.all(query, params, function(err, issues) {
+          if (err) {
+            console.error('이슈 목록 조회 오류:', err);
+            return res.status(500).json({ 
+              success: false,
+              error: { 
+                code: 'SERVER_ERROR',
+                message: '서버 오류가 발생했습니다.' 
+              }
+            });
+          }
+
+          console.log(`[getIssues] 현재 페이지 이슈 개수: ${issues ? issues.length : 0}`);
+          
+          // 만약 total이 0인데 실제 데이터가 있으면, 실제 데이터 개수로 대체
+          if (total === 0 && issues && issues.length > 0) {
+            // 전체 개수를 다시 조회 (LIMIT 없이)
+            let allQuery = 'SELECT COUNT(*) as total FROM project_issues WHERE project_id = ?';
+            let allParams = [projectId];
+            if (state && state !== 'all') {
+              allQuery += ' AND state = ?';
+              allParams.push(state);
+            }
+            db.get(allQuery, allParams, function(err2, allCountResult) {
+              if (!err2 && allCountResult) {
+                total = allCountResult.total !== undefined ? Number(allCountResult.total) : 
+                         (allCountResult[Object.keys(allCountResult)[0]] !== undefined ? Number(allCountResult[Object.keys(allCountResult)[0]]) : issues.length);
+                console.log(`[getIssues] 재계산된 전체 개수: ${total}`);
+              } else {
+                total = issues.length; // 최소한 현재 페이지 개수라도 표시
+              }
+              
+              res.json({ 
+                success: true,
+                data: { 
+                  issues: (issues || []).map(issue => ({
+                    number: issue.issue_number,
+                    title: issue.title,
+                    body: issue.body,
+                    state: issue.state,
+                    assignees: issue.assignees ? JSON.parse(issue.assignees) : [],
+                    labels: issue.labels ? JSON.parse(issue.labels) : [],
+                    createdAt: issue.created_at,
+                    updatedAt: issue.updated_at,
+                    closedAt: issue.closed_at
+                  })),
+                  total: total,
+                  limit: parseInt(limit),
+                  offset: parseInt(offset)
+                }
+              });
+            });
+          } else {
+            res.json({ 
+              success: true,
+              data: { 
+                issues: (issues || []).map(issue => ({
+                  number: issue.issue_number,
+                  title: issue.title,
+                  body: issue.body,
+                  state: issue.state,
+                  assignees: issue.assignees ? JSON.parse(issue.assignees) : [],
+                  labels: issue.labels ? JSON.parse(issue.labels) : [],
+                  createdAt: issue.created_at,
+                  updatedAt: issue.updated_at,
+                  closedAt: issue.closed_at
+                })),
+                total: total,
+                limit: parseInt(limit),
+                offset: parseInt(offset)
+              }
+            });
           }
         });
       });
@@ -547,6 +661,7 @@ exports.getIssue = function(req, res, next) {
 exports.getBranches = function(req, res, next) {
   const { projectId } = req.params;
   const userId = req.user.userId;
+  const { limit = 10, offset = 0 } = req.query;
 
   db.get(
     'SELECT * FROM projects WHERE id = ? AND (owner_id = ? OR EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = projects.id AND pm.user_id = ?))',
@@ -573,11 +688,35 @@ exports.getBranches = function(req, res, next) {
         });
       }
 
-      // DB에서 브랜치 조회
-      db.all(
-        'SELECT * FROM project_branches WHERE project_id = ? ORDER BY is_default DESC, branch_name ASC',
+      // 전체 개수 조회
+      db.get(
+        'SELECT COUNT(*) as total FROM project_branches WHERE project_id = ?',
         [projectId],
-        function(err, branches) {
+        function(err, countResult) {
+          if (err) {
+            console.error('브랜치 개수 조회 오류:', err);
+            return res.status(500).json({ 
+              success: false,
+              error: { 
+                code: 'SERVER_ERROR',
+                message: '서버 오류가 발생했습니다.' 
+              }
+            });
+          }
+
+          console.log('[getBranches] COUNT 쿼리 결과:', countResult);
+          let total = 0;
+          if (countResult) {
+            total = countResult.total !== undefined ? Number(countResult.total) : 
+                     (countResult[Object.keys(countResult)[0]] !== undefined ? Number(countResult[Object.keys(countResult)[0]]) : 0);
+          }
+          console.log(`[getBranches] 전체 브랜치 개수: ${total} (원본: ${JSON.stringify(countResult)}), limit: ${limit}, offset: ${offset}`);
+
+          // 페이지네이션 적용하여 브랜치 조회
+          db.all(
+            'SELECT * FROM project_branches WHERE project_id = ? ORDER BY is_default DESC, branch_name ASC LIMIT ? OFFSET ?',
+            [projectId, parseInt(limit), parseInt(offset)],
+            function(err, branches) {
           if (err) {
             console.error('브랜치 목록 조회 오류:', err);
             return res.status(500).json({ 
@@ -589,17 +728,52 @@ exports.getBranches = function(req, res, next) {
             });
           }
 
-          res.json({ 
-            success: true,
-            data: { 
-              branches: (branches || []).map(branch => ({
-                name: branch.branch_name,
-                sha: branch.commit_sha,
-                protected: branch.is_protected === 1,
-                isDefault: branch.is_default === 1
-              }))
+          console.log(`[getBranches] 현재 페이지 브랜치 개수: ${branches ? branches.length : 0}`);
+          
+          // 만약 total이 0인데 실제 데이터가 있으면, 실제 데이터 개수로 대체
+          if (total === 0 && branches && branches.length > 0) {
+            db.get('SELECT COUNT(*) as total FROM project_branches WHERE project_id = ?', [projectId], function(err2, allCountResult) {
+              if (!err2 && allCountResult) {
+                total = allCountResult.total !== undefined ? Number(allCountResult.total) : 
+                         (allCountResult[Object.keys(allCountResult)[0]] !== undefined ? Number(allCountResult[Object.keys(allCountResult)[0]]) : branches.length);
+                console.log(`[getBranches] 재계산된 전체 개수: ${total}`);
+              } else {
+                total = branches.length;
+              }
+              
+              res.json({ 
+                success: true,
+                data: { 
+                  branches: (branches || []).map(branch => ({
+                    name: branch.branch_name,
+                    sha: branch.commit_sha,
+                    protected: branch.is_protected === 1,
+                    isDefault: branch.is_default === 1
+                  })),
+                  total: total,
+                  limit: parseInt(limit),
+                  offset: parseInt(offset)
+                }
+              });
+            });
+          } else {
+            res.json({ 
+              success: true,
+              data: { 
+                branches: (branches || []).map(branch => ({
+                  name: branch.branch_name,
+                  sha: branch.commit_sha,
+                  protected: branch.is_protected === 1,
+                  isDefault: branch.is_default === 1
+                })),
+                total: total,
+                limit: parseInt(limit),
+                offset: parseInt(offset)
+              }
+            });
+          }
             }
-          });
+          );
         }
       );
     }
