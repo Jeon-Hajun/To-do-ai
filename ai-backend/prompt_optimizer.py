@@ -315,7 +315,7 @@ def create_optimized_completion_prompt(task, commits, projectDescription):
     """최적화된 Task 완료 확인 프롬프트 생성 (기존 호환성 유지)"""
     return create_initial_completion_prompt(task, commits, projectDescription)
 
-def create_intent_classification_prompt(user_message, conversation_history=None):
+def create_intent_classification_prompt(user_message, conversation_history=None, project_context=None):
     """사용자 질의의 의도를 분석하여 적절한 agent를 선택하는 프롬프트 생성"""
     
     # 대화 히스토리 요약 (최근 3개만)
@@ -328,9 +328,20 @@ def create_intent_classification_prompt(user_message, conversation_history=None)
             content = msg.get('content', '')[:100]  # 최대 100자만
             history_context += f"- {role}: {content}\n"
     
+    # 프로젝트 컨텍스트 요약
+    project_info = ""
+    if project_context:
+        project_info = f"""
+## 프로젝트 정보:
+- 프로젝트 설명: {project_context.get('projectDescription', 'N/A')[:200]}
+- 커밋 수: {len(project_context.get('commits', []))}개
+- Task 수: {len(project_context.get('tasks', []))}개
+- 이슈 수: {len(project_context.get('issues', []))}개
+"""
+    
     prompt = f"""당신은 프로젝트 관리 AI 어시스턴트의 의도 분류기입니다.
 
-사용자의 질의를 분석하여 다음 3가지 agent 중 하나를 선택해야 합니다:
+사용자의 질의를 분석하여 다음 4가지 agent 중 하나를 선택해야 합니다:
 
 1. **task_suggestion_agent**: 새로운 Task 제안이 필요한 경우
    - 예시: "할 일 추천해줘", "새로운 작업 제안해줘", "다음에 뭘 해야 할까?", "추가로 해야 할 일이 있어?"
@@ -341,6 +352,13 @@ def create_intent_classification_prompt(user_message, conversation_history=None)
 3. **task_completion_agent**: 특정 Task의 완료 여부 확인이 필요한 경우
    - 예시: "이 작업 완료됐어?", "Task 완료 확인해줘", "이 작업 상태 알려줘", "작업이 끝났는지 확인해줘"
 
+4. **general_qa_agent**: 프로젝트에 대한 일반적인 질문이나 정보 요청
+   - 예시: "프로젝트 설명해줘", "커밋 몇 개야?", "작업 몇 개 있어?", "팀원 누가 있어?", "이 프로젝트 뭐야?", "프로젝트 정보 알려줘"
+   - 프로젝트 정보, 통계, 상태 등에 대한 질문
+   - 단, 위 3가지 agent로 처리할 수 있는 질문은 해당 agent를 선택
+
+{project_info}
+
 {history_context}
 
 ## 사용자 질의:
@@ -349,18 +367,20 @@ def create_intent_classification_prompt(user_message, conversation_history=None)
 ## 응답 형식
 다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
 {{
-  "agent_type": "task_suggestion_agent|progress_analysis_agent|task_completion_agent",
+  "agent_type": "task_suggestion_agent|progress_analysis_agent|task_completion_agent|general_qa_agent",
   "confidence": "high|medium|low",
   "reason": "선택한 agent를 선택한 이유를 한국어로 설명",
   "extracted_info": {{
     "task_title": "질의에서 추출한 Task 제목 (task_completion_agent인 경우만)",
+    "question_type": "질문 유형 (project_info|statistics|team|other)",
     "keywords": ["키워드1", "키워드2"]
   }}
 }}
 
 규칙:
-- 질의가 모호한 경우 progress_analysis_agent를 기본값으로 선택
+- 질의가 모호한 경우 general_qa_agent를 기본값으로 선택
 - Task 제목이 명시되지 않은 경우 task_completion_agent를 선택하지 마세요
+- 프로젝트 정보나 통계에 대한 질문은 general_qa_agent 선택
 - 반드시 한국어로만 응답하세요."""
     
     return prompt

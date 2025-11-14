@@ -649,15 +649,22 @@ def chat():
         
         # 1. 의도 분류
         print('[AI Backend] chat - 의도 분류 시작')
-        intent_result = classify_intent(user_message, conversation_history, call_llm)
-        agent_type = intent_result.get('agent_type', 'progress_analysis_agent')
+        # 프로젝트 컨텍스트 요약 정보 전달
+        project_context_summary = {
+            'projectDescription': context.get('projectDescription', ''),
+            'commits': context.get('commits', [])[:10],  # 최근 10개만
+            'tasks': context.get('tasks', [])[:10],  # 최근 10개만
+            'issues': context.get('issues', [])[:10]  # 최근 10개만
+        }
+        intent_result = classify_intent(user_message, conversation_history, call_llm, project_context_summary)
+        agent_type = intent_result.get('agent_type', 'general_qa_agent')
         confidence = intent_result.get('confidence', 'medium')
         
         print(f'[AI Backend] chat - 선택된 agent: {agent_type}, 신뢰도: {confidence}')
         
         # 2. Agent 실행
         print(f'[AI Backend] chat - {agent_type} 실행 시작')
-        agent_result = route_to_agent(agent_type, context, call_llm)
+        agent_result = route_to_agent(agent_type, context, call_llm, user_message)
         
         # 3. 응답 구성
         response = {

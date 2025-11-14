@@ -12,7 +12,7 @@ from prompt_optimizer import (
     create_followup_completion_prompt
 )
 
-def classify_intent(user_message, conversation_history, call_llm_func):
+def classify_intent(user_message, conversation_history, call_llm_func, project_context=None):
     """
     사용자 질의의 의도를 분석하여 적절한 agent 타입을 반환합니다.
     
@@ -20,16 +20,17 @@ def classify_intent(user_message, conversation_history, call_llm_func):
         user_message: 사용자 메시지
         conversation_history: 대화 히스토리 리스트
         call_llm_func: LLM 호출 함수 (prompt, system_prompt) -> content
+        project_context: 프로젝트 컨텍스트 정보 (선택사항)
     
     Returns:
         dict: {
-            "agent_type": "task_suggestion_agent|progress_analysis_agent|task_completion_agent",
+            "agent_type": "task_suggestion_agent|progress_analysis_agent|task_completion_agent|general_qa_agent",
             "confidence": "high|medium|low",
             "reason": "...",
             "extracted_info": {...}
         }
     """
-    prompt = create_intent_classification_prompt(user_message, conversation_history)
+    prompt = create_intent_classification_prompt(user_message, conversation_history, project_context)
     system_prompt = "의도 분류 전문가. 사용자 질의를 분석하여 적절한 agent를 선택합니다. 반드시 한국어로만 응답. JSON만 응답."
     
     try:
@@ -51,7 +52,7 @@ def classify_intent(user_message, conversation_history, call_llm_func):
         
         # 기본값 설정
         if 'agent_type' not in result:
-            result['agent_type'] = 'progress_analysis_agent'
+            result['agent_type'] = 'general_qa_agent'
         if 'confidence' not in result:
             result['confidence'] = 'medium'
         
@@ -60,13 +61,13 @@ def classify_intent(user_message, conversation_history, call_llm_func):
         print(f"[Agent Router] 의도 분류 실패: {e}")
         # 기본값 반환
         return {
-            "agent_type": "progress_analysis_agent",
+            "agent_type": "general_qa_agent",
             "confidence": "low",
             "reason": f"의도 분류 실패: {str(e)}",
             "extracted_info": {}
         }
 
-def route_to_agent(agent_type, context, call_llm_func):
+def route_to_agent(agent_type, context, call_llm_func, user_message=None):
     """
     선택된 agent에 따라 적절한 프롬프트를 생성하고 실행합니다.
     
@@ -74,6 +75,7 @@ def route_to_agent(agent_type, context, call_llm_func):
         agent_type: agent 타입
         context: agent 실행에 필요한 컨텍스트
         call_llm_func: LLM 호출 함수
+        user_message: 사용자 메시지 (general_qa_agent인 경우 필요)
     
     Returns:
         dict: agent 실행 결과
@@ -85,6 +87,8 @@ def route_to_agent(agent_type, context, call_llm_func):
         return execute_progress_analysis_agent(context, call_llm_func)
     elif agent_type == "task_completion_agent":
         return execute_task_completion_agent(context, call_llm_func)
+    elif agent_type == "general_qa_agent":
+        return execute_general_qa_agent(context, call_llm_func, user_message)
     else:
         return {
             "error": f"알 수 없는 agent 타입: {agent_type}",
@@ -297,6 +301,165 @@ def execute_task_completion_agent(context, call_llm_func):
             "response": {
                 "type": "error",
                 "message": "Task 완료 확인 중 오류가 발생했습니다."
+            }
+        }
+
+def execute_general_qa_agent(context, call_llm_func, user_message):
+    """일반적인 질문 답변 agent 실행"""
+    if not user_message:
+        return {
+            "agent_type": "general_qa_agent",
+            "error": "사용자 메시지가 필요합니다.",
+            "response": {
+                "type": "error",
+                "message": "질문을 입력해주세요."
+            }
+        }
+    
+    commits = context.get('commits', [])
+    issues = context.get('issues', [])
+    tasks = context.get('tasks', [])
+    projectDescription = context.get('projectDescription', '')
+    githubRepo = context.get('githubRepo', '')
+    
+    # 프로젝트 통계 계산
+    task_stats = {
+        'total': len(tasks),
+        'todo': sum(1 for t in tasks if t.get('status') == 'todo'),
+        'in_progress': sum(1 for t in tasks if t.get('status') == 'in_progress'),
+        'done': sum(1 for t in tasks if t.get('status') == 'done')
+    }
+    
+    commit_stats = {
+        'total': len(commits),
+        'total_lines_added': sum(c.get('linesAdded', 0) or 0 for c in commits),
+        'total_lines_deleted': sum(c.get('linesDeleted', 0) or 0 for c in commits),
+        'total_files_changed': sum(c.get('filesChanged', 0) or 0 for c in commits)
+    }
+    
+    issue_stats = {
+        'total': len(issues),
+        'open': sum(1 for i in issues if i.get('state') == 'open'),
+        'closed': sum(1 for i in issues if i.get('state') == 'closed')
+    }
+    
+    # 최근 활동 분석
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    week_ago = now - timedelta(days=7)
+    recent_commits = sum(1 for c in commits if c.get('date') and 
+                        datetime.fromisoformat(c.get('date').replace('Z', '+00:00')) >= week_ago)
+    
+    prompt = f"""당신은 프로젝트 관리 AI 어시스턴트입니다. 사용자의 질문에 대해 프로젝트 정보를 바탕으로 친절하고 정확하게 답변하세요.
+
+⚠️ 중요: 반드시 한국어로만 응답하세요.
+
+## 사용자 질문
+"{user_message}"
+
+## 프로젝트 정보
+프로젝트 설명: {projectDescription[:500] if projectDescription else '설명 없음'}
+GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
+
+## 프로젝트 통계
+**Task (작업)**
+- 전체: {task_stats['total']}개
+- 대기 중: {task_stats['todo']}개
+- 진행 중: {task_stats['in_progress']}개
+- 완료: {task_stats['done']}개
+
+**커밋**
+- 전체: {commit_stats['total']}개
+- 추가된 라인: {commit_stats['total_lines_added']:,}줄
+- 삭제된 라인: {commit_stats['total_lines_deleted']:,}줄
+- 변경된 파일: {commit_stats['total_files_changed']}개
+- 최근 7일 커밋: {recent_commits}개
+
+**이슈**
+- 전체: {issue_stats['total']}개
+- 열림: {issue_stats['open']}개
+- 닫힘: {issue_stats['closed']}개
+
+## 최근 커밋 (최대 5개)
+{chr(10).join([f"- {c.get('message', '')[:80]} ({c.get('date', '')[:10] if c.get('date') else '날짜 없음'})" for c in commits[:5]]) if commits else "커밋 없음"}
+
+## 최근 Task (최대 5개)
+{chr(10).join([f"- {t.get('title', '')} ({t.get('status', 'unknown')})" for t in tasks[:5]]) if tasks else "Task 없음"}
+
+## 답변 규칙
+1. 제공된 프로젝트 정보와 통계를 활용하여 사용자 질문에 정확하게 답변하세요.
+2. 질문이 프로젝트와 관련이 있고 위 정보로 답변할 수 있다면, 친절하고 상세하게 답변하세요.
+3. 질문에 대한 답변을 할 수 없는 경우 (예: 프로젝트와 무관한 질문, 개인정보, 외부 정보 등), 정중하게 "죄송하지만 그 정보는 제공할 수 없습니다. 프로젝트 진행도, Task 제안, Task 완료 확인 등의 기능을 사용해주세요."라고 답변하세요.
+4. 프로젝트에 대한 일반적인 질문(설명, 통계, 상태, 커밋 수, 작업 수 등)은 위 정보를 바탕으로 답변하세요.
+5. 답변은 친절하고 자연스러운 한국어로 작성하세요.
+6. 숫자는 쉼표를 사용하여 읽기 쉽게 표시하세요.
+7. 가능한 한 구체적이고 유용한 정보를 제공하세요.
+
+## 응답 형식
+다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
+{{
+  "can_answer": true 또는 false,
+  "message": "사용자 질문에 대한 답변을 한국어로 작성 (친절하고 자연스럽게)",
+  "details": {{
+    "used_statistics": ["사용한 통계 정보"],
+    "source": "정보 출처 (예: '프로젝트 통계', '커밋 데이터')"
+  }}
+}}
+
+만약 답변할 수 없는 질문인 경우:
+{{
+  "can_answer": false,
+  "message": "정중한 거부 메시지를 한국어로 작성",
+  "suggestion": "대신 사용할 수 있는 기능 제안"
+}}"""
+    
+    system_prompt = "프로젝트 관리 전문가. 프로젝트 정보를 바탕으로 사용자 질문에 친절하게 답변합니다. 반드시 한국어로만 응답. JSON만 응답."
+    
+    try:
+        content = call_llm_func(prompt, system_prompt)
+        
+        # JSON 파싱
+        if '```json' in content:
+            content = content.split('```json')[1].split('```')[0].strip()
+        elif '```' in content:
+            content = content.split('```')[1].split('```')[0].strip()
+        
+        content = content.strip()
+        if '{' in content:
+            content = content[content.find('{'):]
+        if '}' in content:
+            content = content[:content.rfind('}')+1]
+        
+        result = json.loads(content)
+        
+        can_answer = result.get('can_answer', True)
+        
+        if can_answer:
+            return {
+                "agent_type": "general_qa_agent",
+                "response": {
+                    "type": "general_qa",
+                    "message": result.get('message', ''),
+                    "details": result.get('details', {})
+                }
+            }
+        else:
+            return {
+                "agent_type": "general_qa_agent",
+                "response": {
+                    "type": "general_qa",
+                    "message": result.get('message', '죄송하지만 그 정보는 제공할 수 없습니다.'),
+                    "suggestion": result.get('suggestion', '프로젝트 진행도, Task 제안, Task 완료 확인 등의 기능을 사용해주세요.')
+                }
+            }
+    except Exception as e:
+        print(f"[Agent Router] 일반 질문 답변 agent 실행 실패: {e}")
+        return {
+            "agent_type": "general_qa_agent",
+            "error": f"일반 질문 답변 실패: {str(e)}",
+            "response": {
+                "type": "error",
+                "message": "질문에 답변하는 중 오류가 발생했습니다."
             }
         }
 
