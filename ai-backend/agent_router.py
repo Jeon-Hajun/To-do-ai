@@ -9,7 +9,8 @@ from prompt_optimizer import (
     create_optimized_task_suggestion_prompt,
     create_optimized_progress_prompt,
     create_initial_completion_prompt,
-    create_followup_completion_prompt
+    create_followup_completion_prompt,
+    create_task_assignment_prompt
 )
 
 def classify_intent(user_message, conversation_history, call_llm_func, project_context=None):
@@ -87,6 +88,8 @@ def route_to_agent(agent_type, context, call_llm_func, user_message=None):
         return execute_progress_analysis_agent(context, call_llm_func)
     elif agent_type == "task_completion_agent":
         return execute_task_completion_agent(context, call_llm_func)
+    elif agent_type == "task_assignment_agent":
+        return execute_task_assignment_agent(context, call_llm_func, user_message)
     elif agent_type == "general_qa_agent":
         return execute_general_qa_agent(context, call_llm_func, user_message)
     else:
@@ -460,6 +463,110 @@ GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
             "response": {
                 "type": "error",
                 "message": "질문에 답변하는 중 오류가 발생했습니다."
+            }
+        }
+
+def execute_task_assignment_agent(context, call_llm_func, user_message):
+    """Task 할당 추천 agent 실행"""
+    if not user_message:
+        return {
+            "agent_type": "task_assignment_agent",
+            "error": "사용자 메시지가 필요합니다.",
+            "response": {
+                "type": "error",
+                "message": "Task 할당 추천을 위해 질문을 입력해주세요."
+            }
+        }
+    
+    # Task 정보 추출 (context에서 또는 user_message에서)
+    task_title = context.get('taskTitle', '')
+    task_description = context.get('taskDescription', '')
+    project_members_with_tags = context.get('projectMembersWithTags', [])
+    tasks = context.get('tasks', [])
+    
+    # user_message에서 Task 정보 추출 시도
+    if not task_title and user_message and tasks:
+        # 사용자 메시지에서 Task 제목을 찾기 시도
+        # 예: "이 Task를 누구에게 할당하면 좋을까?" -> 최근 Task 사용
+        # 또는 "로그인 기능을 누구에게 할당하면 좋을까?" -> 제목에 "로그인"이 포함된 Task 찾기
+        user_message_lower = user_message.lower()
+        for task in tasks[:10]:  # 최근 10개 Task만 확인
+            task_title_lower = task.get('title', '').lower()
+            if task_title_lower and task_title_lower in user_message_lower:
+                task_title = task.get('title', '')
+                task_description = task.get('description', '')
+                break
+        
+        # 매칭되는 Task가 없으면 최근 Task 사용
+        if not task_title and tasks:
+            recent_task = tasks[0]
+            task_title = recent_task.get('title', '')
+            task_description = recent_task.get('description', '')
+    
+    if not project_members_with_tags:
+        return {
+            "agent_type": "task_assignment_agent",
+            "error": "프로젝트 멤버 정보가 필요합니다.",
+            "response": {
+                "type": "error",
+                "message": "프로젝트 멤버 정보가 없어 Task 할당 추천을 할 수 없습니다."
+            }
+        }
+    
+    prompt = create_task_assignment_prompt(task_title, task_description, project_members_with_tags)
+    system_prompt = "프로젝트 관리 전문가. Task 내용을 분석하여 적합한 담당자를 추천합니다. 반드시 한국어로만 응답. JSON만 응답."
+    
+    try:
+        content = call_llm_func(prompt, system_prompt)
+        
+        # JSON 파싱
+        if '```json' in content:
+            content = content.split('```json')[1].split('```')[0].strip()
+        elif '```' in content:
+            content = content.split('```')[1].split('```')[0].strip()
+        
+        content = content.strip()
+        if '{' in content:
+            content = content[content.find('{'):]
+        if '}' in content:
+            content = content[:content.rfind('}')+1]
+        
+        result = json.loads(content)
+        
+        recommended_user_id = result.get('recommendedUserId')
+        reason = result.get('reason', '')
+        confidence = result.get('confidence', 'medium')
+        
+        if recommended_user_id:
+            # 추천된 사용자 정보 찾기
+            recommended_user = next(
+                (m for m in project_members_with_tags if m.get('userId') == recommended_user_id),
+                None
+            )
+            user_name = recommended_user.get('nickname', 'Unknown') if recommended_user else 'Unknown'
+            
+            message = f"'{task_title}' Task는 {user_name}님에게 할당하는 것을 추천합니다. 이유: {reason}"
+        else:
+            message = f"적합한 담당자를 찾을 수 없습니다. {reason}"
+        
+        return {
+            "agent_type": "task_assignment_agent",
+            "response": {
+                "type": "task_assignment",
+                "recommendedUserId": recommended_user_id,
+                "reason": reason,
+                "confidence": confidence,
+                "message": message
+            }
+        }
+    except Exception as e:
+        print(f"[Agent Router] Task 할당 추천 agent 실행 실패: {e}")
+        return {
+            "agent_type": "task_assignment_agent",
+            "error": f"Task 할당 추천 실패: {str(e)}",
+            "response": {
+                "type": "error",
+                "message": "Task 할당 추천 중 오류가 발생했습니다."
             }
         }
 

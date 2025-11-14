@@ -22,6 +22,18 @@ CREATE TABLE IF NOT EXISTS users (
   INDEX idx_users_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- UserTags 테이블 (사용자별 직무 태그)
+CREATE TABLE IF NOT EXISTS user_tags (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  tag VARCHAR(50) NOT NULL COMMENT '직무 태그 (예: 백엔드, 프론트엔드, 디자이너)',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_user_tag (user_id, tag),
+  INDEX idx_user_tags_user (user_id),
+  INDEX idx_user_tags_tag (tag)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Projects 테이블
 CREATE TABLE IF NOT EXISTS projects (
   id INT AUTO_INCREMENT PRIMARY KEY,

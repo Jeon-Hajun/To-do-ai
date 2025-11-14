@@ -1061,6 +1061,31 @@ exports.chat = async function(req, res, next) {
           );
         });
         
+        // 프로젝트 멤버들의 Tag 정보 수집 (Task 할당을 위해)
+        const projectMembersWithTags = await new Promise((resolve, reject) => {
+          db.all(
+            `SELECT u.id as user_id, u.nickname, 
+                    GROUP_CONCAT(ut.tag) as tags
+             FROM project_members pm
+             JOIN users u ON pm.user_id = u.id
+             LEFT JOIN user_tags ut ON u.id = ut.user_id
+             WHERE pm.project_id = ?
+             GROUP BY u.id, u.nickname`,
+            [projectId],
+            function(err, rows) {
+              if (err) {
+                resolve([]);
+              } else {
+                resolve(rows.map(r => ({
+                  userId: r.user_id,
+                  nickname: r.nickname,
+                  tags: r.tags ? r.tags.split(',') : []
+                })));
+              }
+            }
+          );
+        });
+        
         // AI 백엔드로 요청 전달
         console.log('[AI Controller] chat - AI 백엔드로 요청 전송:', AI_BACKEND_URL);
         const aiResponse = await axios.post(
@@ -1076,7 +1101,8 @@ exports.chat = async function(req, res, next) {
               projectDescription: project.description || project.title,
               githubRepo: project.github_repo || null,
               projectStartDate: project.created_at || null,
-              projectDueDate: null
+              projectDueDate: null,
+              projectMembersWithTags: projectMembersWithTags
             }
           },
           {

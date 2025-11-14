@@ -7,6 +7,9 @@ var router = express.Router();
 // 프로젝트 생성
 router.post('/create', authenticateToken, projectController.create);
 
+// AI 기반 프로젝트 생성
+router.post('/create-with-ai', authenticateToken, projectController.createWithAI);
+
 // 프로젝트 코드 검증
 router.get('/validate-code', authenticateToken, projectController.validateCode);
 

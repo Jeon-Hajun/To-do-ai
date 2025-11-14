@@ -205,25 +205,73 @@ export default function ChatBot({ projectId, onError }) {
           </Box>
         )}
 
-        {!loadingHistory && messages.length === 0 && (
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-              color: "text.secondary",
-            }}
-          >
-            <Typography variant="body1" sx={{ mb: 1 }}>
-              안녕하세요! 프로젝트 관리 AI 어시스턴트입니다.
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              질문을 입력해주세요. 예: "진행도 알려줘", "할 일 추천해줘"
-            </Typography>
-          </Box>
-        )}
+            {!loadingHistory && messages.length === 0 && (
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: "100%",
+                  color: "text.secondary",
+                  p: 3,
+                }}
+              >
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: "bold" }}>
+                  안녕하세요! 프로젝트 관리 AI 어시스턴트입니다.
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 3, textAlign: "center" }}>
+                  다음과 같은 기능을 사용할 수 있습니다:
+                </Typography>
+                <Box sx={{ width: "100%", maxWidth: 500 }}>
+                  <Stack spacing={1}>
+                    <Paper sx={{ p: 1.5, bgcolor: "background.paper" }}>
+                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5 }}>
+                        📊 프로젝트 진행도 분석
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        "진행도 알려줘", "프로젝트 상태 분석해줘"
+                      </Typography>
+                    </Paper>
+                    <Paper sx={{ p: 1.5, bgcolor: "background.paper" }}>
+                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5 }}>
+                        💡 Task 제안
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        "할 일 추천해줘", "새로운 작업 제안해줘"
+                      </Typography>
+                    </Paper>
+                    <Paper sx={{ p: 1.5, bgcolor: "background.paper" }}>
+                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5 }}>
+                        ✅ Task 완료 확인
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        "이 작업 완료됐어?", "Task 완료 확인해줘"
+                      </Typography>
+                    </Paper>
+                    <Paper sx={{ p: 1.5, bgcolor: "background.paper" }}>
+                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5 }}>
+                        📝 프로젝트 정보 질문
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        "커밋 몇 개야?", "프로젝트 설명해줘", "작업 몇 개 있어?"
+                      </Typography>
+                    </Paper>
+                    <Paper sx={{ p: 1.5, bgcolor: "background.paper" }}>
+                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5 }}>
+                        👤 Task 할당 추천
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        "이 Task를 누구에게 할당하면 좋을까?", "Task 할당 추천해줘"
+                      </Typography>
+                    </Paper>
+                  </Stack>
+                </Box>
+                <Typography variant="body2" sx={{ mt: 3, color: "text.secondary" }}>
+                  위의 예시처럼 질문을 입력해주세요!
+                </Typography>
+              </Box>
+            )}
 
         {!loadingHistory &&
           messages.map((message) => (

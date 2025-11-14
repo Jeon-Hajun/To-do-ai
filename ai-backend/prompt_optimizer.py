@@ -341,7 +341,7 @@ def create_intent_classification_prompt(user_message, conversation_history=None,
     
     prompt = f"""당신은 프로젝트 관리 AI 어시스턴트의 의도 분류기입니다.
 
-사용자의 질의를 분석하여 다음 4가지 agent 중 하나를 선택해야 합니다:
+사용자의 질의를 분석하여 다음 5가지 agent 중 하나를 선택해야 합니다:
 
 1. **task_suggestion_agent**: 새로운 Task 제안이 필요한 경우
    - 예시: "할 일 추천해줘", "새로운 작업 제안해줘", "다음에 뭘 해야 할까?", "추가로 해야 할 일이 있어?"
@@ -352,10 +352,14 @@ def create_intent_classification_prompt(user_message, conversation_history=None,
 3. **task_completion_agent**: 특정 Task의 완료 여부 확인이 필요한 경우
    - 예시: "이 작업 완료됐어?", "Task 완료 확인해줘", "이 작업 상태 알려줘", "작업이 끝났는지 확인해줘"
 
-4. **general_qa_agent**: 프로젝트에 대한 일반적인 질문이나 정보 요청
+4. **task_assignment_agent**: Task 할당 추천이 필요한 경우
+   - 예시: "이 Task를 누구에게 할당하면 좋을까?", "Task 할당 추천해줘", "이 작업 누가 하면 좋을까?", "담당자 추천해줘"
+   - Task 제목이나 설명이 포함된 질문에서 담당자 추천을 요청하는 경우
+
+5. **general_qa_agent**: 프로젝트에 대한 일반적인 질문이나 정보 요청
    - 예시: "프로젝트 설명해줘", "커밋 몇 개야?", "작업 몇 개 있어?", "팀원 누가 있어?", "이 프로젝트 뭐야?", "프로젝트 정보 알려줘"
    - 프로젝트 정보, 통계, 상태 등에 대한 질문
-   - 단, 위 3가지 agent로 처리할 수 있는 질문은 해당 agent를 선택
+   - 단, 위 4가지 agent로 처리할 수 있는 질문은 해당 agent를 선택
 
 {project_info}
 
@@ -367,7 +371,7 @@ def create_intent_classification_prompt(user_message, conversation_history=None,
 ## 응답 형식
 다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
 {{
-  "agent_type": "task_suggestion_agent|progress_analysis_agent|task_completion_agent|general_qa_agent",
+  "agent_type": "task_suggestion_agent|progress_analysis_agent|task_completion_agent|task_assignment_agent|general_qa_agent",
   "confidence": "high|medium|low",
   "reason": "선택한 agent를 선택한 이유를 한국어로 설명",
   "extracted_info": {{
@@ -382,5 +386,68 @@ def create_intent_classification_prompt(user_message, conversation_history=None,
 - Task 제목이 명시되지 않은 경우 task_completion_agent를 선택하지 마세요
 - 프로젝트 정보나 통계에 대한 질문은 general_qa_agent 선택
 - 반드시 한국어로만 응답하세요."""
+    
+    return prompt
+
+def create_project_creation_prompt(natural_language_input):
+    """자연어 입력에서 프로젝트 정보를 추출하는 프롬프트 생성"""
+    prompt = f"""당신은 프로젝트 관리 AI 어시스턴트입니다. 사용자의 자연어 입력을 분석하여 프로젝트명과 설명을 추출하세요.
+
+⚠️ 중요: 반드시 한국어로만 응답하세요.
+
+## 사용자 입력:
+"{natural_language_input}"
+
+## 추출해야 할 정보:
+1. **프로젝트명 (title)**: 프로젝트의 제목을 추출하세요. 간결하고 명확하게 작성하세요.
+2. **프로젝트 설명 (description)**: 프로젝트의 목적, 기능, 기술 스택 등을 포함한 상세 설명을 작성하세요.
+
+## 규칙:
+- GitHub URL이나 저장소 정보는 추출하지 마세요 (제외)
+- 프로젝트명은 255자 이하로 작성하세요
+- 설명은 구체적이고 유용한 정보를 포함하세요
+- 사용자 입력이 모호한 경우, 합리적으로 추론하여 작성하세요
+- 한국어로 자연스럽게 작성하세요
+
+## 응답 형식
+다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
+{{
+  "title": "프로젝트명",
+  "description": "프로젝트에 대한 상세 설명"
+}}"""
+    
+    return prompt
+
+def create_task_assignment_prompt(task_title, task_description, project_members_with_tags):
+    """Task 할당을 위한 프롬프트 생성"""
+    members_info = ""
+    for member in project_members_with_tags:
+        tags_str = ", ".join(member.get('tags', [])) if member.get('tags') else "태그 없음"
+        members_info += f"- 사용자 ID {member['userId']} ({member.get('nickname', 'Unknown')}): {tags_str}\n"
+    
+    prompt = f"""당신은 프로젝트 관리 AI 어시스턴트입니다. Task의 내용을 분석하여 가장 적합한 담당자를 추천하세요.
+
+⚠️ 중요: 반드시 한국어로만 응답하세요.
+
+## Task 정보:
+제목: {task_title}
+설명: {task_description or '설명 없음'}
+
+## 프로젝트 멤버 정보:
+{members_info if members_info else "멤버 정보 없음"}
+
+## 추천 규칙:
+1. Task의 내용과 멤버의 태그(직무)를 매칭하여 추천하세요
+2. Task가 여러 직무를 포함하는 경우, 가장 핵심적인 직무를 담당하는 멤버를 추천하세요
+3. 적합한 멤버가 없는 경우, null을 반환하세요
+4. 추천 이유를 명확하게 설명하세요
+
+## 응답 형식
+다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
+{{
+  "recommendedUserId": 사용자ID 또는 null,
+  "reason": "추천 이유를 한국어로 설명",
+  "confidence": "high|medium|low"
+}}"""
     
     return prompt
