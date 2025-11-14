@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, Box, Button, CircularProgress, Typography } from "@mui/material";
 import ProjectDetailCard from "./ProjectDetailCard";
 import { List } from "../tasks";
-import ProjectGitHubTab from "../github/ProjectGitHubTab";
+import ProjectGitHubTab from "../GitHub/ProjectGitHubTab";
 import { useParams } from "react-router-dom";
 import { useAuthContext } from "../../context/AuthContext";
 import { useProjectDetail } from "../../hooks/useProjectDetail";
