@@ -417,7 +417,7 @@ exports.getInfo = function(req, res, next) {
   } else {
     // 프로젝트 목록 조회 (사용자가 멤버인 프로젝트)
     db.all(
-      `SELECT p.id, p.title, p.status, p.project_code, COUNT(pm.id) as member_count
+      `SELECT p.id, p.title, p.status, p.project_code, p.github_repo, p.github_token, COUNT(pm.id) as member_count
        FROM projects p 
        JOIN project_members pm ON p.id = pm.project_id
        WHERE pm.user_id = ?
@@ -444,7 +444,9 @@ exports.getInfo = function(req, res, next) {
               title: p.title,
               status: p.status,
               memberCount: p.member_count,
-              isShared: !!p.project_code
+              isShared: !!p.project_code,
+              githubRepo: p.github_repo || null,
+              hasGithubToken: !!p.github_token // 토큰 존재 여부만 반환 (보안)
             }))
           }
         });

@@ -5,6 +5,11 @@ from datetime import datetime
 import os
 import json
 import httpx
+from prompt_optimizer import (
+    create_optimized_task_suggestion_prompt,
+    create_optimized_progress_prompt,
+    create_optimized_completion_prompt
+)
 
 # Load environment variables
 load_dotenv()
@@ -14,7 +19,8 @@ CORS(app)
 
 # Ollama 설정 (로컬 모델)
 OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
-OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'qwen2.5:14b')
+# 모델 옵션: qwen2.5:7b (빠름), qwen2.5:3b (매우 빠름), qwen2.5:14b (정확함)
+OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'qwen2.5:14b')  # 기본값을 14b 모델로 변경
 
 # OpenAI 설정 (클라우드 모델 사용 시, 선택사항)
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', None)
@@ -52,6 +58,9 @@ def call_ollama(prompt, system_prompt="당신은 도움이 되는 AI 어시스�
         if not check_ollama_model():
             raise Exception(f"Ollama 모델 '{OLLAMA_MODEL}'이 설치되지 않았습니다. 다음 명령어로 설치하세요: ollama pull {OLLAMA_MODEL}")
         
+        print(f'[AI Backend] call_ollama - 프롬프트 길이: {len(prompt)} 문자, 시스템 프롬프트: {len(system_prompt)} 문자')
+        print(f'[AI Backend] call_ollama - Ollama URL: {OLLAMA_BASE_URL}, 모델: {OLLAMA_MODEL}')
+        
         response = httpx.post(
             f"{OLLAMA_BASE_URL}/api/chat",
             json={
@@ -62,7 +71,7 @@ def call_ollama(prompt, system_prompt="당신은 도움이 되는 AI 어시스�
                 ],
                 "stream": False
             },
-            timeout=120.0
+            timeout=300.0  # 5분으로 증가 (큰 모델의 경우 더 오래 걸릴 수 있음)
         )
         response.raise_for_status()
         return response.json()["message"]["content"]
@@ -127,6 +136,7 @@ def task_suggestion():
         "githubRepo": "..."
     }
     """
+    print('[AI Backend] task_suggestion 요청 수신')
     try:
         data = request.json
         commits = data.get('commits', [])
@@ -134,6 +144,8 @@ def task_suggestion():
         currentTasks = data.get('currentTasks', [])
         projectDescription = data.get('projectDescription', '')
         githubRepo = data.get('githubRepo', '')
+        
+        print(f'[AI Backend] task_suggestion - 데이터 수신: commits={len(commits)}, issues={len(issues)}, tasks={len(currentTasks)}')
 
         # 정보가 충분한지 확인
         hasCommits = len(commits) > 0
@@ -190,85 +202,23 @@ def task_suggestion():
             for label in labels:
                 issueLabels[label] = issueLabels.get(label, 0) + 1
 
-        # 현재 Task 정리
-        taskTitles = [task.get('title', '') for task in currentTasks]
-        taskStatuses = {}
-        for task in currentTasks:
-            status = task.get('status', 'todo')
-            taskStatuses[status] = taskStatuses.get(status, 0) + 1
-
-        # 프롬프트 생성
-        prompt = f"""당신은 소프트웨어 엔지니어링 전문가입니다. 프로젝트의 코드 변경 이력, 이슈, 현재 작업을 종합적으로 분석하여 다음 관점에서 Task를 제안해주세요:
-
-## 분석 관점
-1. **기능 개발**: 누락된 기능이나 개선이 필요한 기능
-2. **코드 품질**: 리팩토링이 필요한 영역 (복잡도, 중복 코드, 코드 냄새)
-3. **보안**: 잠재적 보안 취약점이나 보안 강화 필요 영역
-4. **성능**: 최적화가 필요한 부분
-5. **유지보수성**: 기술 부채나 개선이 필요한 부분
-
-## 프로젝트 정보
-프로젝트: {projectDescription}
-GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
-
-## 코드 변경 통계
-- 총 커밋 수: {len(recentCommits)}개
-- 총 추가된 라인: {totalLinesAdded}줄
-- 총 삭제된 라인: {totalLinesDeleted}줄
-- 주요 변경 파일 유형: {', '.join(list(fileChangePatterns.keys())[:5]) if fileChangePatterns else '없음'}
-
-## 최근 커밋 분석 (최근 {len(recentCommits)}개)
-{chr(10).join([f"- [{c['linesAdded']}+/{c['linesDeleted']}-, {c['filesChanged']}파일] {c['message']}" + (f" (주요 파일: {', '.join(c['files'][:3])})" if c['files'] else "") for c in commitAnalysis[:20]])}
-
-## 이슈 현황
-- 열린 이슈: {len(openIssues)}개
-- 주요 라벨: {', '.join(sorted(issueLabels.items(), key=lambda x: x[1], reverse=True)[:5]) if issueLabels else '없음'}
-{f"- 최근 이슈: {chr(10).join([f'  - #{{i[\"number\"]}}: {{i[\"title\"]}}' for i in openIssues[:5]])}" if openIssues else ""}
-
-## 현재 작업 현황
-- 총 작업 수: {len(currentTasks)}개
-- 작업 상태: {', '.join([f'{k}: {v}개' for k, v in taskStatuses.items()])}
-- 현재 작업 목록:
-{chr(10).join([f"  - {title}" for title in taskTitles[:10]])}
-
-## 분석 지시사항
-1. **코드 변경 패턴 분석**: 커밋 메시지와 파일 변경 패턴을 분석하여 개발 방향성 파악
-2. **복잡도 분석**: 대량의 코드 변경이 있는 파일이나 반복적인 변경이 있는 영역 식별
-3. **보안 이슈**: 커밋 메시지나 파일 경로에서 보안 관련 키워드나 패턴 발견
-4. **기능 격차**: 현재 작업 목록과 커밋 이력을 비교하여 누락된 기능 식별
-5. **기술 부채**: 리팩토링이 필요한 영역 (중복 코드, 복잡한 로직, 오래된 패턴 등)
-
-## 제안 형식
-다음 형식의 JSON 배열로 응답해주세요:
-[
-  {{
-    "title": "작업 제목 (명확하고 구체적으로)",
-    "description": "상세 설명 (왜 필요한지, 어떤 문제를 해결하는지)",
-    "category": "feature|refactor|security|performance|maintenance",
-    "priority": "High|Medium|Low",
-    "estimatedHours": 숫자,
-    "reason": "이 작업이 필요한 이유 (분석 근거)"
-  }}
-]
-
-## 제안 규칙
-- 최대 8개까지만 제안
-- 실제로 필요한 작업만 제안 (추측하지 말 것)
-- 각 카테고리별로 균형있게 제안
-- 정보가 부족한 경우 해당 카테고리는 제안하지 않음
-- High 우선순위는 보안 이슈나 심각한 기술 부채에만 부여
-- 반드시 유효한 JSON 배열 형식으로만 응답 (설명 없이 JSON만)"""
-
-        system_prompt = """당신은 경험이 풍부한 소프트웨어 엔지니어링 전문가입니다. 
-코드 변경 이력, 이슈, 작업 목록을 종합적으로 분석하여 프로젝트의 개선점을 찾아냅니다.
-코드 품질, 보안, 성능, 유지보수성 등 다양한 관점에서 실용적이고 구체적인 제안을 합니다.
-응답은 반드시 유효한 JSON 배열 형식이어야 하며, 추가 설명 없이 JSON만 반환합니다."""
+        # 최적화된 프롬프트 사용
+        prompt = create_optimized_task_suggestion_prompt(
+            commits, issues, currentTasks, projectDescription, githubRepo
+        )
+        
+        # 기존 프롬프트는 prompt_optimizer.py로 이동됨
+        
+        system_prompt = """소프트웨어 엔지니어링 전문가. 코드 분석 후 Task 제안. 반드시 한국어로 응답. JSON만 응답."""
 
         # OpenAI 또는 Ollama 호출
+        print(f'[AI Backend] task_suggestion - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
         if USE_OPENAI:
             content = call_openai(prompt, system_prompt)
         else:
             content = call_ollama(prompt, system_prompt)
+        
+        print(f'[AI Backend] task_suggestion - LLM 응답 수신 (길이: {len(content)} 문자)')
         
         # JSON 파싱 시도
         try:
@@ -289,6 +239,8 @@ GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
                 category_order.get(x.get('category', 'maintenance'), 99),
                 {'High': 0, 'Medium': 1, 'Low': 2}.get(x.get('priority', 'Low'), 2)
             ))
+            
+            print(f'[AI Backend] task_suggestion - 제안 생성 완료: {len(suggestions)}개')
                 
             return jsonify({
                 'suggestions': suggestions,
@@ -301,8 +253,8 @@ GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
             })
         except json.JSONDecodeError as e:
             # JSON 파싱 실패 시 텍스트 기반으로 간단한 응답 반환
-            print(f"JSON 파싱 실패: {e}")
-            print(f"응답 내용: {content[:500]}")
+            print(f"[AI Backend] task_suggestion - JSON 파싱 실패: {e}")
+            print(f"[AI Backend] task_suggestion - 응답 내용 (처음 500자): {content[:500]}")
             return jsonify({
                 'suggestions': [
                     {
@@ -324,7 +276,9 @@ GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
             })
 
     except Exception as e:
-        print(f"Task 제안 오류: {str(e)}")
+        print(f"[AI Backend] task_suggestion - 예외 발생: {str(e)}")
+        import traceback
+        print(f"[AI Backend] task_suggestion - 트레이스백:\n{traceback.format_exc()}")
         return jsonify({
             'error': f'작업 제안 생성 실패: {str(e)}'
         }), 500
@@ -342,6 +296,7 @@ def progress_analysis():
         "projectDueDate": "..."  # 선택사항
     }
     """
+    print('[AI Backend] progress_analysis 요청 수신')
     try:
         data = request.json
         commits = data.get('commits', [])
@@ -349,11 +304,25 @@ def progress_analysis():
         projectDescription = data.get('projectDescription', '')
         projectStartDate = data.get('projectStartDate', None)
         projectDueDate = data.get('projectDueDate', None)
+        
+        print(f'[AI Backend] progress_analysis - 데이터 수신: commits={len(commits)}, tasks={len(tasks)}')
 
+        # 데이터가 없어도 기본 분석 제공
         if not commits and not tasks:
             return jsonify({
-                'error': '분석할 데이터가 부족합니다.'
-            }), 400
+                'currentProgress': 0,
+                'activityTrend': 'stable',
+                'estimatedCompletionDate': None,
+                'delayRisk': 'Low',
+                'insights': [
+                    '프로젝트가 시작 단계입니다. 커밋이나 작업 데이터가 없어 정확한 분석이 어렵습니다.',
+                    'GitHub 저장소를 연결하고 작업을 추가하면 더 정확한 분석을 받을 수 있습니다.'
+                ],
+                'recommendations': [
+                    'GitHub 저장소를 연결하여 커밋 이력을 동기화하세요.',
+                    '프로젝트 작업(Task)을 추가하여 진행 상황을 추적하세요.'
+                ]
+            })
 
         # Task 통계
         taskStats = {
@@ -396,79 +365,55 @@ def progress_analysis():
                 except:
                     pass
 
-        prompt = f"""당신은 프로젝트 관리 전문가입니다. 다음 정보를 분석하여 프로젝트의 진행도를 평가하고 예측해주세요.
+        # 최적화된 프롬프트 사용
+        prompt = create_optimized_progress_prompt(
+            commits, tasks, projectDescription, projectStartDate, projectDueDate
+        )
+        
+        # 기존 프롬프트는 prompt_optimizer.py로 이동됨
+        
+        system_prompt = """프로젝트 관리 전문가. 진행도 분석 및 예측. 반드시 한국어로 응답. JSON만 응답."""
 
-## 프로젝트 정보
-프로젝트: {projectDescription}
-프로젝트 시작일: {projectStartDate if projectStartDate else '알 수 없음'}
-프로젝트 마감일: {projectDueDate if projectDueDate else '알 수 없음'}
-
-## Task 현황
-- 총 Task: {taskStats['total']}개
-- 대기 중: {taskStats['todo']}개
-- 진행 중: {taskStats['inProgress']}개
-- 완료: {taskStats['done']}개
-- Task 진행률: {round((taskStats['done'] / taskStats['total'] * 100) if taskStats['total'] > 0 else 0)}%
-
-## 코드 활동 현황
-- 총 커밋 수: {commitStats['total']}개
-- 총 추가된 라인: {commitStats['totalLinesAdded']}줄
-- 총 삭제된 라인: {commitStats['totalLinesDeleted']}줄
-- 최근 7일 커밋: {len(recent_week_commits)}개
-- 최근 30일 커밋: {len(recent_month_commits)}개
-
-## 분석 요청사항
-1. **현재 진행도 평가**: Task 진행률과 코드 활동을 종합하여 실제 진행도를 평가 (0-100%)
-2. **활동 패턴 분석**: 최근 활동이 증가/감소 추세인지 분석
-3. **완료 예측**: 현재 속도로 예상되는 완료 시기
-4. **지연 위험도**: 마감일 대비 지연 가능성 평가 (Low/Medium/High)
-5. **개선 제안**: 진행도를 높이기 위한 구체적인 제안
-
-다음 형식의 JSON으로 응답해주세요:
-{{
-  "currentProgress": 숫자 (0-100),
-  "activityTrend": "increasing|stable|decreasing",
-  "estimatedCompletionDate": "YYYY-MM-DD 또는 null",
-  "delayRisk": "Low|Medium|High",
-  "insights": [
-    "분석 인사이트 1",
-    "분석 인사이트 2"
-  ],
-  "recommendations": [
-    "개선 제안 1",
-    "개선 제안 2"
-  ]
-}}
-
-반드시 유효한 JSON 형식으로만 응답해주세요."""
-
-        system_prompt = """당신은 경험이 풍부한 프로젝트 관리 전문가입니다.
-Task 진행률, 코드 활동, 시간 경과를 종합적으로 분석하여 정확한 진행도 평가와 예측을 제공합니다.
-응답은 반드시 유효한 JSON 형식이어야 하며, 추가 설명 없이 JSON만 반환합니다."""
-
+        print(f'[AI Backend] progress_analysis - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
         if USE_OPENAI:
             content = call_openai(prompt, system_prompt)
         else:
             content = call_ollama(prompt, system_prompt)
         
+        print(f'[AI Backend] progress_analysis - LLM 응답 수신 (길이: {len(content)} 문자)')
+        
         try:
+            # JSON 코드 블록 제거
             if '```json' in content:
                 content = content.split('```json')[1].split('```')[0].strip()
             elif '```' in content:
                 content = content.split('```')[1].split('```')[0].strip()
             
+            # 앞뒤 공백 및 불필요한 텍스트 제거
+            content = content.strip()
+            # JSON 객체 시작 부분 찾기
+            if '{' in content:
+                content = content[content.find('{'):]
+            # JSON 객체 끝 부분 찾기
+            if '}' in content:
+                content = content[:content.rfind('}')+1]
+            
+            print(f'[AI Backend] progress_analysis - 파싱할 내용 (처음 200자): {content[:200]}')
             analysis = json.loads(content)
+            print(f'[AI Backend] progress_analysis - 분석 완료: {list(analysis.keys())}')
             return jsonify(analysis)
         except json.JSONDecodeError as e:
-            print(f"JSON 파싱 실패: {e}")
-            print(f"응답 내용: {content[:500]}")
+            print(f"[AI Backend] progress_analysis - JSON 파싱 실패: {e}")
+            print(f"[AI Backend] progress_analysis - 응답 내용 (처음 500자): {content[:500]}")
             return jsonify({
                 'error': '분석 결과 파싱 실패',
                 'rawResponse': content[:200]
             }), 500
 
     except Exception as e:
-        print(f"진행도 분석 오류: {str(e)}")
+        print(f"[AI Backend] progress_analysis - 예외 발생: {str(e)}")
+        import traceback
+        print(f"[AI Backend] progress_analysis - 트레이스백:\n{traceback.format_exc()}")
         return jsonify({
             'error': f'진행도 분석 실패: {str(e)}'
         }), 500
@@ -489,11 +434,14 @@ def task_completion_check():
         "projectDescription": "..."
     }
     """
+    print('[AI Backend] task_completion_check 요청 수신')
     try:
         data = request.json
         task = data.get('task', {})
         commits = data.get('commits', [])
         projectDescription = data.get('projectDescription', '')
+        
+        print(f'[AI Backend] task_completion_check - 데이터 수신: task={task.get("title", "N/A")}, commits={len(commits)}')
 
         if not task:
             return jsonify({
@@ -503,14 +451,9 @@ def task_completion_check():
         taskTitle = task.get('title', '')
         taskDescription = task.get('description', '')
         currentStatus = task.get('status', 'todo')
-
-        if not commits:
-            return jsonify({
-                'isCompleted': False,
-                'confidence': 'low',
-                'reason': '관련 커밋이 없습니다.',
-                'recommendation': 'Task와 관련된 커밋이 없어 완료 여부를 판단할 수 없습니다.'
-            })
+        
+        # AI가 모든 커밋을 분석하여 관련성을 판단하도록 함
+        # 단순 로직 판단 제거 - AI가 지능적으로 판단
 
         # 커밋 메시지와 파일 변경 정보 정리
         commitAnalysis = []
@@ -524,66 +467,138 @@ def task_completion_check():
                 'linesDeleted': commit.get('linesDeleted', 0) or 0
             })
 
-        prompt = f"""당신은 코드 리뷰 전문가입니다. Task의 요구사항과 실제 코드 변경사항을 비교하여 Task 완료 여부를 판단해주세요.
-
-## Task 정보
-제목: {taskTitle}
-설명: {taskDescription}
-현재 상태: {currentStatus}
-
-## 관련 커밋 및 코드 변경사항
-{chr(10).join([f"- 커밋: {c['message']} (+{c['linesAdded']}/-{c['linesDeleted']} 라인)" + (f" (파일: {', '.join(c['files'][:3])})" if c['files'] else "") for c in commitAnalysis])}
-
-## 판단 기준
-1. **요구사항 매칭**: Task의 제목과 설명에 명시된 요구사항이 커밋 메시지나 파일 변경사항에서 구현되었는지 확인
-2. **완성도 평가**: 부분적으로 완료되었는지, 완전히 완료되었는지 평가
-3. **신뢰도**: 판단의 신뢰도 (high/medium/low)
-
-## 응답 형식
-다음 형식의 JSON으로 응답해주세요:
-{{
-  "isCompleted": true|false,
-  "completionPercentage": 숫자 (0-100),
-  "confidence": "high|medium|low",
-  "reason": "판단 근거 (왜 완료되었거나 완료되지 않았는지)",
-  "evidence": [
-    "근거 1 (커밋 메시지나 파일 변경사항에서 발견된 증거)",
-    "근거 2"
-  ],
-  "recommendation": "추가 작업이 필요한지, 또는 완료 처리해도 되는지에 대한 제안"
-}}
-
-반드시 유효한 JSON 형식으로만 응답해주세요."""
-
-        system_prompt = """당신은 경험이 풍부한 코드 리뷰 전문가입니다.
-Task 요구사항과 실제 코드 변경사항을 정확히 비교하여 완료 여부를 판단합니다.
-응답은 반드시 유효한 JSON 형식이어야 하며, 추가 설명 없이 JSON만 반환합니다."""
-
-        if USE_OPENAI:
-            content = call_openai(prompt, system_prompt)
-        else:
-            content = call_ollama(prompt, system_prompt)
+        # 에이전트 방식: 프롬프트 체이닝
+        from prompt_optimizer import create_initial_completion_prompt, create_followup_completion_prompt
         
+        system_prompt = """당신은 코드 리뷰 전문가입니다. Task 완료 여부를 판단합니다.
+
+중요 규칙:
+1. 반드시 한국어로만 응답하세요. 중국어, 영어 등 다른 언어는 절대 사용하지 마세요.
+2. JSON 형식으로만 응답하세요.
+3. 사용자가 지정한 Task만 분석하세요. 다른 Task는 무시하세요."""
+
+        # 1차 분석: 초기 평가 및 추가 탐색 필요성 판단
+        print(f'[AI Backend] task_completion_check - 1차 분석 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
+        initial_prompt = create_initial_completion_prompt(task, commits, projectDescription)
+        
+        if USE_OPENAI:
+            initial_content = call_openai(initial_prompt, system_prompt)
+        else:
+            initial_content = call_ollama(initial_prompt, system_prompt)
+        
+        print(f'[AI Backend] task_completion_check - 1차 분석 응답 수신 (길이: {len(initial_content)} 문자)')
+        
+        # JSON 파싱 (강화된 전처리)
         try:
-            if '```json' in content:
-                content = content.split('```json')[1].split('```')[0].strip()
-            elif '```' in content:
-                content = content.split('```')[1].split('```')[0].strip()
+            # 코드 블록 제거
+            if '```json' in initial_content:
+                initial_content = initial_content.split('```json')[1].split('```')[0].strip()
+            elif '```' in initial_content:
+                initial_content = initial_content.split('```')[1].split('```')[0].strip()
             
-            result = json.loads(content)
-            return jsonify(result)
+            # 앞뒤 공백 제거
+            initial_content = initial_content.strip()
+            
+            # JSON 객체 시작 부분 찾기
+            if '{' in initial_content:
+                start_idx = initial_content.find('{')
+                initial_content = initial_content[start_idx:]
+            
+            # JSON 객체 끝 부분 찾기
+            if '}' in initial_content:
+                # 마지막 } 찾기 (중첩된 객체 고려)
+                last_brace_idx = initial_content.rfind('}')
+                initial_content = initial_content[:last_brace_idx+1]
+            
+            print(f'[AI Backend] task_completion_check - 1차 분석 파싱할 내용 (처음 200자): {initial_content[:200]}')
+            initial_result = json.loads(initial_content)
+            print(f'[AI Backend] task_completion_check - 1차 분석 완료: needsMoreInfo={initial_result.get("needsMoreInfo", False)}')
+            
+            # 추가 정보가 필요한 경우 2차 분석 수행
+            if initial_result.get("needsMoreInfo", False):
+                print(f'[AI Backend] task_completion_check - 추가 탐색 필요: {initial_result.get("searchStrategy", "N/A")}')
+                print(f'[AI Backend] task_completion_check - 예상 위치: {initial_result.get("expectedLocation", "N/A")}')
+                
+                # 2차 분석: 추가 탐색 후 최종 판단
+                print(f'[AI Backend] task_completion_check - 2차 분석 시작')
+                followup_prompt = create_followup_completion_prompt(task, initial_result, commits, projectDescription)
+                
+                if USE_OPENAI:
+                    followup_content = call_openai(followup_prompt, system_prompt)
+                else:
+                    followup_content = call_ollama(followup_prompt, system_prompt)
+                
+                print(f'[AI Backend] task_completion_check - 2차 분석 응답 수신 (길이: {len(followup_content)} 문자)')
+                
+                # JSON 파싱 (강화된 전처리)
+                if '```json' in followup_content:
+                    followup_content = followup_content.split('```json')[1].split('```')[0].strip()
+                elif '```' in followup_content:
+                    followup_content = followup_content.split('```')[1].split('```')[0].strip()
+                
+                # 앞뒤 공백 제거
+                followup_content = followup_content.strip()
+                
+                # JSON 객체 시작 부분 찾기
+                if '{' in followup_content:
+                    start_idx = followup_content.find('{')
+                    followup_content = followup_content[start_idx:]
+                
+                # JSON 객체 끝 부분 찾기
+                if '}' in followup_content:
+                    last_brace_idx = followup_content.rfind('}')
+                    followup_content = followup_content[:last_brace_idx+1]
+                
+                print(f'[AI Backend] task_completion_check - 2차 분석 파싱할 내용 (처음 200자): {followup_content[:200]}')
+                final_result = json.loads(followup_content)
+                
+                # 1차 분석 결과와 통합
+                final_result['initialAnalysis'] = {
+                    'expectedLocation': initial_result.get('expectedLocation'),
+                    'searchStrategy': initial_result.get('searchStrategy'),
+                    'currentAnalysis': initial_result.get('currentAnalysis')
+                }
+                final_result['analysisSteps'] = 2
+                
+                print(f'[AI Backend] task_completion_check - 최종 분석 완료: isCompleted={final_result.get("isCompleted", "N/A")}, confidence={final_result.get("confidence", "N/A")}')
+                return jsonify(final_result)
+            else:
+                # 충분한 정보가 있으면 1차 결과 반환
+                initial_result['analysisSteps'] = 1
+                print(f'[AI Backend] task_completion_check - 1차 분석으로 충분: isCompleted={initial_result.get("isCompleted", "N/A")}')
+                return jsonify(initial_result)
+                
         except json.JSONDecodeError as e:
-            print(f"JSON 파싱 실패: {e}")
-            print(f"응답 내용: {content[:500]}")
+            print(f"[AI Backend] task_completion_check - JSON 파싱 실패: {e}")
+            print(f"[AI Backend] task_completion_check - 응답 내용 (전체): {initial_content}")
+            
+            # 재시도: 더 공격적인 전처리
+            try:
+                # JSON 부분만 추출 시도
+                import re
+                json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', initial_content, re.DOTALL)
+                if json_match:
+                    cleaned_content = json_match.group(0)
+                    print(f"[AI Backend] task_completion_check - 정규식으로 JSON 추출 시도")
+                    initial_result = json.loads(cleaned_content)
+                    initial_result['analysisSteps'] = 1
+                    print(f"[AI Backend] task_completion_check - 재시도 성공")
+                    return jsonify(initial_result)
+            except:
+                pass
+            
             return jsonify({
                 'isCompleted': False,
                 'confidence': 'low',
-                'reason': 'AI 응답 파싱 실패',
-                'recommendation': '수동으로 확인이 필요합니다.'
+                'reason': f'AI 응답 파싱 실패: {str(e)}',
+                'recommendation': '수동으로 확인이 필요합니다.',
+                'rawResponse': initial_content[:500] if len(initial_content) > 500 else initial_content
             })
 
     except Exception as e:
-        print(f"Task 완료 여부 판단 오류: {str(e)}")
+        print(f"[AI Backend] task_completion_check - 예외 발생: {str(e)}")
+        import traceback
+        print(f"[AI Backend] task_completion_check - 트레이스백:\n{traceback.format_exc()}")
         return jsonify({
             'error': f'Task 완료 여부 판단 실패: {str(e)}'
         }), 500
