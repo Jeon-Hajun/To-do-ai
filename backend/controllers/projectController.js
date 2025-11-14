@@ -786,7 +786,7 @@ exports.validateCode = function(req, res, next) {
 
 // 프로젝트 수정 (owner만)
 exports.update = function(req, res, next) {
-  const { projectId, title, description, status } = req.body;
+  const { projectId, title, description, status, githubRepo, githubToken } = req.body;
   const userId = req.user.userId;
   
   // 입력 검증
@@ -824,6 +824,20 @@ exports.update = function(req, res, next) {
         error: { 
           code: 'INVALID_INPUT',
           message: descriptionValidation.message
+        }
+      });
+    }
+  }
+  
+  // GitHub URL 검증 (제공된 경우)
+  if (githubRepo !== undefined) {
+    const githubUrlValidation = validateGitHubUrl(githubRepo);
+    if (!githubUrlValidation.valid) {
+      return res.status(400).json({ 
+        success: false,
+        error: { 
+          code: 'INVALID_INPUT',
+          message: githubUrlValidation.message
         }
       });
     }
@@ -882,6 +896,28 @@ exports.update = function(req, res, next) {
         }
         updates.push('status = ?');
         values.push(status);
+      }
+      
+      // GitHub 저장소 URL 업데이트
+      if (githubRepo !== undefined) {
+        updates.push('github_repo = ?');
+        values.push(githubRepo);
+      }
+      
+      // GitHub 토큰 업데이트 처리
+      if (githubToken !== undefined) {
+        // 마스킹된 값("••••••••••••••••")이면 기존 토큰 유지 (업데이트하지 않음)
+        if (githubToken === "••••••••••••••••") {
+          // 기존 토큰 유지 (업데이트하지 않음)
+        } else if (githubToken === "") {
+          // 빈 문자열이면 null로 설정 (토큰 제거)
+          updates.push('github_token = ?');
+          values.push(null);
+        } else {
+          // 새 토큰으로 업데이트
+          updates.push('github_token = ?');
+          values.push(githubToken);
+        }
       }
       
       if (updates.length === 0) {
