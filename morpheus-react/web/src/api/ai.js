@@ -9,17 +9,11 @@ const API_URL = API_ENDPOINTS.AI;
 const callApi = async (method, url, data = null) => {
   console.log('[AI API] 요청 시작:', { method, url, data });
   
-<<<<<<< HEAD
   let headers;
   try {
     headers = getAuthHeader();
   } catch (err) {
     console.error('[AI API] 인증 헤더 생성 실패:', err.message);
-=======
-  const headers = getAuthHeaders();
-  if (!headers) {
-    console.error('[AI API] 인증 헤더 없음 - 로그인 필요');
->>>>>>> f5130bc7088de00fd304633bff471ad049e5fd46
     return { success: false, error: { message: "로그인 필요" } };
   }
 
