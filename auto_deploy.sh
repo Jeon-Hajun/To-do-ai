@@ -7,7 +7,7 @@ set timeout 30
 set SSH_HOST "webdev@220.69.240.143"
 set SSH_PORT "22001"
 set SSH_PASSWORD "webroqkfwk2025"
-set PROJECT_DIR "/home/webdev/to-do-ai"
+set PROJECT_DIR "/home/webdev/AutoPM/To-do-ai"
 
 puts "=========================================="
 puts "서버 자동 배포 시작"

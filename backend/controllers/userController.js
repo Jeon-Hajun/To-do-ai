@@ -597,3 +597,170 @@ exports.deleteMe = function(req, res, next) {
   });
 };
 
+// 사용자 Tag 추가
+exports.addTag = function(req, res, next) {
+  const { userId } = req.params;
+  const { tag } = req.body;
+  const currentUserId = req.user.userId;
+  
+  // 본인만 태그 추가 가능
+  if (parseInt(userId) !== currentUserId) {
+    return res.status(403).json({ 
+      success: false,
+      error: { 
+        code: 'FORBIDDEN',
+        message: '본인의 태그만 추가할 수 있습니다.' 
+      }
+    });
+  }
+  
+  if (!tag || !tag.trim()) {
+    return res.status(400).json({ 
+      success: false,
+      error: { 
+        code: 'INVALID_INPUT',
+        message: '태그가 필요합니다.' 
+      }
+    });
+  }
+  
+  const tagValue = tag.trim();
+  
+  // 중복 확인
+  db.get(
+    'SELECT id FROM user_tags WHERE user_id = ? AND tag = ?',
+    [userId, tagValue],
+    function(err, existing) {
+      if (err) {
+        console.error('태그 중복 확인 오류:', err);
+        return res.status(500).json({ 
+          success: false,
+          error: { 
+            code: 'SERVER_ERROR',
+            message: '서버 오류가 발생했습니다.' 
+          }
+        });
+      }
+      
+      if (existing) {
+        return res.status(400).json({ 
+          success: false,
+          error: { 
+            code: 'DUPLICATE_TAG',
+            message: '이미 존재하는 태그입니다.' 
+          }
+        });
+      }
+      
+      // 태그 추가
+      db.run(
+        'INSERT INTO user_tags (user_id, tag) VALUES (?, ?)',
+        [userId, tagValue],
+        function(err) {
+          if (err) {
+            console.error('태그 추가 오류:', err);
+            return res.status(500).json({ 
+              success: false,
+              error: { 
+                code: 'SERVER_ERROR',
+                message: '서버 오류가 발생했습니다.' 
+              }
+            });
+          }
+          
+          res.status(201).json({
+            success: true,
+            data: {
+              id: this.lastID,
+              tag: tagValue
+            },
+            message: '태그가 추가되었습니다.'
+          });
+        }
+      );
+    }
+  );
+};
+
+// 사용자 Tag 삭제
+exports.removeTag = function(req, res, next) {
+  const { userId, tag } = req.params;
+  const currentUserId = req.user.userId;
+  
+  // 본인만 태그 삭제 가능
+  if (parseInt(userId) !== currentUserId) {
+    return res.status(403).json({ 
+      success: false,
+      error: { 
+        code: 'FORBIDDEN',
+        message: '본인의 태그만 삭제할 수 있습니다.' 
+      }
+    });
+  }
+  
+  db.run(
+    'DELETE FROM user_tags WHERE user_id = ? AND tag = ?',
+    [userId, tag],
+    function(err) {
+      if (err) {
+        console.error('태그 삭제 오류:', err);
+        return res.status(500).json({ 
+          success: false,
+          error: { 
+            code: 'SERVER_ERROR',
+            message: '서버 오류가 발생했습니다.' 
+          }
+        });
+      }
+      
+      if (this.changes === 0) {
+        return res.status(404).json({ 
+          success: false,
+          error: { 
+            code: 'TAG_NOT_FOUND',
+            message: '태그를 찾을 수 없습니다.' 
+          }
+        });
+      }
+      
+      res.json({
+        success: true,
+        message: '태그가 삭제되었습니다.'
+      });
+    }
+  );
+};
+
+// 사용자 Tag 목록 조회
+exports.getTags = function(req, res, next) {
+  const { userId } = req.params;
+  
+  db.all(
+    'SELECT id, tag, created_at FROM user_tags WHERE user_id = ? ORDER BY created_at ASC',
+    [userId],
+    function(err, tags) {
+      if (err) {
+        console.error('태그 목록 조회 오류:', err);
+        return res.status(500).json({ 
+          success: false,
+          error: { 
+            code: 'SERVER_ERROR',
+            message: '서버 오류가 발생했습니다.' 
+          }
+        });
+      }
+      
+      res.json({
+        success: true,
+        data: {
+          tags: (tags || []).map(t => ({
+            id: t.id,
+            tag: t.tag,
+            createdAt: t.created_at
+          }))
+        }
+      });
+    }
+  );
+};
+

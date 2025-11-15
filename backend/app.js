@@ -22,9 +22,16 @@ var app = express();
 app.use(helmet());
 
 // CORS configuration
+// 환경변수에서 가져오거나 기본값 사용
+// CORS_ORIGIN=http://localhost:5175,http://220.69.240.143:5175 (여러 개는 쉼표로 구분)
+const getDefaultCorsOrigin = () => {
+  const port = process.env.VITE_PORT || '5175';
+  return [`http://localhost:${port}`];
+};
+
 const allowedOrigins = process.env.CORS_ORIGIN 
-  ? process.env.CORS_ORIGIN.split(',')
-  : ['http://localhost:5175'];
+  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+  : getDefaultCorsOrigin();
 
 app.use(cors({
   origin: function (origin, callback) {

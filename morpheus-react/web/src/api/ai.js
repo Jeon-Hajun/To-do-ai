@@ -140,5 +140,70 @@ export const checkTaskCompletion = async (projectId, taskId) => {
   return result;
 };
 
+/**
+ * 챗봇 메시지 전송
+ * @param {number} projectId - 프로젝트 ID
+ * @param {string} message - 사용자 메시지
+ * @param {Array} conversationHistory - 대화 히스토리 (선택사항)
+ * @returns {Promise<Object>} { success, data: { conversationId, agentType, message, response }, error }
+ */
+export const sendChatMessage = async (projectId, message, conversationHistory = []) => {
+  console.log('[AI API] sendChatMessage 호출:', { projectId, messageLength: message.length });
+  
+  if (!projectId) {
+    console.error('[AI API] sendChatMessage - projectId 없음');
+    return { success: false, error: { message: "프로젝트 ID 필요" } };
+  }
+  if (!message || !message.trim()) {
+    console.error('[AI API] sendChatMessage - message 없음');
+    return { success: false, error: { message: "메시지 필요" } };
+  }
+  
+  const result = await callApi("post", `${API_URL}/chat`, {
+    projectId,
+    message: message.trim(),
+    conversationHistory
+  });
+  
+  console.log('[AI API] sendChatMessage 결과:', { success: result.success, hasData: !!result.data });
+  return result;
+};
 
+/**
+ * 대화 히스토리 조회
+ * @param {number} projectId - 프로젝트 ID
+ * @returns {Promise<Object>} { success, data: { conversationId, messages }, error }
+ */
+export const getChatHistory = async (projectId) => {
+  console.log('[AI API] getChatHistory 호출:', { projectId });
+  
+  if (!projectId) {
+    console.error('[AI API] getChatHistory - projectId 없음');
+    return { success: false, error: { message: "프로젝트 ID 필요" } };
+  }
+  
+  const result = await callApi("get", `${API_URL}/chat/history/${projectId}`);
+  
+  console.log('[AI API] getChatHistory 결과:', { success: result.success, hasData: !!result.data });
+  return result;
+};
+
+/**
+ * 대화 세션 초기화 (컨텍스트 초기화)
+ * @param {number} conversationId - 대화 세션 ID
+ * @returns {Promise<Object>} { success, message, error }
+ */
+export const clearConversation = async (conversationId) => {
+  console.log('[AI API] clearConversation 호출:', { conversationId });
+  
+  if (!conversationId) {
+    console.error('[AI API] clearConversation - conversationId 없음');
+    return { success: false, error: { message: "대화 세션 ID 필요" } };
+  }
+  
+  const result = await callApi("delete", `${API_URL}/chat/conversation/${conversationId}`);
+  
+  console.log('[AI API] clearConversation 결과:', { success: result.success });
+  return result;
+};
 

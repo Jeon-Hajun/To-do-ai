@@ -60,3 +60,5 @@ echo "cd $PROJECT_DIR/morpheus-react/web"
 echo "npm run build  # 또는 개발 모드: npm run dev"
 echo "pm2 restart frontend"
 
+
+

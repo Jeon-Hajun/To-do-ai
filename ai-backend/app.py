@@ -8,8 +8,11 @@ import httpx
 from prompt_optimizer import (
     create_optimized_task_suggestion_prompt,
     create_optimized_progress_prompt,
-    create_optimized_completion_prompt
+    create_optimized_completion_prompt,
+    create_project_creation_prompt,
+    create_task_assignment_prompt
 )
+from agent_router import classify_intent, route_to_agent
 
 # Load environment variables
 load_dotenv()
@@ -601,6 +604,257 @@ def task_completion_check():
         print(f"[AI Backend] task_completion_check - 트레이스백:\n{traceback.format_exc()}")
         return jsonify({
             'error': f'Task 완료 여부 판단 실패: {str(e)}'
+        }), 500
+
+@app.route('/api/ai/chat', methods=['POST'])
+def chat():
+    """
+    챗봇 API - 사용자 메시지를 받아 적절한 agent를 선택하고 실행
+    Request Body:
+    {
+        "message": "사용자 메시지",
+        "projectId": 1,
+        "conversationHistory": [...],  # 선택사항: 대화 히스토리
+        "context": {
+            "commits": [...],
+            "issues": [...],
+            "tasks": [...],
+            "currentTasks": [...],
+            "projectDescription": "...",
+            "githubRepo": "...",
+            "projectStartDate": "...",
+            "projectDueDate": "...",
+            "task": {...}  # task_completion_agent인 경우
+        }
+    }
+    """
+    print('[AI Backend] chat 요청 수신')
+    try:
+        data = request.json
+        user_message = data.get('message', '').strip()
+        conversation_history = data.get('conversationHistory', [])
+        context = data.get('context', {})
+        
+        if not user_message:
+            return jsonify({
+                'error': '메시지가 필요합니다.'
+            }), 400
+        
+        print(f'[AI Backend] chat - 메시지: {user_message[:50]}..., 히스토리: {len(conversation_history)}개')
+        
+        # LLM 호출 함수 정의
+        def call_llm(prompt, system_prompt):
+            if USE_OPENAI:
+                return call_openai(prompt, system_prompt)
+            else:
+                return call_ollama(prompt, system_prompt)
+        
+        # 1. 의도 분류
+        print('[AI Backend] chat - 의도 분류 시작')
+        # 프로젝트 컨텍스트 요약 정보 전달
+        project_context_summary = {
+            'projectDescription': context.get('projectDescription', ''),
+            'commits': context.get('commits', [])[:10],  # 최근 10개만
+            'tasks': context.get('tasks', [])[:10],  # 최근 10개만
+            'issues': context.get('issues', [])[:10]  # 최근 10개만
+        }
+        intent_result = classify_intent(user_message, conversation_history, call_llm, project_context_summary)
+        agent_type = intent_result.get('agent_type', 'general_qa_agent')
+        confidence = intent_result.get('confidence', 'medium')
+        
+        print(f'[AI Backend] chat - 선택된 agent: {agent_type}, 신뢰도: {confidence}')
+        
+        # 2. Agent 실행
+        print(f'[AI Backend] chat - {agent_type} 실행 시작')
+        agent_result = route_to_agent(agent_type, context, call_llm, user_message)
+        
+        # 3. 응답 구성
+        response = {
+            'agent_type': agent_type,
+            'intent_classification': {
+                'confidence': confidence,
+                'reason': intent_result.get('reason', ''),
+                'extracted_info': intent_result.get('extracted_info', {})
+            },
+            'response': agent_result.get('response', {}),
+            'message': agent_result.get('response', {}).get('message', '응답을 생성했습니다.')
+        }
+        
+        if 'error' in agent_result:
+            response['error'] = agent_result['error']
+        
+        print(f'[AI Backend] chat - 응답 생성 완료')
+        return jsonify(response)
+        
+    except Exception as e:
+        print(f"[AI Backend] chat - 예외 발생: {str(e)}")
+        import traceback
+        print(f"[AI Backend] chat - 트레이스백:\n{traceback.format_exc()}")
+        return jsonify({
+            'error': f'챗봇 응답 생성 실패: {str(e)}'
+        }), 500
+
+@app.route('/api/ai/create-project', methods=['POST'])
+def create_project():
+    """
+    자연어 입력을 받아 프로젝트 정보를 추출하는 API
+    Request Body:
+    {
+        "naturalLanguageInput": "React로 쇼핑몰 만들기"
+    }
+    """
+    print('[AI Backend] create-project 요청 수신')
+    try:
+        data = request.json
+        natural_language_input = data.get('naturalLanguageInput', '').strip()
+        
+        if not natural_language_input:
+            return jsonify({
+                'error': '자연어 입력이 필요합니다.'
+            }), 400
+        
+        print(f'[AI Backend] create-project - 입력: {natural_language_input[:50]}...')
+        
+        # LLM 호출 함수 정의
+        def call_llm(prompt, system_prompt):
+            if USE_OPENAI:
+                return call_openai(prompt, system_prompt)
+            else:
+                return call_ollama(prompt, system_prompt)
+        
+        # 프롬프트 생성
+        prompt = create_project_creation_prompt(natural_language_input)
+        system_prompt = "프로젝트 관리 전문가. 자연어 입력을 분석하여 프로젝트 정보를 추출합니다. 반드시 한국어로만 응답. JSON만 응답."
+        
+        # LLM 호출
+        content = call_llm(prompt, system_prompt)
+        
+        # JSON 파싱
+        if '```json' in content:
+            content = content.split('```json')[1].split('```')[0].strip()
+        elif '```' in content:
+            content = content.split('```')[1].split('```')[0].strip()
+        
+        content = content.strip()
+        if '{' in content:
+            content = content[content.find('{'):]
+        if '}' in content:
+            content = content[:content.rfind('}')+1]
+        
+        result = json.loads(content)
+        
+        print(f'[AI Backend] create-project - 추출 완료: {result.get("title", "N/A")}')
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'title': result.get('title', ''),
+                'description': result.get('description', '')
+            }
+        })
+        
+    except json.JSONDecodeError as e:
+        print(f"[AI Backend] create-project - JSON 파싱 실패: {e}")
+        print(f"[AI Backend] create-project - 원본 응답: {content[:500]}")
+        return jsonify({
+            'error': '프로젝트 정보 추출 실패: JSON 파싱 오류'
+        }), 500
+    except Exception as e:
+        print(f"[AI Backend] create-project - 예외 발생: {str(e)}")
+        import traceback
+        print(f"[AI Backend] create-project - 트레이스백:\n{traceback.format_exc()}")
+        return jsonify({
+            'error': f'프로젝트 정보 추출 실패: {str(e)}'
+        }), 500
+
+@app.route('/api/ai/assign-task', methods=['POST'])
+def assign_task():
+    """
+    Task 할당을 추천하는 API
+    Request Body:
+    {
+        "taskTitle": "Task 제목",
+        "taskDescription": "Task 설명",
+        "projectMembersWithTags": [
+            {
+                "userId": 1,
+                "nickname": "홍길동",
+                "tags": ["백엔드", "데이터베이스"]
+            },
+            ...
+        ]
+    }
+    """
+    print('[AI Backend] assign-task 요청 수신')
+    try:
+        data = request.json
+        task_title = data.get('taskTitle', '').strip()
+        task_description = data.get('taskDescription', '').strip()
+        project_members_with_tags = data.get('projectMembersWithTags', [])
+        
+        if not task_title:
+            return jsonify({
+                'error': 'Task 제목이 필요합니다.'
+            }), 400
+        
+        if not project_members_with_tags:
+            return jsonify({
+                'error': '프로젝트 멤버 정보가 필요합니다.'
+            }), 400
+        
+        print(f'[AI Backend] assign-task - Task: {task_title[:50]}..., 멤버 수: {len(project_members_with_tags)}')
+        
+        # LLM 호출 함수 정의
+        def call_llm(prompt, system_prompt):
+            if USE_OPENAI:
+                return call_openai(prompt, system_prompt)
+            else:
+                return call_ollama(prompt, system_prompt)
+        
+        # 프롬프트 생성
+        prompt = create_task_assignment_prompt(task_title, task_description, project_members_with_tags)
+        system_prompt = "프로젝트 관리 전문가. Task 내용을 분석하여 적합한 담당자를 추천합니다. 반드시 한국어로만 응답. JSON만 응답."
+        
+        # LLM 호출
+        content = call_llm(prompt, system_prompt)
+        
+        # JSON 파싱
+        if '```json' in content:
+            content = content.split('```json')[1].split('```')[0].strip()
+        elif '```' in content:
+            content = content.split('```')[1].split('```')[0].strip()
+        
+        content = content.strip()
+        if '{' in content:
+            content = content[content.find('{'):]
+        if '}' in content:
+            content = content[:content.rfind('}')+1]
+        
+        result = json.loads(content)
+        
+        print(f'[AI Backend] assign-task - 추천 완료: 사용자 ID {result.get("recommendedUserId", "null")}')
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'recommendedUserId': result.get('recommendedUserId'),
+                'reason': result.get('reason', ''),
+                'confidence': result.get('confidence', 'medium')
+            }
+        })
+        
+    except json.JSONDecodeError as e:
+        print(f"[AI Backend] assign-task - JSON 파싱 실패: {e}")
+        print(f"[AI Backend] assign-task - 원본 응답: {content[:500]}")
+        return jsonify({
+            'error': 'Task 할당 추천 실패: JSON 파싱 오류'
+        }), 500
+    except Exception as e:
+        print(f"[AI Backend] assign-task - 예외 발생: {str(e)}")
+        import traceback
+        print(f"[AI Backend] assign-task - 트레이스백:\n{traceback.format_exc()}")
+        return jsonify({
+            'error': f'Task 할당 추천 실패: {str(e)}'
         }), 500
 
 if __name__ == '__main__':

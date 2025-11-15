@@ -36,6 +36,10 @@ function run(sql, params, callback) {
     callback = params;
     params = [];
   }
+  if (!callback) {
+    console.error('[db.js] run 함수에 callback이 제공되지 않았습니다.');
+    return;
+  }
   pool.query(sql, params, function(err, results) {
     if (err) {
       return callback(err);
@@ -45,7 +49,7 @@ function run(sql, params, callback) {
       lastID: results.insertId,
       changes: results.affectedRows
     };
-    callback.call(context, err);
+    callback.call(context, null);
   });
 }
 

@@ -127,3 +127,15 @@ export const fetchProjectOwner = async (projectId) => {
   const { data } = await axios.get(`/api/projects/${projectId}/owner`);
   return data;
 };
+
+// AI 기반 프로젝트 생성
+export const createProjectWithAI = async (naturalLanguageInput) => {
+  const res = await axios.post(`${API_URL}/create-with-ai`, 
+    { naturalLanguageInput },
+    {
+      headers: getAuthHeader(),
+      withCredentials: true,
+    }
+  );
+  return res.data;
+};

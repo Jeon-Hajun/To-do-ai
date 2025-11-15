@@ -48,4 +48,9 @@ router.delete('/me/profile-image', authenticateToken, userController.deleteProfi
 // 회원 탈퇴
 router.delete('/me', authenticateToken, userController.deleteMe);
 
+// 사용자 Tag 관리
+router.post('/:userId/tags', authenticateToken, userController.addTag);
+router.delete('/:userId/tags/:tag', authenticateToken, userController.removeTag);
+router.get('/:userId/tags', authenticateToken, userController.getTags);
+
 module.exports = router;

@@ -1,4 +1,5 @@
 var bcrypt = require('bcryptjs');
+var axios = require('axios');
 var { db } = require('../database/db');
 var GitHubService = require('../services/githubService');
 var { 
@@ -120,7 +121,138 @@ exports.create = async function(req, res) {
   }
 };
 
-
+// AI 기반 프로젝트 생성
+exports.createWithAI = async function(req, res) {
+  const { naturalLanguageInput } = req.body;
+  const userId = req.user.userId;
+  
+  if (!naturalLanguageInput || !naturalLanguageInput.trim()) {
+    return res.status(400).json({ 
+      success: false, 
+      error: { 
+        code: 'INVALID_INPUT', 
+        message: '자연어 입력이 필요합니다.' 
+      } 
+    });
+  }
+  
+  const AI_BACKEND_URL = process.env.AI_BACKEND_URL || 'http://localhost:5001';
+  
+  try {
+    // AI 백엔드 호출하여 프로젝트 정보 추출
+    const aiResponse = await axios.post(
+      `${AI_BACKEND_URL}/api/ai/create-project`,
+      {
+        naturalLanguageInput: naturalLanguageInput.trim()
+      },
+      {
+        timeout: 60000 // 60초 타임아웃
+      }
+    );
+    
+    if (!aiResponse.data.success || !aiResponse.data.data) {
+      return res.status(500).json({ 
+        success: false, 
+        error: { 
+          code: 'AI_ERROR', 
+          message: 'AI가 프로젝트 정보를 추출하지 못했습니다.' 
+        } 
+      });
+    }
+    
+    const { title, description } = aiResponse.data.data;
+    
+    // 추출된 정보로 프로젝트 생성
+    const projectData = {
+      title: title || 'AI 생성 프로젝트',
+      description: description || null,
+      isShared: false,
+      password: null,
+      githubRepo: null
+    };
+    
+    // 기존 create 함수 로직 재사용
+    let passwordHash = null;
+    let projectCode = null;
+    
+    const insertProject = async () => {
+      db.run(
+        'INSERT INTO projects (owner_id, title, description, project_code, password_hash, github_repo) VALUES (?, ?, ?, ?, ?, ?)',
+        [userId, projectData.title, projectData.description || null, projectCode, passwordHash, projectData.githubRepo],
+        async function(err) {
+          if (err) {
+            console.error('프로젝트 생성 오류:', err);
+            return res.status(500).json({ 
+              success: false, 
+              error: { 
+                code: 'SERVER_ERROR', 
+                message: '서버 오류가 발생했습니다.' 
+              } 
+            });
+          }
+          
+          const projectId = this.lastID;
+          
+          // owner 멤버 추가
+          db.run(
+            'INSERT INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',
+            [projectId, userId, 'owner'],
+            async function(err) {
+              if (err) {
+                console.error('프로젝트 멤버 추가 오류:', err);
+                db.run('DELETE FROM projects WHERE id = ?', [projectId], function(deleteErr) {
+                  if (deleteErr) {
+                    console.error('프로젝트 롤백 오류:', deleteErr);
+                  }
+                });
+                return res.status(500).json({ 
+                  success: false, 
+                  error: { 
+                    code: 'SERVER_ERROR', 
+                    message: '프로젝트 생성 중 오류가 발생했습니다.' 
+                  } 
+                });
+              }
+              
+              res.status(201).json({
+                success: true,
+                data: {
+                  id: projectId,
+                  title: projectData.title,
+                  description: projectData.description,
+                  projectCode,
+                  githubRepo: projectData.githubRepo
+                },
+                message: 'AI가 프로젝트를 생성했습니다.'
+              });
+            }
+          );
+        }
+      );
+    };
+    
+    insertProject();
+    
+  } catch (error) {
+    console.error('AI 프로젝트 생성 오류:', error);
+    if (error.response) {
+      return res.status(error.response.status || 500).json({ 
+        success: false, 
+        error: { 
+          code: 'AI_ERROR', 
+          message: error.response.data?.error || 'AI 백엔드 오류가 발생했습니다.' 
+        } 
+      });
+    }
+    return res.status(500).json({ 
+      success: false, 
+      error: { 
+        code: 'SERVER_ERROR', 
+        message: '서버 오류가 발생했습니다.' 
+      } 
+    });
+  }
+};
 
 // 프로젝트 참여 (공유 프로젝트용)
 exports.join = function(req, res, next) {
@@ -786,7 +918,7 @@ exports.validateCode = function(req, res, next) {
 
 // 프로젝트 수정 (owner만)
 exports.update = function(req, res, next) {
-  const { projectId, title, description, status } = req.body;
+  const { projectId, title, description, status, githubRepo, githubToken } = req.body;
   const userId = req.user.userId;
   
   // 입력 검증
@@ -824,6 +956,20 @@ exports.update = function(req, res, next) {
         error: { 
           code: 'INVALID_INPUT',
           message: descriptionValidation.message
+        }
+      });
+    }
+  }
+  
+  // GitHub URL 검증 (제공된 경우)
+  if (githubRepo !== undefined) {
+    const githubUrlValidation = validateGitHubUrl(githubRepo);
+    if (!githubUrlValidation.valid) {
+      return res.status(400).json({ 
+        success: false,
+        error: { 
+          code: 'INVALID_INPUT',
+          message: githubUrlValidation.message
         }
       });
     }
@@ -884,6 +1030,28 @@ exports.update = function(req, res, next) {
         values.push(status);
       }
       
+      // GitHub 저장소 URL 업데이트
+      if (githubRepo !== undefined) {
+        updates.push('github_repo = ?');
+        values.push(githubRepo);
+      }
+      
+      // GitHub 토큰 업데이트 처리
+      if (githubToken !== undefined) {
+        // 마스킹된 값("••••••••••••••••")이면 기존 토큰 유지 (업데이트하지 않음)
+        if (githubToken === "••••••••••••••••") {
+          // 기존 토큰 유지 (업데이트하지 않음)
+        } else if (githubToken === "") {
+          // 빈 문자열이면 null로 설정 (토큰 제거)
+          updates.push('github_token = ?');
+          values.push(null);
+        } else {
+          // 새 토큰으로 업데이트
+          updates.push('github_token = ?');
+          values.push(githubToken);
+        }
+      }
+      
       if (updates.length === 0) {
         return res.status(400).json({ 
           success: false,
@@ -912,10 +1080,208 @@ exports.update = function(req, res, next) {
             });
           }
           
+          // 성공 응답 먼저 전송
           res.json({
             success: true,
             message: '프로젝트가 수정되었습니다.'
           });
+          
+          // GitHub 저장소가 업데이트되었으면 즉시 동기화 시작
+          if (githubRepo !== undefined && githubRepo) {
+            // 업데이트된 프로젝트 정보 조회 후 동기화
+            db.get(
+              'SELECT * FROM projects WHERE id = ?',
+              [projectId],
+              function(err, updatedProject) {
+                if (err || !updatedProject) {
+                  console.error('업데이트된 프로젝트 조회 실패:', err);
+                  return;
+                }
+                
+                // GitHub 정보 가져오기 (백그라운드에서 처리)
+                (async () => {
+                  try {
+                    // 업데이트된 토큰 또는 기존 토큰 사용
+                    let tokenToUse = updatedProject.github_token;
+                    if (githubToken !== undefined && githubToken !== "" && githubToken !== "••••••••••••••••") {
+                      tokenToUse = githubToken;
+                    }
+                    
+                    const githubService = new GitHubService(tokenToUse);
+                    
+                    console.log(`[동기화] 프로젝트 ${projectId} GitHub 저장소 동기화 시작: ${githubRepo}`);
+                    
+                    // 커밋 목록 가져오기 (통계 정보 포함)
+                    try {
+                      const commits = await githubService.getCommits(githubRepo, { perPage: 30 });
+                      
+                      // 커밋 정보를 DB에 저장 (통계 정보 포함)
+                      for (const commit of commits) {
+                        // 커밋 상세 통계 정보 가져오기
+                        let stats = null;
+                        try {
+                          stats = await githubService.getCommitStats(githubRepo, commit.sha);
+                        } catch (error) {
+                          console.warn(`커밋 ${commit.sha.substring(0, 7)} 통계 정보 가져오기 실패:`, error.message);
+                        }
+                        
+                        db.run(
+                          `INSERT INTO project_commits 
+                           (project_id, commit_sha, commit_message, author, commit_date, lines_added, lines_deleted, files_changed)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                           ON DUPLICATE KEY UPDATE
+                           commit_message = VALUES(commit_message),
+                           author = VALUES(author),
+                           commit_date = VALUES(commit_date),
+                           lines_added = IF(VALUES(lines_added) IS NOT NULL, VALUES(lines_added), lines_added),
+                           lines_deleted = IF(VALUES(lines_deleted) IS NOT NULL, VALUES(lines_deleted), lines_deleted),
+                           files_changed = IF(VALUES(files_changed) IS NOT NULL, VALUES(files_changed), files_changed)`,
+                          [
+                            projectId,
+                            commit.sha,
+                            commit.message,
+                            commit.author,
+                            convertToMySQLDateTime(commit.date),
+                            stats ? stats.linesAdded : null,
+                            stats ? stats.linesDeleted : null,
+                            stats ? stats.filesChanged : null
+                          ],
+                          (err) => {
+                            if (err) {
+                              console.error('커밋 저장 오류:', err);
+                            } else {
+                              // 파일별 변경 내용 저장
+                              if (stats && stats.files && stats.files.length > 0) {
+                                stats.files.forEach((file) => {
+                                  db.run(
+                                    `INSERT INTO project_commit_files 
+                                     (project_id, commit_sha, file_path, status, additions, deletions, patch)
+                                     VALUES (?, ?, ?, ?, ?, ?, ?)
+                                     ON DUPLICATE KEY UPDATE
+                                     status = VALUES(status),
+                                     additions = VALUES(additions),
+                                     deletions = VALUES(deletions),
+                                     patch = VALUES(patch)`,
+                                    [
+                                      projectId,
+                                      commit.sha,
+                                      file.filename,
+                                      file.status || 'modified',
+                                      file.additions || 0,
+                                      file.deletions || 0,
+                                      file.patch || null
+                                    ],
+                                    (fileErr) => {
+                                      if (fileErr) {
+                                        console.error(`파일 ${file.filename} 저장 오류:`, fileErr);
+                                      }
+                                    }
+                                  );
+                                });
+                              }
+                            }
+                          }
+                        );
+                      }
+                      console.log(`[동기화] 커밋 ${commits.length}개 저장 완료`);
+                    } catch (error) {
+                      console.error('커밋 조회 실패:', error.message);
+                    }
+
+                    // 이슈 정보 가져오기 및 DB에 저장
+                    try {
+                      const issues = await githubService.getIssues(githubRepo, { state: 'all', perPage: 100 });
+                      
+                      for (const issue of issues) {
+                        db.run(
+                          `INSERT INTO project_issues 
+                           (project_id, issue_number, title, body, state, assignees, labels, created_at, updated_at, closed_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           ON DUPLICATE KEY UPDATE
+                           title = VALUES(title),
+                           body = VALUES(body),
+                           state = VALUES(state),
+                           assignees = VALUES(assignees),
+                           labels = VALUES(labels),
+                           updated_at = VALUES(updated_at),
+                           closed_at = VALUES(closed_at),
+                           synced_at = CURRENT_TIMESTAMP`,
+                          [
+                            projectId,
+                            issue.number,
+                            issue.title,
+                            issue.body,
+                            issue.state,
+                            JSON.stringify(issue.assignees || []),
+                            JSON.stringify(issue.labels || []),
+                            convertToMySQLDateTime(issue.createdAt),
+                            convertToMySQLDateTime(issue.updatedAt),
+                            convertToMySQLDateTime(issue.closedAt)
+                          ],
+                          function(err) {
+                            if (err) {
+                              console.error('이슈 저장 오류:', err);
+                            }
+                          }
+                        );
+                      }
+                      console.log(`[동기화] 이슈 ${issues.length}개 저장 완료`);
+                    } catch (error) {
+                      console.error('이슈 조회 실패:', error.message);
+                    }
+
+                    // 브랜치 정보 가져오기 및 DB에 저장
+                    try {
+                      const branches = await githubService.getBranches(githubRepo);
+                      
+                      for (const branch of branches) {
+                        db.run(
+                          `INSERT INTO project_branches 
+                           (project_id, branch_name, commit_sha, is_protected, is_default)
+                           VALUES (?, ?, ?, ?, ?)
+                           ON DUPLICATE KEY UPDATE
+                           commit_sha = VALUES(commit_sha),
+                           is_protected = VALUES(is_protected),
+                           is_default = VALUES(is_default),
+                           synced_at = CURRENT_TIMESTAMP`,
+                          [
+                            projectId,
+                            branch.name,
+                            branch.sha,
+                            branch.protected ? 1 : 0,
+                            branch.isDefault ? 1 : 0
+                          ],
+                          function(err) {
+                            if (err) {
+                              console.error('브랜치 저장 오류:', err);
+                            }
+                          }
+                        );
+                      }
+                      console.log(`[동기화] 브랜치 ${branches.length}개 저장 완료`);
+                    } catch (error) {
+                      console.error('브랜치 조회 실패:', error.message);
+                    }
+
+                    // projects 테이블의 github_last_synced_at 업데이트
+                    db.run(
+                      'UPDATE projects SET github_last_synced_at = CURRENT_TIMESTAMP WHERE id = ?',
+                      [projectId],
+                      function(err) {
+                        if (err) {
+                          console.error('동기화 시간 업데이트 오류:', err);
+                        } else {
+                          console.log(`[동기화] 프로젝트 ${projectId} GitHub 동기화 완료`);
+                        }
+                      }
+                    );
+                  } catch (error) {
+                    console.error('GitHub 정보 불러오기 실패:', error.message);
+                  }
+                })();
+              }
+            );
+          }
         }
       );
     }
