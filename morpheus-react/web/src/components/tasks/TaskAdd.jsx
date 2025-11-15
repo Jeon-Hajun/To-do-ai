@@ -144,8 +144,10 @@ export default function TaskAdd({ open, onClose, projectId, members, editingTask
           onChange={(e) => setDescription(e.target.value)}
           fullWidth
           multiline
-          rows={3}
+          rows={5}
           margin="normal"
+          placeholder="예시 형식:&#10;&#10;## 목표&#10;이 작업의 목표와 기대 결과를 설명해주세요.&#10;&#10;## 상세 내용&#10;작업의 구체적인 내용과 방법을 작성해주세요.&#10;&#10;## 참고사항&#10;- 체크리스트 항목 1&#10;- 체크리스트 항목 2&#10;&#10;## 관련 정보&#10;관련 문서나 링크가 있다면 추가해주세요."
+          helperText="마크다운 형식을 사용할 수 있습니다. 제목(#), 리스트(-), 코드(`) 등을 활용해보세요."
         />
 
         <TextField

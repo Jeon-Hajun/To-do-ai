@@ -9,21 +9,8 @@ import { useProjectDetail } from "../../hooks/useProjectDetail";
 
 export default function ProjectDetailTabs() {
   const { projectId } = useParams();
-  const { user: currentUser } = useAuthContext();
   const { project, members, loading } = useProjectDetail(projectId);
   const [activeTab, setActiveTab] = useState("detail"); // "detail" / "task" / "github"
-  const [isOwner, setIsOwner] = useState(false);
-
-  // 현재 프로젝트의 isOwner 계산
-  useEffect(() => {
-    if (!project || !currentUser?.id) {
-      setIsOwner(false);
-      return;
-    }
-
-    const ownerId = project.ownerId || project.owner_id;
-    setIsOwner(String(ownerId) === String(currentUser.id));
-  }, [project?.id, project?.ownerId, currentUser?.id]);
 
   if (loading)
     return <CircularProgress sx={{ display: "block", mx: "auto", mt: 4 }} />;
@@ -98,7 +85,7 @@ export default function ProjectDetailTabs() {
                 projectId={projectId} 
                 githubRepo={project.githubRepo || project.github_repo}
                 hasGithubToken={project.hasGithubToken || false}
-                isOwner={isOwner}
+                isOwner={true}
               />
             </Box>
           )}

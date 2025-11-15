@@ -6,6 +6,7 @@ import { fetchTaskDetail, deleteTask } from "../api/tasks";
 import { fetchProjectMembers } from "../api/projects";
 import { TaskEdit } from "../components/tasks";
 import { Button, Box, Typography, Paper, Stack, CircularProgress } from "@mui/material";
+import MarkdownRenderer from "../components/common/MarkdownRenderer";
 
 export default function TaskDetailPage() {
   const { projectId, taskId } = useParams();
@@ -23,7 +24,7 @@ export default function TaskDetailPage() {
     queryFn: () => fetchTaskDetail(taskId),
   });
 
-  // 프로젝트 멤버 조회 (owner 확인용)
+  // 프로젝트 멤버 조회
   const { data: members = [] } = useQuery({
     queryKey: ["projectMembers", projectId],
     queryFn: () => fetchProjectMembers(projectId),
@@ -51,10 +52,6 @@ export default function TaskDetailPage() {
   if (isError) return <Typography color="error">작업 정보를 불러오는데 실패했습니다.</Typography>;
   if (!task) return <Typography>작업 정보를 찾을 수 없습니다.</Typography>;
 
-  // owner 확인
-  const owner = members?.find(m => m.role === "owner");
-  const isOwner = owner ? String(owner.id) === String(user?.id) : false;
-
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
@@ -69,7 +66,12 @@ export default function TaskDetailPage() {
             <Typography><strong>담당자:</strong> {task.assignedUserName}</Typography>
           )}
           {task.description && (
-            <Typography><strong>설명:</strong> {task.description}</Typography>
+            <Box>
+              <Typography component="span" fontWeight="bold">설명:</Typography>
+              <Box sx={{ mt: 1 }}>
+                <MarkdownRenderer content={task.description} />
+              </Box>
+            </Box>
           )}
           {task.dueDate && (
             <Typography><strong>마감일:</strong> {new Date(task.dueDate).toLocaleDateString()}</Typography>
@@ -77,26 +79,24 @@ export default function TaskDetailPage() {
         </Stack>
       </Paper>
 
-      {/* 오너만 수정/삭제 가능 */}
-      {isOwner && (
-        <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-          <Button
-            variant="contained"
-            color="warning"
-            onClick={() => setEditOpen(true)}
-          >
-            수정
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={handleDelete}
-            disabled={deleteMutation.isPending}
-          >
-            {deleteMutation.isPending ? "삭제 중..." : "삭제"}
-          </Button>
-        </Stack>
-      )}
+      {/* 수정/삭제 버튼 */}
+      <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+        <Button
+          variant="contained"
+          color="warning"
+          onClick={() => setEditOpen(true)}
+        >
+          수정
+        </Button>
+        <Button
+          variant="contained"
+          color="error"
+          onClick={handleDelete}
+          disabled={deleteMutation.isPending}
+        >
+          {deleteMutation.isPending ? "삭제 중..." : "삭제"}
+        </Button>
+      </Stack>
 
       <Button
         variant="outlined"
@@ -107,18 +107,16 @@ export default function TaskDetailPage() {
       </Button>
 
       {/* 수정 모달 */}
-      {isOwner && (
-        <TaskEdit
-          open={editOpen}
-          onClose={() => setEditOpen(false)}
-          task={task}
-          members={members}
-          onUpdated={() => {
-            queryClient.invalidateQueries({ queryKey: ["task", taskId] });
-            queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
-          }}
-        />
-      )}
+      <TaskEdit
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        task={task}
+        members={members}
+        onUpdated={() => {
+          queryClient.invalidateQueries({ queryKey: ["task", taskId] });
+          queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
+        }}
+      />
     </Box>
   );
 }

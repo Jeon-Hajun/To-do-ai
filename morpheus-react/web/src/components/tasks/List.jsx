@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Box, Typography, Stack, CircularProgress, Accordion, AccordionSummary, AccordionDetails, Avatar, Paper, Button, Collapse } from "@mui/material";
+import { Box, Typography, Stack, CircularProgress, Accordion, AccordionSummary, AccordionDetails, Avatar, Paper, Button, Collapse, Chip } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchProjectMembers } from "../../api/projects";
@@ -8,6 +8,7 @@ import { getProfileImageSrc } from "../../utils/profileImage";
 import TaskAdd from "./TaskAdd";
 import { useAuthContext } from "../../context/AuthContext";
 import { normalizeStatus, getStatusDisplay } from "../../utils/taskStatus";
+import MarkdownRenderer from "../common/MarkdownRenderer";
 
 export default function List({ projectId }) {
   const queryClient = useQueryClient();
@@ -121,11 +122,9 @@ export default function List({ projectId }) {
     
     try {
       const data = JSON.parse(e.dataTransfer.getData("application/json"));
-      // 모든 태스크를 관리 영역에 표시
-      if (data.tasks && data.tasks.length > 0) {
-        setEditingTasks(data.tasks);
-        setSelectedMemberId(data.memberId);
-      }
+      // 태스크가 없어도 사용자를 관리 영역에 표시 (태스크 추가를 위해)
+      setEditingTasks(data.tasks || []);
+      setSelectedMemberId(data.memberId);
     } catch (err) {
       console.error("드롭 데이터 파싱 실패:", err);
     }
@@ -239,8 +238,8 @@ export default function List({ projectId }) {
     }
   });
 
-  // 편집 중인 task가 있는지 확인
-  const isEditing = editingTasks !== null && editingTasks.length > 0;
+  // 편집 중인 사용자가 선택되었는지 확인 (태스크가 없어도 선택 가능)
+  const isEditing = editingTasks !== null;
 
   return (
     <Box>
@@ -251,8 +250,6 @@ export default function List({ projectId }) {
       {/* 각 사용자별 아코디언 */}
       {members.map((member) => {
         const memberTasks = tasksByUser[String(member.id)] || [];
-        // 할당된 task가 없는 사용자는 아코디언 표시 안 함
-        if (memberTasks.length === 0) return null;
 
         return (
           <Accordion 
@@ -274,11 +271,25 @@ export default function List({ projectId }) {
                 <Typography variant="h6">
                   {member.nickname || member.email}
                 </Typography>
+                {member.role && (
+                  <Chip
+                    label={member.role === 'owner' ? '소유자' : '멤버'}
+                    size="small"
+                    color={member.role === 'owner' ? 'primary' : 'default'}
+                    variant="outlined"
+                    sx={{ fontSize: '0.7rem', height: 20 }}
+                  />
+                )}
               </Stack>
             </AccordionSummary>
             <AccordionDetails>
-              <Stack spacing={0.5}>
-                {memberTasks.map((task) => {
+              {memberTasks.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>
+                  할당된 태스크가 없습니다.
+                </Typography>
+              ) : (
+                <Stack spacing={0.5}>
+                  {memberTasks.map((task) => {
                   const normalizedStatus = normalizeStatus(task.status);
                   const isExpanded = expandedTasks[task.id];
                   // 상태별 색상
@@ -325,15 +336,31 @@ export default function List({ projectId }) {
                           </Typography>
                         </Stack>
                         <Collapse in={isExpanded}>
-                          <Typography variant="body2" color="text.secondary" sx={{ mt: 1, pl: 1, borderLeft: "2px solid", borderColor: "divider" }}>
-                            {taskDescriptions[task.id] || (isExpanded ? "로딩 중..." : "")}
-                          </Typography>
+                          <Box sx={{ mt: 1, pl: 1, borderLeft: "2px solid", borderColor: "divider" }}>
+                            {taskDescriptions[task.id] ? (
+                              <MarkdownRenderer 
+                                content={taskDescriptions[task.id]} 
+                                sx={{ 
+                                  "& p": { 
+                                    color: "text.secondary",
+                                    fontSize: "0.875rem",
+                                    margin: 0,
+                                  } 
+                                }} 
+                              />
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                {isExpanded ? "로딩 중..." : ""}
+                              </Typography>
+                            )}
+                          </Box>
                         </Collapse>
                       </Box>
                     </Box>
                   );
                 })}
-              </Stack>
+                </Stack>
+              )}
             </AccordionDetails>
           </Accordion>
         );
@@ -399,9 +426,24 @@ export default function List({ projectId }) {
                         </Typography>
                       </Stack>
                       <Collapse in={isExpanded}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, pl: 1, borderLeft: "2px solid", borderColor: "divider" }}>
-                          {taskDescriptions[task.id] || (isExpanded ? "로딩 중..." : "")}
-                        </Typography>
+                        <Box sx={{ mt: 1, pl: 1, borderLeft: "2px solid", borderColor: "divider" }}>
+                          {taskDescriptions[task.id] ? (
+                            <MarkdownRenderer 
+                              content={taskDescriptions[task.id]} 
+                              sx={{ 
+                                "& p": { 
+                                  color: "text.secondary",
+                                  fontSize: "0.875rem",
+                                  margin: 0,
+                                } 
+                              }} 
+                            />
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              {isExpanded ? "로딩 중..." : ""}
+                            </Typography>
+                          )}
+                        </Box>
                       </Collapse>
                     </Box>
                   </Box>
@@ -460,8 +502,42 @@ export default function List({ projectId }) {
         >
           {isEditing ? (
             <>
+              {/* 선택된 사용자 정보 표시 */}
+              {selectedMemberId !== null && (
+                <Box sx={{ mb: 2, p: 2, bgcolor: "action.hover", borderRadius: 1 }}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Avatar
+                      alt={members.find(m => String(m.id) === String(selectedMemberId))?.nickname || "사용자"}
+                      src={getProfileImageSrc(members.find(m => String(m.id) === String(selectedMemberId))?.profileImage, true)}
+                      sx={{ width: 32, height: 32 }}
+                    >
+                      {members.find(m => String(m.id) === String(selectedMemberId))?.nickname?.[0] || "?"}
+                    </Avatar>
+                    <Typography variant="subtitle1" fontWeight={500}>
+                      {members.find(m => String(m.id) === String(selectedMemberId))?.nickname || "사용자"}의 태스크 관리
+                    </Typography>
+                    {members.find(m => String(m.id) === String(selectedMemberId))?.role && (
+                      <Chip
+                        label={members.find(m => String(m.id) === String(selectedMemberId))?.role === 'owner' ? '소유자' : '멤버'}
+                        size="small"
+                        color={members.find(m => String(m.id) === String(selectedMemberId))?.role === 'owner' ? 'primary' : 'default'}
+                        variant="outlined"
+                        sx={{ fontSize: '0.7rem', height: 20 }}
+                      />
+                    )}
+                  </Stack>
+                </Box>
+              )}
+              {selectedMemberId === null && (
+                <Box sx={{ mb: 2, p: 2, bgcolor: "action.hover", borderRadius: 1 }}>
+                  <Typography variant="subtitle1" fontWeight={500}>
+                    할당되지 않은 태스크 관리
+                  </Typography>
+                </Box>
+              )}
               <Stack spacing={1}>
-                {editingTasks.map((task) => {
+                {editingTasks.length > 0 ? (
+                  editingTasks.map((task) => {
                   const normalizedStatus = normalizeStatus(task.status);
                   const statusColor = 
                     normalizedStatus === "done" ? "#8dfc71ff" : 
@@ -551,7 +627,14 @@ export default function List({ projectId }) {
                       )}
                     </Box>
                   );
-                })}
+                  })
+                ) : (
+                  <Box sx={{ py: 3, textAlign: "center" }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      할당된 태스크가 없습니다. "생성" 버튼을 눌러 새 태스크를 추가하세요.
+                    </Typography>
+                  </Box>
+                )}
               </Stack>
               <Button
                 variant="outlined"

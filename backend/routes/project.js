@@ -25,13 +25,13 @@ router.get('/info', authenticateToken, projectController.getInfo);
 // GitHub 저장소 연결
 router.post('/connect-github', authenticateToken, projectController.connectGithub);
 
-// 프로젝트 수정 (owner만)
+// 프로젝트 수정
 router.put('/update', authenticateToken, projectController.update);
 
-// 프로젝트 삭제 (owner만)
+// 프로젝트 삭제
 router.delete('/delete', authenticateToken, projectController.delete);
 
-// 멤버 삭제 (owner만)
+// 멤버 삭제
 router.delete('/member', authenticateToken, projectController.deleteMember);
 
 // 프로젝트 탈퇴 (일반 멤버만)

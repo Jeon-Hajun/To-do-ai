@@ -295,7 +295,7 @@ exports.getInfo = function(req, res, next) {
   }
 };
 
-// 작업 수정 (owner만, 제목, 설명, 마감일만 수정 가능)
+// 작업 수정 (제목, 설명, 마감일만 수정 가능)
 exports.update = function(req, res, next) {
   const { id, title, description, dueDate } = req.body;
   const userId = req.user.userId;
@@ -340,12 +340,12 @@ exports.update = function(req, res, next) {
     }
   }
   
-  // 작업 및 owner 권한 확인
+  // 작업 및 프로젝트 멤버 확인
   db.get(
-    `SELECT t.project_id, pm.role
+    `SELECT t.project_id
      FROM tasks t 
      JOIN project_members pm ON t.project_id = pm.project_id
-     WHERE t.id = ? AND pm.user_id = ? AND pm.role = 'owner'`,
+     WHERE t.id = ? AND pm.user_id = ?`,
     [id, userId],
     function(err, task) {
       if (err) {
@@ -364,7 +364,7 @@ exports.update = function(req, res, next) {
           success: false,
           error: { 
             code: 'FORBIDDEN',
-            message: '작업을 수정할 권한이 없습니다. (owner만 가능)' 
+            message: '작업을 수정할 권한이 없습니다.' 
           }
         });
       }
@@ -511,7 +511,7 @@ exports.updateStatus = function(req, res, next) {
   );
 };
 
-// 작업 할당 (owner만)
+// 작업 할당
 exports.assign = function(req, res, next) {
   const { id, assignedUserId } = req.body;
   const userId = req.user.userId;
@@ -542,12 +542,12 @@ exports.assign = function(req, res, next) {
     }
   }
   
-  // 작업 및 owner 권한 확인
+  // 작업 및 프로젝트 멤버 확인
   db.get(
-    `SELECT t.project_id, pm.role
+    `SELECT t.project_id
      FROM tasks t 
      JOIN project_members pm ON t.project_id = pm.project_id
-     WHERE t.id = ? AND pm.user_id = ? AND pm.role = 'owner'`,
+     WHERE t.id = ? AND pm.user_id = ?`,
     [id, userId],
     function(err, task) {
       if (err) {
@@ -566,7 +566,7 @@ exports.assign = function(req, res, next) {
           success: false,
           error: { 
             code: 'FORBIDDEN',
-            message: '작업을 할당할 권한이 없습니다. (owner만 가능)' 
+            message: '작업을 할당할 권한이 없습니다.' 
           }
         });
       }
@@ -632,7 +632,7 @@ exports.assign = function(req, res, next) {
   );
 };
 
-// 작업 삭제 (owner만)
+// 작업 삭제
 exports.delete = function(req, res, next) {
   const { id } = req.body;
   const userId = req.user.userId;
@@ -649,12 +649,12 @@ exports.delete = function(req, res, next) {
     });
   }
   
-  // 작업 및 owner 권한 확인
+  // 작업 및 프로젝트 멤버 확인
   db.get(
-    `SELECT t.project_id, pm.role
+    `SELECT t.project_id
      FROM tasks t 
      JOIN project_members pm ON t.project_id = pm.project_id
-     WHERE t.id = ? AND pm.user_id = ? AND pm.role = 'owner'`,
+     WHERE t.id = ? AND pm.user_id = ?`,
     [id, userId],
     function(err, task) {
       if (err) {
@@ -673,7 +673,7 @@ exports.delete = function(req, res, next) {
           success: false,
           error: { 
             code: 'FORBIDDEN',
-            message: '작업을 삭제할 권한이 없습니다. (owner만 가능)' 
+            message: '작업을 삭제할 권한이 없습니다.' 
           }
         });
       }

@@ -975,12 +975,12 @@ exports.update = function(req, res, next) {
     }
   }
   
-  // owner 권한 확인
+  // 프로젝트 멤버 확인
   db.get(
-    `SELECT p.*, pm.role 
+    `SELECT p.*
      FROM projects p
      JOIN project_members pm ON p.id = pm.project_id
-     WHERE p.id = ? AND pm.user_id = ? AND pm.role = 'owner'`,
+     WHERE p.id = ? AND pm.user_id = ?`,
     [projectId, userId],
     function(err, project) {
       if (err) {
@@ -999,7 +999,7 @@ exports.update = function(req, res, next) {
           success: false,
           error: { 
             code: 'FORBIDDEN',
-            message: '프로젝트를 수정할 권한이 없습니다. (owner만 가능)' 
+            message: '프로젝트를 수정할 권한이 없습니다.' 
           }
         });
       }
@@ -1288,7 +1288,7 @@ exports.update = function(req, res, next) {
   );
 };
 
-// 프로젝트 삭제 (owner만)
+// 프로젝트 삭제
 exports.delete = function(req, res, next) {
   const { projectId } = req.body;
   const userId = req.user.userId;
@@ -1305,12 +1305,12 @@ exports.delete = function(req, res, next) {
     });
   }
   
-  // owner 권한 확인
+  // 프로젝트 멤버 확인
   db.get(
-    `SELECT p.*, pm.role 
+    `SELECT p.*
      FROM projects p
      JOIN project_members pm ON p.id = pm.project_id
-     WHERE p.id = ? AND pm.user_id = ? AND pm.role = 'owner'`,
+     WHERE p.id = ? AND pm.user_id = ?`,
     [projectId, userId],
     function(err, project) {
       if (err) {
@@ -1329,7 +1329,7 @@ exports.delete = function(req, res, next) {
           success: false,
           error: { 
             code: 'FORBIDDEN',
-            message: '프로젝트를 삭제할 권한이 없습니다. (owner만 가능)' 
+            message: '프로젝트를 삭제할 권한이 없습니다.' 
           }
         });
       }
@@ -1356,7 +1356,7 @@ exports.delete = function(req, res, next) {
   );
 };
 
-// 멤버 삭제 (owner만, !owner는 삭제 불가)
+// 멤버 삭제
 exports.deleteMember = function(req, res, next) {
   const { projectId, memberId } = req.body;
   const userId = req.user.userId;
@@ -1371,15 +1371,14 @@ exports.deleteMember = function(req, res, next) {
     });
   }
   
-  // owner 권한 확인
+  // 프로젝트 멤버 확인
   db.get(
-    `SELECT pm.role 
-     FROM project_members pm
-     WHERE pm.project_id = ? AND pm.user_id = ? AND pm.role = 'owner'`,
+    `SELECT id FROM project_members 
+     WHERE project_id = ? AND user_id = ?`,
     [projectId, userId],
-    function(err, ownerCheck) {
+    function(err, membership) {
       if (err) {
-        console.error('권한 확인 오류:', err);
+        console.error('멤버십 확인 오류:', err);
         return res.status(500).json({ 
           success: false,
           error: { 
@@ -1389,19 +1388,30 @@ exports.deleteMember = function(req, res, next) {
         });
       }
       
-      if (!ownerCheck) {
+      if (!membership) {
         return res.status(403).json({ 
           success: false,
           error: { 
             code: 'FORBIDDEN',
-            message: '멤버를 삭제할 권한이 없습니다. (owner만 가능)' 
+            message: '멤버를 삭제할 권한이 없습니다.' 
           }
         });
       }
       
-      // 삭제할 멤버의 역할 확인 (!owner는 삭제 불가)
+      // 자기 자신은 삭제 불가
+      if (String(memberId) === String(userId)) {
+        return res.status(400).json({ 
+          success: false,
+          error: { 
+            code: 'CANNOT_DELETE_SELF',
+            message: '자기 자신은 삭제할 수 없습니다.' 
+          }
+        });
+      }
+      
+      // 삭제할 멤버 확인
       db.get(
-        `SELECT role FROM project_members 
+        `SELECT id FROM project_members 
          WHERE project_id = ? AND user_id = ?`,
         [projectId, memberId],
         function(err, member) {
@@ -1422,16 +1432,6 @@ exports.deleteMember = function(req, res, next) {
               error: { 
                 code: 'MEMBER_NOT_FOUND',
                 message: '멤버를 찾을 수 없습니다.' 
-              }
-            });
-          }
-          
-          if (member.role === 'owner') {
-            return res.status(400).json({ 
-              success: false,
-              error: { 
-                code: 'CANNOT_DELETE_OWNER',
-                message: '프로젝트 소유자는 삭제할 수 없습니다.' 
               }
             });
           }
@@ -1506,15 +1506,6 @@ exports.leave = function(req, res, next) {
         });
       }
       
-      if (membership.role === 'owner') {
-        return res.status(400).json({ 
-          success: false,
-          error: { 
-            code: 'OWNER_CANNOT_LEAVE',
-            message: '프로젝트 소유자는 탈퇴할 수 없습니다. 프로젝트를 삭제해주세요.' 
-          }
-        });
-      }
       
       // 멤버 탈퇴
       db.run(
