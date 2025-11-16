@@ -106,33 +106,53 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
     commits = context.get('commits', [])
     tasks = context.get('tasks', [])
     
-    # 읽은 파일 내용 요약
-    files_summary = []
-    for f in read_files[-5:]:  # 최근 5개 파일만
-        path = f.get('path', '')
-        content_preview = f.get('content', '')[:300] if f.get('content') else ''
-        files_summary.append(f"- {path}: {content_preview}...")
+    # 읽은 파일 내용 상세 표시 (최근 10개)
+    files_section = ""
+    if read_files:
+        files_section = "\n\n## 📄 새로 읽은 파일 내용 (반드시 이 내용을 활용하여 분석하세요):\n\n"
+        for f in read_files[-10:]:  # 최근 10개 파일
+            path = f.get('path', '')
+            content = f.get('content', '')
+            if content:
+                # 파일 내용이 너무 길면 일부만 표시
+                content_preview = content[:1500] if len(content) > 1500 else content
+                files_section += f"### 파일: {path}\n```\n{content_preview}\n```\n\n"
     
     prompt = f"""이전 분석 결과를 바탕으로 더 정확하고 상세한 진행도 분석을 수행하세요.
 
 ## 이전 분석 결과:
-{json.dumps(previous_result, ensure_ascii=False, indent=2)[:1000]}
+{json.dumps(previous_result, ensure_ascii=False, indent=2)[:1500]}
 
 ## 추가 데이터:
 - 전체 커밋: {len(commits)}개
 - 전체 Task: {len(tasks)}개
-
-## 읽은 파일 목록:
-{chr(10).join(files_summary) if files_summary else "없음"}
+{files_section}
 
 ## 추가 분석 요청:
-위 파일 내용을 바탕으로 다음을 더 구체적으로 분석하세요:
-1. 소스코드 구조를 확인하여 어떤 모듈/컴포넌트가 구현되어 있는지
-2. 각 모듈의 완성도를 평가 (완성됨/부분완성/미완성)
-3. 누락된 기능이나 모듈이 있는지 확인
-4. 프로젝트의 전체적인 아키텍처와 구조 파악
+위에서 읽은 파일 내용을 **반드시 활용하여** 다음을 구체적으로 분석하세요:
 
-위 정보를 종합하여 더 정확하고 상세한 진행도 분석을 수행하세요. **narrativeResponse** 필드에는 마크다운 형식으로 상세한 분석 결과를 작성하세요. JSON 형식으로만 응답하세요."""
+1. **소스코드 구조 분석**: 읽은 파일들을 바탕으로 어떤 모듈/컴포넌트/기능이 구현되어 있는지 구체적으로 나열
+   - 파일명과 함수명/클래스명을 명시하여 "어떤 파일의 어떤 함수가 어떤 기능을 구현하는지" 설명
+
+2. **완성도 평가**: 각 기능/모듈의 완성도를 평가
+   - ✅ 완성됨: 전체 기능이 구현되어 작동 가능
+   - ⚠️ 부분완성: 일부만 구현되었거나 불완전함
+   - ❌ 미완성: 아직 구현되지 않음
+
+3. **누락된 기능 확인**: 프로젝트에 필요한 기능 중 소스코드에서 확인되지 않은 기능 나열
+
+4. **진행도 재계산**: 
+   - 필요한 요소 수: [N]개
+   - 개발된 요소 수: [M]개 (읽은 파일에서 확인된 것만)
+   - 진행도: [M/N * 100]%
+
+⚠️ **중요**: 
+- 읽은 파일 내용을 무시하지 말고 반드시 활용하세요.
+- 파일명, 함수명, 클래스명을 구체적으로 언급하세요.
+- **narrativeResponse** 필드에는 위에서 지정한 정확한 형식(1. 근거 → 2. 필요한 요소들 → 3. 개발된 부분 → 4. 개발되지 않은 부분 → 5. 진행도 계산 → 6. 종합 평가)으로 작성하세요.
+- 최소 1500자 이상의 상세한 설명을 작성하세요.
+
+위 정보를 종합하여 더 정확하고 상세한 진행도 분석을 수행하세요. JSON 형식으로만 응답하세요."""
     return prompt
 
 def create_task_completion_initial_prompt(context, user_message, read_files, analyzed_commits):
