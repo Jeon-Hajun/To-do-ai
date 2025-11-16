@@ -26,6 +26,7 @@ import AddIcon from "@mui/icons-material/Add";
 import { sendChatMessage, clearConversation, getChatHistory } from "../../api/ai";
 import { createTask } from "../../api/tasks";
 import { useQueryClient } from "@tanstack/react-query";
+import MarkdownRenderer from "../common/MarkdownRenderer";
 
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
@@ -178,16 +179,23 @@ export default function ChatBot({ projectId, onError }) {
         // 진행 상황 메시지가 있으면 표시
         const progressMessages = res.data.progress_messages || [];
         
-        // 진행 상황 메시지들을 채팅에 추가 (임시 메시지 업데이트)
+        // 진행 상황 메시지들을 채팅에 추가 (모든 진행 메시지 표시)
         if (progressMessages.length > 0) {
-          // 마지막 진행 상황 메시지로 업데이트
-          setMessages((prev) => 
-            prev.map((msg) => 
-              msg.id === progressMessageId 
-                ? { ...msg, content: progressMessages[progressMessages.length - 1] }
-                : msg
-            )
-          );
+          // 진행 메시지들을 모두 추가 (최근 3개만 표시)
+          setMessages((prev) => {
+            // 기존 진행 메시지 제거
+            const filtered = prev.filter(msg => !msg.isProgress || msg.id === progressMessageId);
+            
+            // 새로운 진행 메시지들 추가 (마지막 3개만 표시)
+            const recentProgressMessages = progressMessages.slice(-3).map((msg, idx) => ({
+              role: "assistant",
+              content: msg,
+              id: progressMessageId + idx + 1,
+              isProgress: true,
+            }));
+            
+            return [...filtered, ...recentProgressMessages];
+          });
         }
 
         // 최종 응답 메시지 추가
@@ -201,7 +209,7 @@ export default function ChatBot({ projectId, onError }) {
         
         // 진행 상황 메시지 제거하고 최종 응답 추가
         setMessages((prev) => {
-          const filtered = prev.filter((msg) => msg.id !== progressMessageId);
+          const filtered = prev.filter((msg) => !msg.isProgress);
           return [...filtered, assistantMessage];
         });
         
@@ -331,16 +339,23 @@ export default function ChatBot({ projectId, onError }) {
         // 진행 상황 메시지가 있으면 표시
         const progressMessages = res.data.progress_messages || [];
         
-        // 진행 상황 메시지들을 채팅에 추가 (임시 메시지 업데이트)
+        // 진행 상황 메시지들을 채팅에 추가 (모든 진행 메시지 표시)
         if (progressMessages.length > 0) {
-          // 마지막 진행 상황 메시지로 업데이트
-          setMessages((prev) => 
-            prev.map((msg) => 
-              msg.id === progressMessageId 
-                ? { ...msg, content: progressMessages[progressMessages.length - 1] }
-                : msg
-            )
-          );
+          // 진행 메시지들을 모두 추가 (최근 3개만 표시)
+          setMessages((prev) => {
+            // 기존 진행 메시지 제거
+            const filtered = prev.filter(msg => !msg.isProgress || msg.id === progressMessageId);
+            
+            // 새로운 진행 메시지들 추가 (마지막 3개만 표시)
+            const recentProgressMessages = progressMessages.slice(-3).map((msg, idx) => ({
+              role: "assistant",
+              content: msg,
+              id: progressMessageId + idx + 1,
+              isProgress: true,
+            }));
+            
+            return [...filtered, ...recentProgressMessages];
+          });
         }
 
         // 최종 응답 메시지 추가
@@ -354,7 +369,7 @@ export default function ChatBot({ projectId, onError }) {
         
         // 진행 상황 메시지 제거하고 최종 응답 추가
         setMessages((prev) => {
-          const filtered = prev.filter((msg) => msg.id !== progressMessageId);
+          const filtered = prev.filter((msg) => !msg.isProgress);
           return [...filtered, assistantMessage];
         });
         
@@ -549,10 +564,22 @@ export default function ChatBot({ projectId, onError }) {
                   maxWidth: "70%",
                   bgcolor: message.role === "user" ? "primary.main" : "background.paper",
                   color: message.role === "user" ? "primary.contrastText" : "text.primary",
+                  opacity: message.isProgress ? 0.8 : 1,
                 }}
               >
-                <Typography variant="body1">{message.content}</Typography>
-                {message.agentType && (
+                {message.isProgress ? (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <CircularProgress size={16} />
+                    <Typography variant="body2">{message.content}</Typography>
+                  </Box>
+                ) : message.agentType === "progress_analysis_agent" ? (
+                  <MarkdownRenderer content={message.content} />
+                ) : (
+                  <Typography variant="body1" component="div">
+                    {message.content}
+                  </Typography>
+                )}
+                {message.agentType && !message.isProgress && (
                   <Chip
                     label={message.agentType.replace("_agent", "")}
                     size="small"

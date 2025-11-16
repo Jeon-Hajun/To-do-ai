@@ -89,7 +89,14 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
     commits = context.get('commits', [])
     tasks = context.get('tasks', [])
     
-    prompt = f"""이전 분석 결과를 바탕으로 더 정확한 진행도 분석을 수행하세요.
+    # 읽은 파일 내용 요약
+    files_summary = []
+    for f in read_files[-5:]:  # 최근 5개 파일만
+        path = f.get('path', '')
+        content_preview = f.get('content', '')[:300] if f.get('content') else ''
+        files_summary.append(f"- {path}: {content_preview}...")
+    
+    prompt = f"""이전 분석 결과를 바탕으로 더 정확하고 상세한 진행도 분석을 수행하세요.
 
 ## 이전 분석 결과:
 {json.dumps(previous_result, ensure_ascii=False, indent=2)[:1000]}
@@ -98,10 +105,17 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 - 전체 커밋: {len(commits)}개
 - 전체 Task: {len(tasks)}개
 
-## 읽은 파일:
-{json.dumps([f.get('path', '') for f in read_files], ensure_ascii=False)[:500]}
+## 읽은 파일 목록:
+{chr(10).join(files_summary) if files_summary else "없음"}
 
-위 정보를 종합하여 더 정확한 진행도 분석을 수행하세요. JSON 형식으로만 응답하세요."""
+## 추가 분석 요청:
+위 파일 내용을 바탕으로 다음을 더 구체적으로 분석하세요:
+1. 소스코드 구조를 확인하여 어떤 모듈/컴포넌트가 구현되어 있는지
+2. 각 모듈의 완성도를 평가 (완성됨/부분완성/미완성)
+3. 누락된 기능이나 모듈이 있는지 확인
+4. 프로젝트의 전체적인 아키텍처와 구조 파악
+
+위 정보를 종합하여 더 정확하고 상세한 진행도 분석을 수행하세요. **narrativeResponse** 필드에는 마크다운 형식으로 상세한 분석 결과를 작성하세요. JSON 형식으로만 응답하세요."""
     return prompt
 
 def create_task_completion_initial_prompt(context, user_message, read_files, analyzed_commits):

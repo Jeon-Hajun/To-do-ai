@@ -288,11 +288,11 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
                 analysis = {}
         
         # 사용자 친화적인 상세 메시지 생성
-        # narrativeResponse가 있으면 우선 사용 (긴 문장 형태)
+        # narrativeResponse가 있으면 우선 사용 (마크다운 형식)
         narrative_response = analysis.get('narrativeResponse', '')
         
         if narrative_response and len(narrative_response) > 100:
-            # 긴 문장 형태의 응답이 있으면 이를 메인 메시지로 사용
+            # 마크다운 형식의 응답이 있으면 이를 메인 메시지로 사용
             message = narrative_response
             
             # 추가 정보는 요약하여 포함
@@ -313,10 +313,13 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             
             estimated_date = analysis.get('estimatedCompletionDate')
             
-            # 메시지 끝에 핵심 지표 추가
-            message += f"\n\n---\n\n**핵심 지표**: 진행도 {progress}% | 활동 추세: {trend_kr} | 지연 위험도: {delay_risk_kr}"
+            # 메시지 끝에 핵심 지표 추가 (마크다운 형식)
+            message += f"\n\n---\n\n## 📊 핵심 지표\n\n"
+            message += f"- **진행도**: {progress}%\n"
+            message += f"- **활동 추세**: {trend_kr}\n"
+            message += f"- **지연 위험도**: {delay_risk_kr}\n"
             if estimated_date:
-                message += f" | 예상 완료일: {estimated_date}"
+                message += f"- **예상 완료일**: {estimated_date}\n"
         else:
             # narrativeResponse가 없거나 짧으면 기존 방식 사용
             progress = analysis.get('currentProgress', 0)

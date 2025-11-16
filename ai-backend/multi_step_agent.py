@@ -250,6 +250,48 @@ def execute_multi_step_agent(
         else:
             progress_messages.append(f"📊 추가 정보를 분석 중입니다... (단계 {step_number}/{MAX_ANALYSIS_STEPS})")
         
+        # 진행도 분석 에이전트의 경우 첫 단계에서 README 파일 자동 읽기
+        if step_number == 1 and agent_type == "progress_analysis_agent" and github_repo:
+            # README 파일 찾기 시도
+            readme_files = ["README.md", "README.txt", "readme.md", "README", "readme"]
+            progress_messages.append("📖 README 파일을 찾는 중...")
+            
+            for readme_file in readme_files:
+                try:
+                    file_contents = get_file_contents(github_repo, github_token, [readme_file])
+                    if file_contents and file_contents[0].get('content'):
+                        accumulated_files.append({
+                            "path": readme_file,
+                            "content": file_contents[0]['content'],
+                            "truncated": file_contents[0].get('truncated', False)
+                        })
+                        progress_messages.append(f"✅ {readme_file} 파일을 읽었습니다.")
+                        context['readFiles'] = accumulated_files
+                        break
+                except:
+                    continue
+            
+            # 프로젝트 구조 파악을 위한 주요 파일들도 읽기 시도
+            if not accumulated_files:
+                # package.json, requirements.txt 등 설정 파일 찾기
+                config_files = ["package.json", "requirements.txt", "pom.xml", "build.gradle", "Cargo.toml"]
+                progress_messages.append("📄 프로젝트 설정 파일을 찾는 중...")
+                
+                for config_file in config_files:
+                    try:
+                        file_contents = get_file_contents(github_repo, github_token, [config_file])
+                        if file_contents and file_contents[0].get('content'):
+                            accumulated_files.append({
+                                "path": config_file,
+                                "content": file_contents[0]['content'],
+                                "truncated": file_contents[0].get('truncated', False)
+                            })
+                            progress_messages.append(f"✅ {config_file} 파일을 읽었습니다.")
+                            context['readFiles'] = accumulated_files
+                            break
+                    except:
+                        continue
+        
         # 프롬프트 생성
         if step_number == 1:
             # 초기 프롬프트
