@@ -42,12 +42,13 @@ export default function ChatBot({ projectId, onError }) {
   const [resultModalOpen, setResultModalOpen] = useState(false);
   const [resultData, setResultData] = useState(null);
   const [addingTasks, setAddingTasks] = useState(new Set());
+  const [addedTasks, setAddedTasks] = useState(new Set()); // 추가된 Task 추적
   const messagesEndRef = useRef(null);
 
   // 초기 제안 질문들
   const suggestionButtons = [
     { text: "진행도 알려줘", query: "진행도 알려줘", icon: "📊" },
-    { text: "할 일 추천해줘", query: "할 일 추천해줘", icon: "💡" },
+    { text: "Task 제안", query: "할 일 추천해줘", icon: "💡" },
     { text: "이 작업 완료됐어?", query: "이 작업 완료됐어?", icon: "✅" },
     { text: "커밋 몇 개야?", query: "커밋 몇 개야?", icon: "📝" },
     { text: "Task 할당 추천해줘", query: "Task 할당 추천해줘", icon: "👤" },
@@ -71,6 +72,7 @@ export default function ChatBot({ projectId, onError }) {
       setResultData(null);
       setInputMessage("");
       setError(null);
+      setAddedTasks(new Set()); // 추가된 Task 추적도 초기화
       // 히스토리 로드
       loadHistory();
     } else {
@@ -78,6 +80,7 @@ export default function ChatBot({ projectId, onError }) {
       setConversationId(null);
       setResultModalOpen(false);
       setResultData(null);
+      setAddedTasks(new Set());
     }
   }, [projectId]);
 
@@ -288,7 +291,7 @@ export default function ChatBot({ projectId, onError }) {
   };
 
   const handleAddTask = async (suggestion, index) => {
-    if (!projectId || addingTasks.has(index)) return;
+    if (!projectId || addingTasks.has(index) || addedTasks.has(index)) return;
 
     const taskTitle = suggestion.title || suggestion.task || "제목 없음";
     const taskDescription = suggestion.description || "";
@@ -306,6 +309,9 @@ export default function ChatBot({ projectId, onError }) {
 
       // Task 목록 새로고침
       queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
+
+      // 추가된 Task로 표시
+      setAddedTasks((prev) => new Set(prev).add(index));
 
       // 성공 메시지 표시
       alert(`"${taskTitle}" Task가 추가되었습니다.`);
@@ -568,16 +574,25 @@ export default function ChatBot({ projectId, onError }) {
                                 : "default"
                             }
                           />
-                          <Button
-                            variant="contained"
-                            size="small"
-                            startIcon={addingTasks.has(index) ? <CircularProgress size={16} /> : <AddIcon />}
-                            onClick={() => handleAddTask(suggestion, index)}
-                            disabled={addingTasks.has(index) || !projectId}
-                            sx={{ ml: 1 }}
-                          >
-                            {addingTasks.has(index) ? "추가 중..." : "추가"}
-                          </Button>
+                          {addedTasks.has(index) ? (
+                            <Chip
+                              label="추가됨"
+                              size="small"
+                              color="success"
+                              sx={{ ml: 1 }}
+                            />
+                          ) : (
+                            <Button
+                              variant="contained"
+                              size="small"
+                              startIcon={addingTasks.has(index) ? <CircularProgress size={16} /> : <AddIcon />}
+                              onClick={() => handleAddTask(suggestion, index)}
+                              disabled={addingTasks.has(index) || !projectId}
+                              sx={{ ml: 1 }}
+                            >
+                              {addingTasks.has(index) ? "추가 중..." : "추가"}
+                            </Button>
+                          )}
                         </Stack>
                       </Box>
                       {suggestion.description && (
