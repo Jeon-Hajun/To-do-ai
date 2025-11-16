@@ -158,8 +158,7 @@ export default function TaskManagement({ projectId }) {
 
   return (
     <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-        <Typography variant="h6">태스크 관리</Typography>
+      <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", mb: 3 }}>
         <Button
           variant="contained"
           color="primary"
@@ -203,13 +202,6 @@ export default function TaskManagement({ projectId }) {
                       <Typography variant="body2" fontWeight="medium">
                         {task.title}
                       </Typography>
-                      {task.description && (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                          {task.description.length > 50
-                            ? `${task.description.substring(0, 50)}...`
-                            : task.description}
-                        </Typography>
-                      )}
                     </TableCell>
                     <TableCell>
                       <Chip

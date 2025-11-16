@@ -1,6 +1,6 @@
 // src/components/tasks/TaskView.jsx
 import React, { useState } from "react";
-import { Box, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
+import { Box, ToggleButton, ToggleButtonGroup } from "@mui/material";
 import List from "./List";
 import TaskManagement from "./TaskManagement";
 
@@ -15,8 +15,7 @@ export default function TaskView({ projectId }) {
 
   return (
     <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-        <Typography variant="h6">태스크 관리</Typography>
+      <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", mb: 3 }}>
         <ToggleButtonGroup
           value={viewMode}
           exclusive
