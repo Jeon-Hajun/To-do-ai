@@ -128,6 +128,7 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
     step1_result = all_steps[0] if len(all_steps) > 0 else {}
     step2_result = all_steps[1] if len(all_steps) > 1 else {}
     step3_result = all_steps[2] if len(all_steps) > 2 else {}
+    step4_result = all_steps[3] if len(all_steps) > 3 else {}
     
     # 읽은 파일 내용
     files_section = ""
