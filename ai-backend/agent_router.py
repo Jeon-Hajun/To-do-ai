@@ -304,22 +304,45 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             total_missing = len(missing_features)
             progress = round((total_implemented / total_required * 100) if total_required > 0 else 0, 1)
             
-            # 구현된 기능 목록 생성
+            # 구현된 기능 목록 생성 (간단하게)
             implemented_list = []
             for feat in implemented_features:
                 name = feat.get('name', '')
-                file_path = feat.get('filePath', '')
-                func_or_class = feat.get('functionOrClass', '')
-                details = feat.get('implementationDetails', '')
-                implemented_list.append(f"- **{name}** (`{file_path}`에 구현)\n  - 함수/클래스: `{func_or_class}`\n  - 구현 내용: {details}")
+                feat_type = feat.get('type', 'other')
+                location = feat.get('location', feat.get('filePath', ''))
+                if feat_type == 'page':
+                    implemented_list.append(f"- **{name}** {location}")
+                elif feat_type == 'api':
+                    implemented_list.append(f"- **{name}** {location}")
+                else:
+                    implemented_list.append(f"- **{name}** {location}")
             
-            # 미구현 기능 목록 생성
+            # 미구현 기능 목록 생성 (간단하게)
             missing_list = []
             for feat in missing_features:
                 name = feat.get('name', '')
-                reason = feat.get('reason', '')
                 expected_loc = feat.get('expectedLocation', '')
-                missing_list.append(f"- **{name}**: {reason}\n  - 예상 파일 위치: `{expected_loc}`")
+                missing_list.append(f"- **{name}**: {expected_loc}")
+            
+            # 예상 완성일 계산 (간단하게)
+            estimated_date = step5_result.get('estimatedCompletionDate') if step5_result else None
+            if not estimated_date:
+                # 진행도에 따라 간단한 예상일 계산
+                if progress >= 80:
+                    estimated_date = "곧 완성 예상"
+                elif progress >= 50:
+                    estimated_date = "2-3주 내 완성 예상"
+                elif progress >= 30:
+                    estimated_date = "1-2개월 내 완성 예상"
+                else:
+                    estimated_date = "완성 시기 미정"
+            
+            # 총평 생성 (2-3줄)
+            total_evaluation = f"현재 프로젝트는 {progress}% 진행되었으며, 핵심 기능 {total_implemented}개가 구현되어 있습니다. "
+            if total_missing > 0:
+                missing_names = ', '.join([f.get('name', '') for f in missing_features[:3]])
+                total_evaluation += f"주요 미구현 기능으로는 {missing_names} 등이 있으며, "
+            total_evaluation += f"{'안정적으로 진행 중' if progress >= 70 else '추가 개발이 필요' if progress >= 40 else '초기 단계'}입니다."
             
             # narrativeResponse 생성
             narrative_response = f"""## 프로젝트 이름
@@ -335,20 +358,11 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
 {chr(10).join(missing_list) if missing_list else "없음"}
 
 ### 평가
-**진행도 계산:**
-- 필요한 요소 수: 총 {total_required}개
-- 개발된 요소 수: {total_implemented}개 (읽은 파일에서 실제로 확인됨)
-- 개발되지 않은 요소 수: {total_missing}개
-- 진행도: {total_implemented} / {total_required} × 100 = {progress}%
-- 검증: {total_implemented} + {total_missing} = {total_required} (일치 확인)
+**진행도**: {progress}%
 
-**프로젝트 상태 평가:**
-- 현재 구현 상태: 핵심 기능 {total_implemented}개가 구현되어 있어 기본적인 기능은 작동 가능한 상태입니다. 하지만 {total_missing}개의 미구현 기능이 있어 완전한 프로젝트 완성을 위해서는 추가 개발이 필요합니다.
-- 안정성: 부분적 안정 - 구현된 기능은 작동하나, 미구현 기능들이 사용자 경험에 영향을 줄 수 있습니다.
-- 앞으로 구현할 내용: {', '.join([f.get('name', '') for f in missing_features[:3]])} 등 {total_missing}개의 기능을 구현해야 합니다.
-- 예상 소요 기간: 현재 진행 속도를 고려할 때 약 2-3주 정도 소요될 것으로 예상됩니다.
-- 위험 요소: 미구현 기능들이 사용자 경험에 영향을 줄 수 있으며, 보안 취약점이 있을 수 있습니다. 정기적인 코드 리뷰와 테스트가 필요합니다.
-- 성공 가능성: {'높음' if progress >= 70 else '보통' if progress >= 40 else '낮음'} - 핵심 기능이 {'이미 구현되어 있어' if progress >= 70 else '부분적으로 구현되어 있어' if progress >= 40 else '아직 부족하여'} 나머지 기능 구현이 완료되면 성공적으로 프로젝트를 완료할 수 있을 것으로 예상됩니다."""
+**예상 완성일**: {estimated_date}
+
+**총평**: {total_evaluation}"""
             
             analysis['narrativeResponse'] = narrative_response
             analysis['currentProgress'] = progress

@@ -151,44 +151,43 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 {files_section}
 
 ## 2단계 작업: 필요한 기능 분석
-이전 단계에서 파악한 프로젝트 정보를 바탕으로, 이 프로젝트에 있어야 할 주요 기능, 모듈, 컴포넌트를 나열하세요.
+이전 단계에서 파악한 프로젝트 정보를 바탕으로, 이 프로젝트에 있어야 할 주요 기능을 **포괄적으로** 나열하세요.
 
-읽은 파일(README, package.json, 소스코드 구조 등)을 바탕으로 구체적으로 나열하세요.
+**기능 분류:**
+- **페이지**: 각 페이지 경로 (예: 로그인 페이지, 프로젝트 목록 페이지 등)
+- **API**: 포괄적인 API 그룹 (예: 사용자 인증 API, 프로젝트 관리 API, Task 관리 API 등)
+- **기타**: 기타 주요 기능 (예: 데이터베이스 연결, 파일 업로드 등)
 
 다음 JSON 형식으로만 응답하세요:
 {{
   "step": 2,
   "requiredFeatures": [
     {{
-      "name": "기능명 1",
-      "description": "왜 필요한지, 어떤 역할을 하는지 구체적 설명",
-      "expectedLocation": "예상 파일 위치 (예: controllers/projectController.js)"
-    }},
-    {{
-      "name": "기능명 2",
-      "description": "구체적 설명",
-      "expectedLocation": "예상 파일 위치"
+      "name": "기능명 (예: 로그인 페이지, 사용자 인증 API, 프로젝트 관리 API 등)",
+      "type": "page|api|other",
+      "description": "간단한 설명 (1-2문장)",
+      "expectedLocation": "예상 위치 (페이지: 경로, API: 엔드포인트 그룹)"
     }}
   ],
   "nextStep": "다음 단계(3단계)에서는 소스코드를 확인하여 실제로 구현된 기능을 찾겠습니다."
 }}
 
 ⚠️ **중요**: 
-- 최소 8개 이상의 기능을 나열하세요.
-- 읽은 파일 내용을 바탕으로 구체적으로 나열하세요.
-- 각 기능은 프로젝트에 반드시 필요한 기능이어야 합니다."""
+- 기능을 **포괄적으로** 나열하세요 (세부 기능이 아닌 주요 기능 그룹).
+- 페이지는 경로만, API는 엔드포인트 그룹으로 나열하세요.
+- 최소 8개 이상의 기능을 나열하세요."""
     
     elif step_number == 3:
         # 3단계: 정보 추출 (소스코드에서 구현된 기능 확인)
         required_features = step2_result.get('requiredFeatures', [])
-        required_features_text = "\n".join([f"- {f.get('name', '')}: {f.get('description', '')}" for f in required_features[:10]])
+        required_features_text = "\n".join([f"- {f.get('name', '')} ({f.get('type', 'unknown')})" for f in required_features[:15]])
         
         prompt = f"""진행도 분석 **3단계: 구현된 기능 확인**입니다.
 
 ## 이전 단계 결과:
 
 ### 1단계: 프로젝트 분석
-{json.dumps(step1_result, ensure_ascii=False, indent=2)}
+프로젝트 이름: {step1_result.get('projectName', 'N/A')}
 
 ### 2단계: 필요한 기능 분석
 필요한 기능 목록:
@@ -197,9 +196,14 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 {files_section}
 
 ## 3단계 작업: 구현된 기능 확인
-위에서 읽은 파일 내용을 **반드시 활용하여** 실제 소스코드에서 확인된 기능/모듈을 찾으세요.
+위에서 읽은 파일 내용을 **반드시 활용하여** 실제 소스코드에서 확인된 기능을 찾으세요.
 
-읽은 파일에서 실제로 확인된 함수, 클래스, 컴포넌트만 나열하세요. 추측하지 마세요.
+**표시 형식:**
+- **페이지**: `페이지명 /경로/경로/.jsx` (예: 로그인 페이지 /src/pages/Login.jsx)
+- **API**: `API 그룹명 /포괄적 엔드포인트, 나열` (예: 사용자 인증 API /api/user/login, /api/user/logout, /api/user/register)
+- **기타**: `기능명 /위치` (예: 데이터베이스 연결 /database/db.js)
+
+읽은 파일에서 실제로 확인된 것만 나열하세요. 추측하지 마세요.
 
 다음 JSON 형식으로만 응답하세요:
 {{
@@ -207,9 +211,9 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
   "implementedFeatures": [
     {{
       "name": "기능명",
-      "filePath": "정확한 파일 경로",
-      "functionOrClass": "함수명/클래스명",
-      "implementationDetails": "어떻게 구현되어 있는지 구체적 설명"
+      "type": "page|api|other",
+      "location": "페이지: /경로/경로/.jsx 또는 API: /엔드포인트, /엔드포인트 나열",
+      "filePath": "주요 파일 경로 (1-2개)"
     }}
   ],
   "nextStep": "다음 단계(4단계)에서는 미구현 기능을 분석하겠습니다."
@@ -217,8 +221,8 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 
 ⚠️ **중요**: 
 - 읽은 파일 내용을 무시하지 말고, 실제로 파일에서 확인된 기능만 나열하세요.
-- 파일명, 함수명, 클래스명을 구체적으로 언급하세요.
-- 최소 5개 이상의 구현된 기능을 찾으세요."""
+- 페이지는 경로만, API는 엔드포인트를 포괄적으로 나열하세요.
+- 세부 설명은 생략하고 위치만 명시하세요."""
     
     elif step_number == 4:
         # 4단계: 미구현 기능 분석
@@ -280,13 +284,33 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
         total_missing = len(missing_features)
         progress = round((total_implemented / total_required * 100) if total_required > 0 else 0, 1)
         
+        # 구현된 기능 목록 생성 (간단하게)
+        implemented_list = []
+        for feat in implemented_features:
+            name = feat.get('name', '')
+            feat_type = feat.get('type', 'other')
+            location = feat.get('location', feat.get('filePath', ''))
+            if feat_type == 'page':
+                implemented_list.append(f"- **{name}** {location}")
+            elif feat_type == 'api':
+                implemented_list.append(f"- **{name}** {location}")
+            else:
+                implemented_list.append(f"- **{name}** {location}")
+        
+        # 미구현 기능 목록 생성 (간단하게)
+        missing_list = []
+        for feat in missing_features:
+            name = feat.get('name', '')
+            expected_loc = feat.get('expectedLocation', '')
+            missing_list.append(f"- **{name}**: {expected_loc}")
+        
         prompt = f"""진행도 분석 **5단계: 평가 및 진행도 계산**입니다.
 
 ## 이전 단계 결과:
 
 ### 1단계: 프로젝트 분석
 프로젝트 이름: {project_name}
-프로젝트 설명: {project_desc[:300]}...
+프로젝트 설명: {project_desc[:200]}...
 
 ### 2단계: 필요한 기능 분석
 필요한 기능 수: {total_required}개
@@ -300,13 +324,19 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 ## 5단계 작업: 평가 및 진행도 계산
 위 분석 결과를 바탕으로 최종 평가를 작성하세요.
 
+**중요 체크사항:**
+- 구현된 API가 필요한 모든 API를 포함하는지 확인하세요.
+- 읽은 파일에서 확인된 API 엔드포인트가 필요한 기능 목록과 일치하는지 검증하세요.
+- 누락된 API가 있는지 확인하세요.
+
 다음 JSON 형식으로만 응답하세요:
 {{
   "step": 5,
   "currentProgress": {progress},
-  "narrativeResponse": "## 프로젝트 이름\\n{project_name}\\n\\n### 프로젝트 설명\\n{project_desc}\\n\\n### 구현된 기능\\n[구현된 기능들을 위 형식으로 나열]\\n\\n### 미구현 기능\\n[미구현 기능들을 위 형식으로 나열]\\n\\n### 평가\\n**진행도 계산:**\\n- 필요한 요소 수: 총 {total_required}개\\n- 개발된 요소 수: {total_implemented}개\\n- 진행도: {total_implemented} / {total_required} × 100 = {progress}%\\n\\n**프로젝트 상태 평가:**\\n- 현재 구현 상태: [구체적인 평가 내용, 2-3문장]\\n- 안정성: [안정적/불안정/부분적 안정] - [이유]\\n- 앞으로 구현할 내용: [주요 미구현 기능 요약, 2-3문장]\\n- 예상 소요 기간: [예상 기간 및 근거]\\n- 위험 요소: [주요 위험 요소 및 대응 방안]\\n- 성공 가능성: [높음/보통/낮음] - [이유]",
+  "narrativeResponse": "## 프로젝트 이름\\n{project_name}\\n\\n### 프로젝트 설명\\n{project_desc}\\n\\n### 구현된 기능\\n{chr(10).join(implemented_list) if implemented_list else '없음'}\\n\\n### 미구현 기능\\n{chr(10).join(missing_list) if missing_list else '없음'}\\n\\n### 평가\\n**진행도**: {progress}%\\n\\n**예상 완성일**: [현재 진행 속도를 고려한 예상 완성일 또는 '미정']\\n\\n**총평**: [프로젝트의 현재 상태를 2-3줄로 요약한 총평. 핵심 기능 구현 상태, 주요 미구현 기능, 전체적인 프로젝트 상태를 간결하게 설명]",
   "activityTrend": "increasing|stable|decreasing",
   "delayRisk": "Low|Medium|High",
+  "estimatedCompletionDate": "YYYY-MM-DD 또는 null",
   "insights": ["인사이트 1", "인사이트 2", "인사이트 3"],
   "recommendations": ["제안 1", "제안 2", "제안 3"]
 }}
@@ -314,7 +344,8 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 ⚠️ **매우 중요**: 
 - narrativeResponse는 위에서 지정한 정확한 형식으로 작성하세요.
 - currentProgress는 반드시 {progress}와 일치해야 합니다 (계산: {total_implemented}/{total_required}×100).
-- 최소 2000자 이상의 상세한 설명을 작성하세요."""
+- 총평은 2-3줄로 간결하게 작성하세요.
+- API 완전성을 체크하여 누락된 API가 있는지 확인하세요."""
     
     return prompt
 
