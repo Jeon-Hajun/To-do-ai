@@ -1,7 +1,7 @@
 // src/components/tasks/TaskView.jsx
 import React, { useState } from "react";
 import { Box, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
-import { List } from "./List";
+import List from "./List";
 import TaskManagement from "./TaskManagement";
 
 export default function TaskView({ projectId }) {
