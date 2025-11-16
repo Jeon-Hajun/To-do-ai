@@ -72,93 +72,249 @@ def create_task_suggestion_followup_prompt(context, previous_result, user_messag
 """
     return prompt
 
-def create_progress_analysis_initial_prompt(context, user_message, read_files, analyzed_commits):
-    """진행도 분석 에이전트 초기 프롬프트"""
+def create_progress_analysis_initial_prompt(context, user_message, read_files, analyzed_commits, step_number=1):
+    """진행도 분석 에이전트 초기 프롬프트 (1단계: 프로젝트 분석)"""
     commits = context.get('commits', [])
     tasks = context.get('tasks', [])
     projectDescription = context.get('projectDescription', '')
     projectStartDate = context.get('projectStartDate', None)
     projectDueDate = context.get('projectDueDate', None)
     
-    # 읽은 파일 내용을 프롬프트에 포함
-    base_prompt = create_optimized_progress_prompt(
-        commits, tasks, projectDescription, projectStartDate, projectDueDate
-    )
-    
     # 읽은 파일 내용 추가
+    files_section = ""
     if read_files:
-        files_section = "\n\n## 📄 읽은 파일 내용 (반드시 이 내용을 활용하여 분석하세요):\n\n"
-        files_section += "⚠️ **매우 중요**: 아래 파일 내용을 읽고, 실제로 파일에서 확인된 기능/모듈만 '개발된 부분'에 나열하세요. 추측하지 마세요.\n\n"
-        
+        files_section = "\n\n## 📄 읽은 파일 내용:\n\n"
         for file_info in read_files:
             file_path = file_info.get('path', '')
             file_content = file_info.get('content', '')
             if file_content:
-                # 파일 내용이 너무 길면 일부만 표시 (더 많이 표시하여 분석 정확도 향상)
                 content_preview = file_content[:3000] if len(file_content) > 3000 else file_content
                 files_section += f"### 파일: {file_path}\n```\n{content_preview}\n```\n\n"
-        
-        base_prompt += files_section
-        base_prompt += "\n⚠️ **중요 지침**:\n"
-        base_prompt += "1. 위에서 읽은 파일 내용을 바탕으로 프로젝트가 무엇인지 파악하세요.\n"
-        base_prompt += "2. 읽은 파일에서 실제로 확인된 함수, 클래스, 컴포넌트만 '개발된 부분'에 나열하세요.\n"
-        base_prompt += "3. 파일 내용에서 확인되지 않은 기능은 '개발되지 않은 부분'에 나열하세요.\n"
-        base_prompt += "4. 진행도 계산 시 읽은 파일에서 확인된 기능 수를 정확히 세세요.\n"
     
-    return base_prompt
+    prompt = f"""진행도 분석을 단계별로 수행합니다. 현재는 **1단계: 프로젝트 분석**입니다.
 
-def create_progress_analysis_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits):
-    """진행도 분석 에이전트 후속 프롬프트"""
+## 프로젝트 정보:
+- 프로젝트 설명: {projectDescription[:200] if projectDescription else '없음'}
+- 프로젝트 시작일: {projectStartDate or '미정'}
+- 프로젝트 마감일: {projectDueDate or '미정'}
+- 총 커밋 수: {len(commits)}개
+- 총 Task 수: {len(tasks)}개
+{files_section}
+
+## 1단계 작업: 프로젝트 분석
+읽은 파일(README, 설정 파일 등)과 프로젝트 설명을 바탕으로 다음을 작성하세요:
+
+다음 JSON 형식으로만 응답하세요:
+{{
+  "step": 1,
+  "projectName": "[프로젝트의 실제 이름 또는 README에서 확인한 이름]",
+  "projectDescription": "[이 프로젝트는 어떤 프로젝트인지, 목적, 기술 스택, 주요 특징을 3-5문장으로 설명]",
+  "nextStep": "다음 단계(2단계)에서는 이 프로젝트에 필요한 기능들을 분석하겠습니다."
+}}
+
+⚠️ **중요**: 
+- 읽은 파일 내용을 바탕으로 프로젝트가 무엇인지 정확히 파악하세요.
+- 프로젝트 이름은 README나 package.json에서 확인하세요.
+- 프로젝트 설명은 구체적이고 명확하게 작성하세요."""
+    
+    return prompt
+
+def create_progress_analysis_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits, step_number, all_steps):
+    """진행도 분석 에이전트 후속 프롬프트 (단계별)"""
     commits = context.get('commits', [])
     tasks = context.get('tasks', [])
     
-    # 읽은 파일 내용 상세 표시 (최근 10개)
+    # 이전 단계들의 결과 수집
+    step1_result = all_steps[0] if len(all_steps) > 0 else {}
+    step2_result = all_steps[1] if len(all_steps) > 1 else {}
+    step3_result = all_steps[2] if len(all_steps) > 2 else {}
+    
+    # 읽은 파일 내용
     files_section = ""
     if read_files:
-        files_section = "\n\n## 📄 새로 읽은 파일 내용 (반드시 이 내용을 활용하여 분석하세요):\n\n"
+        files_section = "\n\n## 📄 읽은 파일 내용:\n\n"
         for f in read_files[-10:]:  # 최근 10개 파일
             path = f.get('path', '')
             content = f.get('content', '')
             if content:
-                # 파일 내용이 너무 길면 일부만 표시
-                content_preview = content[:1500] if len(content) > 1500 else content
+                content_preview = content[:2000] if len(content) > 2000 else content
                 files_section += f"### 파일: {path}\n```\n{content_preview}\n```\n\n"
     
-    prompt = f"""이전 분석 결과를 바탕으로 더 정확하고 상세한 진행도 분석을 수행하세요.
+    if step_number == 2:
+        # 2단계: 기능 분석 (필요한 기능들 파악)
+        prompt = f"""진행도 분석 **2단계: 기능 분석**입니다.
 
-## 이전 분석 결과:
-{json.dumps(previous_result, ensure_ascii=False, indent=2)[:1500]}
+## 이전 단계(1단계) 결과:
+{json.dumps(step1_result, ensure_ascii=False, indent=2)}
 
-## 추가 데이터:
-- 전체 커밋: {len(commits)}개
-- 전체 Task: {len(tasks)}개
 {files_section}
 
-## 추가 분석 요청:
-위에서 읽은 파일 내용을 **반드시 활용하여** 다음을 구체적으로 분석하세요:
+## 2단계 작업: 필요한 기능 분석
+이전 단계에서 파악한 프로젝트 정보를 바탕으로, 이 프로젝트에 있어야 할 주요 기능, 모듈, 컴포넌트를 나열하세요.
 
-1. **소스코드 구조 분석**: 읽은 파일들을 바탕으로 어떤 모듈/컴포넌트/기능이 구현되어 있는지 구체적으로 나열
-   - 파일명과 함수명/클래스명을 명시하여 "어떤 파일의 어떤 함수가 어떤 기능을 구현하는지" 설명
+읽은 파일(README, package.json, 소스코드 구조 등)을 바탕으로 구체적으로 나열하세요.
 
-2. **완성도 평가**: 각 기능/모듈의 완성도를 평가
-   - ✅ 완성됨: 전체 기능이 구현되어 작동 가능
-   - ⚠️ 부분완성: 일부만 구현되었거나 불완전함
-   - ❌ 미완성: 아직 구현되지 않음
-
-3. **누락된 기능 확인**: 프로젝트에 필요한 기능 중 소스코드에서 확인되지 않은 기능 나열
-
-4. **진행도 재계산**: 
-   - 필요한 요소 수: [N]개
-   - 개발된 요소 수: [M]개 (읽은 파일에서 확인된 것만)
-   - 진행도: [M/N * 100]%
+다음 JSON 형식으로만 응답하세요:
+{{
+  "step": 2,
+  "requiredFeatures": [
+    {{
+      "name": "기능명 1",
+      "description": "왜 필요한지, 어떤 역할을 하는지 구체적 설명",
+      "expectedLocation": "예상 파일 위치 (예: controllers/projectController.js)"
+    }},
+    {{
+      "name": "기능명 2",
+      "description": "구체적 설명",
+      "expectedLocation": "예상 파일 위치"
+    }}
+  ],
+  "nextStep": "다음 단계(3단계)에서는 소스코드를 확인하여 실제로 구현된 기능을 찾겠습니다."
+}}
 
 ⚠️ **중요**: 
-- 읽은 파일 내용을 무시하지 말고 반드시 활용하세요.
-- 파일명, 함수명, 클래스명을 구체적으로 언급하세요.
-- **narrativeResponse** 필드에는 위에서 지정한 정확한 형식(1. 근거 → 2. 필요한 요소들 → 3. 개발된 부분 → 4. 개발되지 않은 부분 → 5. 진행도 계산 → 6. 종합 평가)으로 작성하세요.
-- 최소 1500자 이상의 상세한 설명을 작성하세요.
+- 최소 8개 이상의 기능을 나열하세요.
+- 읽은 파일 내용을 바탕으로 구체적으로 나열하세요.
+- 각 기능은 프로젝트에 반드시 필요한 기능이어야 합니다."""
+    
+    elif step_number == 3:
+        # 3단계: 정보 추출 (소스코드에서 구현된 기능 확인)
+        required_features = step2_result.get('requiredFeatures', [])
+        required_features_text = "\n".join([f"- {f.get('name', '')}: {f.get('description', '')}" for f in required_features[:10]])
+        
+        prompt = f"""진행도 분석 **3단계: 구현된 기능 확인**입니다.
 
-위 정보를 종합하여 더 정확하고 상세한 진행도 분석을 수행하세요. JSON 형식으로만 응답하세요."""
+## 이전 단계 결과:
+
+### 1단계: 프로젝트 분석
+{json.dumps(step1_result, ensure_ascii=False, indent=2)}
+
+### 2단계: 필요한 기능 분석
+필요한 기능 목록:
+{required_features_text}
+
+{files_section}
+
+## 3단계 작업: 구현된 기능 확인
+위에서 읽은 파일 내용을 **반드시 활용하여** 실제 소스코드에서 확인된 기능/모듈을 찾으세요.
+
+읽은 파일에서 실제로 확인된 함수, 클래스, 컴포넌트만 나열하세요. 추측하지 마세요.
+
+다음 JSON 형식으로만 응답하세요:
+{{
+  "step": 3,
+  "implementedFeatures": [
+    {{
+      "name": "기능명",
+      "filePath": "정확한 파일 경로",
+      "functionOrClass": "함수명/클래스명",
+      "implementationDetails": "어떻게 구현되어 있는지 구체적 설명"
+    }}
+  ],
+  "nextStep": "다음 단계(4단계)에서는 미구현 기능을 분석하겠습니다."
+}}
+
+⚠️ **중요**: 
+- 읽은 파일 내용을 무시하지 말고, 실제로 파일에서 확인된 기능만 나열하세요.
+- 파일명, 함수명, 클래스명을 구체적으로 언급하세요.
+- 최소 5개 이상의 구현된 기능을 찾으세요."""
+    
+    elif step_number == 4:
+        # 4단계: 미구현 기능 분석
+        required_features = step2_result.get('requiredFeatures', [])
+        implemented_features = step3_result.get('implementedFeatures', [])
+        
+        implemented_names = [f.get('name', '') for f in implemented_features]
+        
+        prompt = f"""진행도 분석 **4단계: 미구현 기능 분석**입니다.
+
+## 이전 단계 결과:
+
+### 1단계: 프로젝트 분석
+프로젝트 이름: {step1_result.get('projectName', 'N/A')}
+프로젝트 설명: {step1_result.get('projectDescription', 'N/A')[:200]}...
+
+### 2단계: 필요한 기능 분석
+필요한 기능 수: {len(required_features)}개
+
+### 3단계: 구현된 기능 확인
+구현된 기능 수: {len(implemented_features)}개
+구현된 기능 목록:
+{json.dumps(implemented_features, ensure_ascii=False, indent=2)[:1000]}
+
+{files_section}
+
+## 4단계 작업: 미구현 기능 분석
+필요한 기능 목록과 구현된 기능 목록을 비교하여, 아직 구현되지 않은 기능을 찾으세요.
+
+다음 JSON 형식으로만 응답하세요:
+{{
+  "step": 4,
+  "missingFeatures": [
+    {{
+      "name": "기능명",
+      "reason": "왜 필요한지",
+      "expectedLocation": "예상 파일 위치"
+    }}
+  ],
+  "nextStep": "다음 단계(5단계)에서는 평가 및 진행도 계산을 수행하겠습니다."
+}}
+
+⚠️ **중요**: 
+- 필요한 기능 중 구현된 기능에 없는 것만 나열하세요.
+- 각 미구현 기능에 대해 왜 필요한지, 어디에 있어야 하는지 명시하세요."""
+    
+    else:
+        # 5단계 이상: 평가 및 진행도 계산
+        required_features = step2_result.get('requiredFeatures', [])
+        implemented_features = step3_result.get('implementedFeatures', [])
+        missing_features = step4_result.get('missingFeatures', []) if len(all_steps) > 3 else []
+        
+        project_name = step1_result.get('projectName', '프로젝트')
+        project_desc = step1_result.get('projectDescription', '')
+        
+        # 진행도 계산
+        total_required = len(required_features)
+        total_implemented = len(implemented_features)
+        total_missing = len(missing_features)
+        progress = round((total_implemented / total_required * 100) if total_required > 0 else 0, 1)
+        
+        prompt = f"""진행도 분석 **5단계: 평가 및 진행도 계산**입니다.
+
+## 이전 단계 결과:
+
+### 1단계: 프로젝트 분석
+프로젝트 이름: {project_name}
+프로젝트 설명: {project_desc[:300]}...
+
+### 2단계: 필요한 기능 분석
+필요한 기능 수: {total_required}개
+
+### 3단계: 구현된 기능 확인
+구현된 기능 수: {total_implemented}개
+
+### 4단계: 미구현 기능 분석
+미구현 기능 수: {total_missing}개
+
+## 5단계 작업: 평가 및 진행도 계산
+위 분석 결과를 바탕으로 최종 평가를 작성하세요.
+
+다음 JSON 형식으로만 응답하세요:
+{{
+  "step": 5,
+  "currentProgress": {progress},
+  "narrativeResponse": "## 프로젝트 이름\\n{project_name}\\n\\n### 프로젝트 설명\\n{project_desc}\\n\\n### 구현된 기능\\n[구현된 기능들을 위 형식으로 나열]\\n\\n### 미구현 기능\\n[미구현 기능들을 위 형식으로 나열]\\n\\n### 평가\\n**진행도 계산:**\\n- 필요한 요소 수: 총 {total_required}개\\n- 개발된 요소 수: {total_implemented}개\\n- 진행도: {total_implemented} / {total_required} × 100 = {progress}%\\n\\n**프로젝트 상태 평가:**\\n- 현재 구현 상태: [구체적인 평가 내용, 2-3문장]\\n- 안정성: [안정적/불안정/부분적 안정] - [이유]\\n- 앞으로 구현할 내용: [주요 미구현 기능 요약, 2-3문장]\\n- 예상 소요 기간: [예상 기간 및 근거]\\n- 위험 요소: [주요 위험 요소 및 대응 방안]\\n- 성공 가능성: [높음/보통/낮음] - [이유]",
+  "activityTrend": "increasing|stable|decreasing",
+  "delayRisk": "Low|Medium|High",
+  "insights": ["인사이트 1", "인사이트 2", "인사이트 3"],
+  "recommendations": ["제안 1", "제안 2", "제안 3"]
+}}
+
+⚠️ **매우 중요**: 
+- narrativeResponse는 위에서 지정한 정확한 형식으로 작성하세요.
+- currentProgress는 반드시 {progress}와 일치해야 합니다 (계산: {total_implemented}/{total_required}×100).
+- 최소 2000자 이상의 상세한 설명을 작성하세요."""
+    
     return prompt
 
 def create_task_completion_initial_prompt(context, user_message, read_files, analyzed_commits):

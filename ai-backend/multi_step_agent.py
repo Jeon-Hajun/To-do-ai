@@ -299,18 +299,18 @@ def execute_multi_step_agent(
                     except:
                         continue
         
-        # 프롬프트 생성
+        # 프롬프트 생성 (단계별로 다른 작업 수행)
         if step_number == 1:
-            # 초기 프롬프트
+            # 1단계: 프로젝트 분석
             if initial_prompt_func:
-                prompt = initial_prompt_func(context, user_message, accumulated_files, accumulated_commits)
+                prompt = initial_prompt_func(context, user_message, accumulated_files, accumulated_commits, step_number)
             else:
                 # 기본 프롬프트 생성 (에이전트별로 다름)
                 prompt = f"분석을 시작합니다. 컨텍스트: {json.dumps(context, ensure_ascii=False)[:500]}"
         else:
-            # 후속 프롬프트
+            # 2단계 이상: 이전 단계 결과를 보여주고 다음 단계 수행
             if followup_prompt_func:
-                prompt = followup_prompt_func(context, current_result, user_message, accumulated_files, accumulated_commits)
+                prompt = followup_prompt_func(context, current_result, user_message, accumulated_files, accumulated_commits, step_number, all_steps)
             else:
                 # 기본 후속 프롬프트
                 prompt = f"""이전 분석 결과를 바탕으로 더 깊이 분석하세요.
