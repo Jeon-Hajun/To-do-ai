@@ -121,29 +121,33 @@ export default function AIadvisorPage() {
         maxWidth="lg"
         sx={{ flex: 1, pt: 2 }}
       >
-        {/* 프로젝트 카테고리 바 */}
-        <CategoryBar
-          items={projectItems}
-          selectedId={selectedProjectId}
-          onSelect={handleProjectSelect}
-          onReorder={handleProjectReorder}
-          loading={query.isLoading || loadingHistory}
-          emptyMessage="참여한 프로젝트가 없습니다."
-          sx={{ mb: 2 }}
-        />
+        {/* 하나의 큰 박스에 프로젝트 선택과 챗봇 통합 */}
+        <Card sx={{ height: 650, display: "flex", flexDirection: "column" }}>
+          {/* 프로젝트 카테고리 바 */}
+          <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
+            <CategoryBar
+              items={projectItems}
+              selectedId={selectedProjectId}
+              onSelect={handleProjectSelect}
+              onReorder={handleProjectReorder}
+              loading={query.isLoading || loadingHistory}
+              emptyMessage="참여한 프로젝트가 없습니다."
+            />
+          </Box>
 
-        {/* 챗봇 */}
-        {selectedProjectId ? (
-          <Card sx={{ height: 600 }}>
-            <ChatBot projectId={selectedProjectId} onError={handleError} />
-          </Card>
-        ) : (
-          <Card sx={{ p: 4, textAlign: "center" }}>
-            <Typography variant="body1" color="text.secondary">
-              프로젝트를 선택하면 AI 어시스턴트와 대화를 시작할 수 있습니다.
-            </Typography>
-          </Card>
-        )}
+          {/* 챗봇 */}
+          <Box sx={{ flex: 1, overflow: "hidden" }}>
+            {selectedProjectId ? (
+              <ChatBot projectId={selectedProjectId} onError={handleError} />
+            ) : (
+              <Box sx={{ p: 4, textAlign: "center", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Typography variant="body1" color="text.secondary">
+                  프로젝트를 선택하면 AI 어시스턴트와 대화를 시작할 수 있습니다.
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </Card>
       </PageContainer>
     </ContainerBox>
   );
