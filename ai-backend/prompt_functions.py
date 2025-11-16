@@ -171,23 +171,45 @@ def create_general_qa_initial_prompt(context, user_message, read_files, analyzed
     recent_commits = sum(1 for c in commits if c.get('date') and 
                         datetime.fromisoformat(c.get('date').replace('Z', '+00:00')) >= week_ago)
     
-    prompt = f"""당신은 프로젝트 관리 AI 어시스턴트입니다. 사용자의 질문에 대해 프로젝트 정보를 바탕으로 친절하고 정확하게 답변하세요.
+    # 최근 커밋 상세 정보
+    recent_commits_detail = []
+    for commit in commits[:10]:
+        recent_commits_detail.append({
+            "message": commit.get('message', '')[:150],
+            "date": commit.get('date', ''),
+            "author": commit.get('author', ''),
+            "linesAdded": commit.get('linesAdded', 0),
+            "linesDeleted": commit.get('linesDeleted', 0)
+        })
+    
+    # 최근 Task 상세 정보
+    recent_tasks_detail = []
+    for task in tasks[:10]:
+        recent_tasks_detail.append({
+            "title": task.get('title', ''),
+            "status": task.get('status', 'todo'),
+            "description": task.get('description', '')[:200],
+            "dueDate": task.get('dueDate', ''),
+            "assignedUserId": task.get('assignedUserId', '')
+        })
+    
+    prompt = f"""당신은 프로젝트 관리 AI 어시스턴트입니다. 사용자의 질문에 대해 프로젝트 정보를 바탕으로 **구체적이고 상세하며 친절하게** 답변하세요.
 
-⚠️ 중요: 반드시 한국어로만 응답하세요.
+⚠️ 중요: 반드시 한국어로만 응답하고, JSON 형식으로만 응답하세요.
 
 ## 사용자 질문
 "{user_message}"
 
 ## 프로젝트 정보
-프로젝트 설명: {projectDescription[:500] if projectDescription else '설명 없음'}
-GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
+- 프로젝트 설명: {projectDescription[:500] if projectDescription else '설명 없음'}
+- GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
 
 ## 프로젝트 통계
 **Task (작업)**
 - 전체: {task_stats['total']}개
-- 대기 중: {task_stats['todo']}개
-- 진행 중: {task_stats['in_progress']}개
-- 완료: {task_stats['done']}개
+- 대기 중: {task_stats['todo']}개 ({task_stats['todo']/task_stats['total']*100 if task_stats['total'] > 0 else 0:.1f}%)
+- 진행 중: {task_stats['in_progress']}개 ({task_stats['in_progress']/task_stats['total']*100 if task_stats['total'] > 0 else 0:.1f}%)
+- 완료: {task_stats['done']}개 ({task_stats['done']/task_stats['total']*100 if task_stats['total'] > 0 else 0:.1f}%)
 
 **커밋**
 - 전체: {commit_stats['total']}개
@@ -201,29 +223,36 @@ GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
 - 열림: {issue_stats['open']}개
 - 닫힘: {issue_stats['closed']}개
 
-## 최근 커밋 (최대 5개)
-{chr(10).join([f"- {c.get('message', '')[:80]} ({c.get('date', '')[:10] if c.get('date') else '날짜 없음'})" for c in commits[:5]]) if commits else "커밋 없음"}
+## 최근 커밋 상세 (최근 {len(recent_commits_detail)}개)
+{json.dumps(recent_commits_detail, ensure_ascii=False, indent=2)[:2000]}
 
-## 최근 Task (최대 5개)
-{chr(10).join([f"- {t.get('title', '')} ({t.get('status', 'unknown')})" for t in tasks[:5]]) if tasks else "Task 없음"}
+## 최근 Task 상세 (최근 {len(recent_tasks_detail)}개)
+{json.dumps(recent_tasks_detail, ensure_ascii=False, indent=2)[:2000]}
 
 ## 답변 규칙
-1. 제공된 프로젝트 정보와 통계를 활용하여 사용자 질문에 정확하게 답변하세요.
-2. 질문이 프로젝트와 관련이 있고 위 정보로 답변할 수 있다면, 친절하고 상세하게 답변하세요.
-3. 질문에 대한 답변을 할 수 없는 경우 (예: 프로젝트와 무관한 질문, 개인정보, 외부 정보 등), 정중하게 "죄송하지만 그 정보는 제공할 수 없습니다. 프로젝트 진행도, Task 제안, Task 완료 확인 등의 기능을 사용해주세요."라고 답변하세요.
-4. 프로젝트에 대한 일반적인 질문(설명, 통계, 상태, 커밋 수, 작업 수 등)은 위 정보를 바탕으로 답변하세요.
+1. 제공된 프로젝트 정보와 통계를 활용하여 사용자 질문에 **구체적이고 상세하게** 답변하세요.
+2. 질문이 프로젝트와 관련이 있고 위 정보로 답변할 수 있다면, 친절하고 **자세하며 유용한** 답변을 제공하세요.
+3. 질문에 대한 답변을 할 수 없는 경우 (예: 프로젝트와 무관한 질문, 개인정보, 외부 정보 등), 정중하게 거부하세요.
+4. 프로젝트에 대한 일반적인 질문(설명, 통계, 상태, 커밋 수, 작업 수 등)은 위 정보를 바탕으로 **구체적인 숫자와 예시를 포함하여** 답변하세요.
 5. 답변은 친절하고 자연스러운 한국어로 작성하세요.
 6. 숫자는 쉼표를 사용하여 읽기 쉽게 표시하세요.
-7. 가능한 한 구체적이고 유용한 정보를 제공하세요.
+7. 가능한 한 **구체적이고 상세하며 유용한 정보**를 제공하세요.
+8. 관련 통계, 예시, 추세 등을 포함하여 답변을 풍부하게 만드세요.
 
 ## 응답 형식
 다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
 {{
   "can_answer": true 또는 false,
-  "message": "사용자 질문에 대한 답변을 한국어로 작성 (친절하고 자연스럽게)",
+  "message": "사용자 질문에 대한 **구체적이고 상세한** 답변을 한국어로 작성 (친절하고 자연스럽게, 최소 3-5문장 이상)",
   "details": {{
-    "used_statistics": ["사용한 통계 정보"],
-    "source": "정보 출처 (예: '프로젝트 통계', '커밋 데이터')"
+    "used_statistics": ["사용한 통계 정보 1", "사용한 통계 정보 2"],
+    "source": "정보 출처 (예: '프로젝트 통계', '커밋 데이터')",
+    "examples": ["관련 예시 1", "관련 예시 2"]
+  }},
+  "sources": ["정보 출처 1", "정보 출처 2"],
+  "relatedInfo": {{
+    "keyMetric": "주요 지표",
+    "trend": "추세 설명"
   }}
 }}
 

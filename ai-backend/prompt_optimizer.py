@@ -3,6 +3,8 @@
 프롬프트 길이를 줄이고 핵심 정보만 추출하여 리소스 소모를 감소시킵니다.
 """
 
+import json
+
 def summarize_commit_message(msg, max_length=80):
     """커밋 메시지를 요약합니다."""
     if len(msg) <= max_length:
@@ -71,20 +73,73 @@ def create_optimized_task_suggestion_prompt(commits, issues, currentTasks, proje
     # Task 요약
     task_summary = f"총 {len(currentTasks)}개 (todo: {sum(1 for t in currentTasks if t.get('status') == 'todo')}, 진행중: {sum(1 for t in currentTasks if t.get('status') == 'in_progress')}, 완료: {sum(1 for t in currentTasks if t.get('status') == 'done')})"
 
-    prompt = f"""프로젝트 분석 및 Task 제안:
+    # 최근 커밋 상세 정보
+    recent_commits_detail = []
+    for commit in commits[:15]:
+        recent_commits_detail.append({
+            "message": commit.get('message', '')[:150],
+            "date": commit.get('date', ''),
+            "files": [f.get('path', '') for f in commit.get('files', [])[:5]]
+        })
+    
+    # 열린 이슈 상세 정보
+    open_issues_detail = []
+    for issue in openIssues[:10]:
+        open_issues_detail.append({
+            "title": issue.get('title', ''),
+            "body": issue.get('body', '')[:200],
+            "labels": issue.get('labels', [])
+        })
+    
+    prompt = f"""프로젝트를 종합적으로 분석하여 **구체적이고 실용적인 Task**를 제안하세요.
 
-프로젝트: {projectDescription[:100]}
-커밋: {len(commits)}개, +{totalLinesAdded}/-{totalLinesDeleted}줄, 주요파일: {topFileTypes}
-이슈: {issue_summary}
-작업: {task_summary}
+## 프로젝트 정보:
+- 프로젝트 설명: {projectDescription[:200]}
+- GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
 
-최근 커밋:
-{commit_summary}
+## 프로젝트 현황:
+**커밋 활동**
+- 총 커밋: {len(commits)}개
+- 추가된 코드: {totalLinesAdded:,}줄
+- 삭제된 코드: {totalLinesDeleted:,}줄
+- 주요 파일 유형: {topFileTypes}
+
+**이슈 현황**
+- 열린 이슈: {len(openIssues)}개
+
+**현재 작업(Task)**
+- {task_summary}
+
+## 최근 커밋 상세 (최근 {len(recent_commits_detail)}개):
+{json.dumps(recent_commits_detail, ensure_ascii=False, indent=2)[:2000]}
+
+## 열린 이슈 상세 (최근 {len(open_issues_detail)}개):
+{json.dumps(open_issues_detail, ensure_ascii=False, indent=2)[:1500]}
+
+## Task 제안 요청사항:
+위 정보를 종합적으로 분석하여 **구체적이고 실용적인 Task**를 제안하세요.
+
+각 Task는 다음을 포함해야 합니다:
+1. **title**: 명확하고 구체적인 Task 제목 (예: "사용자 인증 시스템 구현" ❌, "JWT 기반 사용자 로그인 API 구현" ✅)
+2. **description**: Task의 목적, 범위, 구현 방법 등을 **상세하게** 설명 (최소 3-5문장)
+3. **category**: "feature" (기능 추가), "refactor" (리팩토링), "security" (보안), "performance" (성능), "maintenance" (유지보수)
+4. **priority**: "High" (보안/심각한 기술부채만), "Medium" (중요한 개선), "Low" (선택적 개선)
+5. **estimatedHours**: 예상 소요 시간 (숫자)
+6. **reason**: 이 Task가 필요한 이유를 **구체적으로** 설명 (최소 2-3문장)
+
+⚠️ 중요: 반드시 한국어로만 응답하고, JSON 배열 형식으로만 응답하세요.
 
 다음 형식의 JSON 배열로 최대 5개 Task 제안:
-[{{"title": "...", "description": "...", "category": "feature|refactor|security|performance|maintenance", "priority": "High|Medium|Low", "estimatedHours": 숫자, "reason": "..."}}]
-
-규칙: 실제 필요한 작업만, High는 보안/심각한 기술부채만, 반드시 한국어로 응답, JSON만 응답."""
+[
+  {{
+    "title": "구체적인 Task 제목",
+    "description": "상세한 설명 (최소 3-5문장)",
+    "category": "feature|refactor|security|performance|maintenance",
+    "priority": "High|Medium|Low",
+    "estimatedHours": 숫자,
+    "reason": "구체적인 이유 설명 (최소 2-3문장)"
+  }}
+]"""
 
     return prompt
 
@@ -113,20 +168,83 @@ def create_optimized_progress_prompt(commits, tasks, projectDescription, project
     recent_week = sum(1 for c in commits if c.get('date') and
                      datetime.fromisoformat(c.get('date').replace('Z', '+00:00')) >= week_ago)
     
-    prompt = f"""진행도 분석:
+    # 커밋 상세 정보 추출
+    commit_details = []
+    for commit in commits[:20]:  # 최근 20개 커밋만
+        commit_details.append({
+            "message": commit.get('message', '')[:100],
+            "date": commit.get('date', ''),
+            "author": commit.get('author', ''),
+            "linesAdded": commit.get('linesAdded', 0),
+            "linesDeleted": commit.get('linesDeleted', 0)
+        })
+    
+    # Task 상세 정보 추출
+    task_details = []
+    for task in tasks[:20]:  # 최근 20개 Task만
+        task_details.append({
+            "title": task.get('title', ''),
+            "status": task.get('status', 'todo'),
+            "dueDate": task.get('dueDate', ''),
+            "assignedUserId": task.get('assignedUserId', '')
+        })
+    
+    prompt = f"""프로젝트 진행도 분석을 수행하세요. 다음 데이터를 종합적으로 분석하여 상세하고 구체적인 분석 결과를 제공하세요.
 
-프로젝트: {projectDescription[:80]}
-작업: 총{taskStats['total']}개 (완료:{taskStats['done']}, 진행중:{taskStats['inProgress']}, 대기:{taskStats['todo']})
-커밋: 총{commitStats['total']}개, +{commitStats['totalLinesAdded']}/-{commitStats['totalLinesDeleted']}줄, 최근7일:{recent_week}개
+## 프로젝트 정보:
+- 프로젝트 설명: {projectDescription[:200]}
+- 프로젝트 시작일: {projectStartDate or '미정'}
+- 프로젝트 마감일: {projectDueDate or '미정'}
 
-다음 JSON 형식으로만 응답 (반드시 한국어로, JSON만 응답):
+## 작업(Task) 현황:
+- 총 작업 수: {taskStats['total']}개
+- 완료: {taskStats['done']}개 ({taskStats['done']/taskStats['total']*100 if taskStats['total'] > 0 else 0:.1f}%)
+- 진행 중: {taskStats['inProgress']}개 ({taskStats['inProgress']/taskStats['total']*100 if taskStats['total'] > 0 else 0:.1f}%)
+- 대기 중: {taskStats['todo']}개 ({taskStats['todo']/taskStats['total']*100 if taskStats['total'] > 0 else 0:.1f}%)
+
+## 커밋 활동 현황:
+- 총 커밋 수: {commitStats['total']}개
+- 추가된 코드 라인: {commitStats['totalLinesAdded']:,}줄
+- 삭제된 코드 라인: {commitStats['totalLinesDeleted']:,}줄
+- 최근 7일 커밋: {recent_week}개
+
+## 최근 커밋 상세 (최근 {len(commit_details)}개):
+{json.dumps(commit_details, ensure_ascii=False, indent=2)[:1500]}
+
+## Task 상세 (최근 {len(task_details)}개):
+{json.dumps(task_details, ensure_ascii=False, indent=2)[:1000]}
+
+## 분석 요청사항:
+다음 항목들을 **구체적이고 상세하게** 분석하여 JSON 형식으로 응답하세요:
+
+1. **currentProgress (0-100)**: Task 완료율, 커밋 활동, 시간 경과 등을 종합하여 정확한 진행도 계산
+2. **activityTrend**: 최근 활동 패턴을 분석하여 "increasing" (증가 중), "stable" (안정적), "decreasing" (감소 중) 중 하나 선택
+3. **estimatedCompletionDate**: 현재 진행 속도를 바탕으로 예상 완료일 계산 (YYYY-MM-DD 형식 또는 null)
+4. **delayRisk**: 마감일 대비 현재 진행 속도를 분석하여 "Low", "Medium", "High" 중 하나 선택
+5. **insights**: 최소 3개 이상의 구체적인 인사이트 제공 (예: "최근 7일간 커밋 활동이 증가하여 개발 속도가 향상되고 있습니다", "완료된 Task 비율이 60%로 프로젝트 중반 단계에 있습니다" 등)
+6. **recommendations**: 최소 3개 이상의 구체적인 개선 제안 제공 (예: "대기 중인 Task를 우선순위에 따라 진행 중 상태로 전환하세요", "마감일이 임박한 Task에 집중하여 완료율을 높이세요" 등)
+7. **recentActivity**: 최근 활동 요약 (최근 7일, 30일 활동 패턴)
+8. **keyMetrics**: 주요 지표 (평균 커밋 빈도, Task 완료 속도 등)
+
+⚠️ 중요: 반드시 한국어로만 응답하고, JSON 형식으로만 응답하세요. 각 항목을 구체적이고 상세하게 작성하세요.
+
+다음 JSON 형식으로만 응답:
 {{
   "currentProgress": 0-100,
   "activityTrend": "increasing|stable|decreasing",
   "estimatedCompletionDate": "YYYY-MM-DD 또는 null",
   "delayRisk": "Low|Medium|High",
-  "insights": ["한국어 인사이트 1", "한국어 인사이트 2"],
-  "recommendations": ["한국어 제안 1", "한국어 제안 2"]
+  "insights": ["구체적인 인사이트 1", "구체적인 인사이트 2", "구체적인 인사이트 3"],
+  "recommendations": ["구체적인 제안 1", "구체적인 제안 2", "구체적인 제안 3"],
+  "recentActivity": {{
+    "last7Days": "최근 7일 활동 요약",
+    "last30Days": "최근 30일 활동 요약"
+  }},
+  "keyMetrics": {{
+    "averageCommitsPerDay": 0.0,
+    "taskCompletionRate": 0.0,
+    "codeGrowthRate": "증가율 설명"
+  }}
 }}"""
     
     return prompt

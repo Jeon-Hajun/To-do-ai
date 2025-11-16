@@ -188,12 +188,51 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
             {'High': 0, 'Medium': 1, 'Low': 2}.get(x.get('priority', 'Low'), 2)
         ))
         
+        # 상세 메시지 생성
+        message_parts = [
+            f"💡 **{len(suggestions)}개의 Task를 제안했습니다**",
+            f""
+        ]
+        
+        if suggestions:
+            # 카테고리별 그룹화
+            by_category = {}
+            for suggestion in suggestions:
+                category = suggestion.get('category', 'maintenance')
+                if category not in by_category:
+                    by_category[category] = []
+                by_category[category].append(suggestion)
+            
+            category_kr = {
+                'feature': '기능 추가',
+                'refactor': '리팩토링',
+                'security': '보안',
+                'performance': '성능',
+                'maintenance': '유지보수'
+            }
+            
+            for category, items in by_category.items():
+                message_parts.append(f"**{category_kr.get(category, category)}** ({len(items)}개):")
+                for i, item in enumerate(items[:3], 1):  # 카테고리당 최대 3개
+                    title = item.get('title', '제목 없음')
+                    priority = item.get('priority', 'Low')
+                    estimated_hours = item.get('estimatedHours', 0)
+                    message_parts.append(f"{i}. {title} (우선순위: {priority}, 예상 시간: {estimated_hours}시간)")
+                message_parts.append("")
+            
+            message_parts.append(f"💡 **팁**: 각 Task를 클릭하여 상세 정보를 확인하고 프로젝트에 추가할 수 있습니다.")
+        else:
+            message_parts.append("현재 프로젝트 상태를 분석한 결과, 추가로 제안할 Task가 없습니다.")
+            message_parts.append("프로젝트가 잘 관리되고 있습니다! 🎉")
+        
+        message = "\n".join(message_parts)
+        
         return {
             "agent_type": "task_suggestion_agent",
             "response": {
                 "type": "task_suggestions",
                 "suggestions": suggestions,
-                "message": f"{len(suggestions)}개의 Task를 제안했습니다."
+                "message": message
             },
             "analysis_steps": result.get('analysis_steps', 1),
             "confidence": result.get('confidence', 'medium'),
@@ -235,7 +274,7 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             else:
                 analysis = {}
         
-        # 사용자 친화적인 메시지 생성
+        # 사용자 친화적인 상세 메시지 생성
         progress = analysis.get('currentProgress', 0)
         trend = analysis.get('activityTrend', 'stable')
         trend_kr = {
@@ -244,7 +283,60 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             'decreasing': '감소 중'
         }.get(trend, trend)
         
-        message = f"현재 진행도는 {progress}%이며, 활동 추세는 {trend_kr}입니다."
+        delay_risk = analysis.get('delayRisk', 'Low')
+        delay_risk_kr = {
+            'Low': '낮음',
+            'Medium': '보통',
+            'High': '높음'
+        }.get(delay_risk, delay_risk)
+        
+        estimated_date = analysis.get('estimatedCompletionDate')
+        insights = analysis.get('insights', [])
+        recommendations = analysis.get('recommendations', [])
+        recent_activity = analysis.get('recentActivity', {})
+        key_metrics = analysis.get('keyMetrics', {})
+        
+        # 상세 메시지 구성
+        message_parts = [
+            f"📊 **프로젝트 진행도: {progress}%**",
+            f"",
+            f"**활동 추세**: {trend_kr}",
+            f"**지연 위험도**: {delay_risk_kr}"
+        ]
+        
+        if estimated_date:
+            message_parts.append(f"**예상 완료일**: {estimated_date}")
+        
+        if recent_activity:
+            if recent_activity.get('last7Days'):
+                message_parts.append(f"")
+                message_parts.append(f"**최근 7일 활동**: {recent_activity.get('last7Days')}")
+            if recent_activity.get('last30Days'):
+                message_parts.append(f"**최근 30일 활동**: {recent_activity.get('last30Days')}")
+        
+        if insights:
+            message_parts.append(f"")
+            message_parts.append(f"**주요 인사이트**:")
+            for i, insight in enumerate(insights[:5], 1):  # 최대 5개
+                message_parts.append(f"{i}. {insight}")
+        
+        if recommendations:
+            message_parts.append(f"")
+            message_parts.append(f"**개선 제안**:")
+            for i, rec in enumerate(recommendations[:5], 1):  # 최대 5개
+                message_parts.append(f"{i}. {rec}")
+        
+        if key_metrics:
+            message_parts.append(f"")
+            message_parts.append(f"**주요 지표**:")
+            if key_metrics.get('averageCommitsPerDay'):
+                message_parts.append(f"- 평균 일일 커밋: {key_metrics.get('averageCommitsPerDay', 0):.1f}개")
+            if key_metrics.get('taskCompletionRate'):
+                message_parts.append(f"- Task 완료율: {key_metrics.get('taskCompletionRate', 0):.1f}%")
+            if key_metrics.get('codeGrowthRate'):
+                message_parts.append(f"- 코드 성장률: {key_metrics.get('codeGrowthRate', 'N/A')}")
+        
+        message = "\n".join(message_parts)
         
         return {
             "agent_type": "progress_analysis_agent",
@@ -312,15 +404,59 @@ def execute_task_completion_agent(context, call_llm_func, user_message=None):
             else:
                 final_result = {}
         
-        # 사용자 친화적인 메시지 생성
+        # 사용자 친화적인 상세 메시지 생성
         is_completed = final_result.get('isCompleted', False)
         completion_pct = final_result.get('completionPercentage', 0)
         confidence = final_result.get('confidence', 'low')
+        evidence = final_result.get('evidence', [])
+        related_commits = final_result.get('relatedCommits', [])
+        missing_requirements = final_result.get('missingRequirements', [])
+        recommendations = final_result.get('recommendations', [])
+        
+        confidence_kr = {
+            'high': '높음',
+            'medium': '보통',
+            'low': '낮음'
+        }.get(confidence, confidence)
+        
+        # 상세 메시지 구성
+        message_parts = []
         
         if is_completed:
-            message = f"Task가 완료되었습니다. 완성도: {completion_pct}% (신뢰도: {confidence})"
+            message_parts.append(f"✅ **Task 완료 상태: 완료됨**")
         else:
-            message = f"Task가 아직 완료되지 않았습니다. 완성도: {completion_pct}% (신뢰도: {confidence})"
+            message_parts.append(f"⏳ **Task 완료 상태: 진행 중**")
+        
+        message_parts.append(f"")
+        message_parts.append(f"**완성도**: {completion_pct}%")
+        message_parts.append(f"**신뢰도**: {confidence_kr}")
+        
+        if evidence:
+            message_parts.append(f"")
+            message_parts.append(f"**완료 근거**:")
+            for i, ev in enumerate(evidence[:5], 1):  # 최대 5개
+                message_parts.append(f"{i}. {ev}")
+        
+        if related_commits:
+            message_parts.append(f"")
+            message_parts.append(f"**관련 커밋**: {len(related_commits)}개 발견")
+            for commit in related_commits[:3]:  # 최대 3개
+                commit_msg = commit.get('message', '')[:80]
+                message_parts.append(f"- {commit_msg}")
+        
+        if missing_requirements:
+            message_parts.append(f"")
+            message_parts.append(f"**부족한 요구사항**:")
+            for i, req in enumerate(missing_requirements[:5], 1):  # 최대 5개
+                message_parts.append(f"{i}. {req}")
+        
+        if recommendations:
+            message_parts.append(f"")
+            message_parts.append(f"**개선 제안**:")
+            for i, rec in enumerate(recommendations[:5], 1):  # 최대 5개
+                message_parts.append(f"{i}. {rec}")
+        
+        message = "\n".join(message_parts)
         
         return {
             "agent_type": "task_completion_agent",
@@ -380,26 +516,60 @@ def execute_general_qa_agent(context, call_llm_func, user_message=None):
                 final_result = {}
         
         can_answer = final_result.get('can_answer', True)
+        message_text = final_result.get('message', '')
+        details = final_result.get('details', {})
+        sources = final_result.get('sources', [])
+        related_info = final_result.get('relatedInfo', {})
+        
+        # 상세 메시지 구성
+        message_parts = [message_text]
+        
+        if details:
+            message_parts.append(f"")
+            message_parts.append(f"**상세 정보**:")
+            for key, value in list(details.items())[:5]:  # 최대 5개
+                if isinstance(value, (str, int, float)):
+                    message_parts.append(f"- {key}: {value}")
+                elif isinstance(value, list):
+                    message_parts.append(f"- {key}: {', '.join(map(str, value[:3]))}")
+        
+        if sources:
+            message_parts.append(f"")
+            message_parts.append(f"**참고 자료**:")
+            for i, source in enumerate(sources[:5], 1):  # 최대 5개
+                message_parts.append(f"{i}. {source}")
+        
+        if related_info:
+            message_parts.append(f"")
+            message_parts.append(f"**관련 정보**:")
+            for key, value in list(related_info.items())[:5]:  # 최대 5개
+                if isinstance(value, (str, int, float)):
+                    message_parts.append(f"- {key}: {value}")
+        
+        enhanced_message = "\n".join(message_parts)
         
         if can_answer:
             return {
                 "agent_type": "general_qa_agent",
                 "response": {
                     "type": "general_qa",
-                    "message": final_result.get('message', ''),
-                    "details": final_result.get('details', {})
+                    "message": enhanced_message,
+                    "details": details
                 },
                 "analysis_steps": result.get('analysis_steps', 1),
                 "confidence": result.get('confidence', 'medium'),
                 "progress_messages": result.get('progress_messages', [])  # 진행 상황 메시지 추가
             }
         else:
+            suggestion = final_result.get('suggestion', '프로젝트 진행도, Task 제안, Task 완료 확인 등의 기능을 사용해주세요.')
+            enhanced_message = f"{message_text}\n\n**추천 기능**: {suggestion}"
+            
             return {
                 "agent_type": "general_qa_agent",
                 "response": {
                     "type": "general_qa",
-                    "message": final_result.get('message', '죄송하지만 그 정보는 제공할 수 없습니다.'),
-                    "suggestion": final_result.get('suggestion', '프로젝트 진행도, Task 제안, Task 완료 확인 등의 기능을 사용해주세요.')
+                    "message": enhanced_message,
+                    "suggestion": suggestion
                 },
                 "analysis_steps": result.get('analysis_steps', 1),
                 "confidence": result.get('confidence', 'medium'),
@@ -485,6 +655,18 @@ def execute_task_assignment_agent(context, call_llm_func, user_message=None):
         recommended_user_id = final_result.get('recommendedUserId')
         reason = final_result.get('reason', '')
         confidence = final_result.get('confidence', 'medium')
+        alternative_users = final_result.get('alternativeUsers', [])
+        required_skills = final_result.get('requiredSkills', [])
+        user_match_score = final_result.get('matchScore', 0)
+        
+        confidence_kr = {
+            'high': '높음',
+            'medium': '보통',
+            'low': '낮음'
+        }.get(confidence, confidence)
+        
+        # 상세 메시지 구성
+        message_parts = []
         
         if recommended_user_id:
             # 추천된 사용자 정보 찾기
@@ -493,10 +675,60 @@ def execute_task_assignment_agent(context, call_llm_func, user_message=None):
                 None
             )
             user_name = recommended_user.get('nickname', 'Unknown') if recommended_user else 'Unknown'
+            user_tags = recommended_user.get('tags', []) if recommended_user else []
             
-            message = f"'{task_title}' Task는 {user_name}님에게 할당하는 것을 추천합니다. 이유: {reason}"
+            message_parts.append(f"👤 **추천 담당자: {user_name}님**")
+            message_parts.append(f"")
+            message_parts.append(f"**Task**: {task_title}")
+            if task_description:
+                message_parts.append(f"**설명**: {task_description[:200]}")
+            message_parts.append(f"")
+            message_parts.append(f"**추천 이유**:")
+            message_parts.append(f"{reason}")
+            
+            if user_match_score > 0:
+                message_parts.append(f"")
+                message_parts.append(f"**적합도 점수**: {user_match_score}/100")
+            
+            if user_tags:
+                message_parts.append(f"")
+                message_parts.append(f"**담당자 보유 기술**: {', '.join(user_tags)}")
+            
+            if required_skills:
+                message_parts.append(f"")
+                message_parts.append(f"**Task 필요 기술**: {', '.join(required_skills)}")
+            
+            message_parts.append(f"")
+            message_parts.append(f"**신뢰도**: {confidence_kr}")
+            
+            if alternative_users:
+                message_parts.append(f"")
+                message_parts.append(f"**대안 담당자**:")
+                for i, alt_user in enumerate(alternative_users[:3], 1):  # 최대 3개
+                    alt_user_info = next(
+                        (m for m in project_members_with_tags if m.get('userId') == alt_user.get('userId')),
+                        None
+                    )
+                    if alt_user_info:
+                        alt_name = alt_user_info.get('nickname', 'Unknown')
+                        alt_reason = alt_user.get('reason', '')
+                        message_parts.append(f"{i}. {alt_name}님 - {alt_reason}")
         else:
-            message = f"적합한 담당자를 찾을 수 없습니다. {reason}"
+            message_parts.append(f"⚠️ **적합한 담당자를 찾을 수 없습니다**")
+            message_parts.append(f"")
+            message_parts.append(f"**Task**: {task_title}")
+            if task_description:
+                message_parts.append(f"**설명**: {task_description[:200]}")
+            message_parts.append(f"")
+            message_parts.append(f"**이유**: {reason}")
+            
+            if required_skills:
+                message_parts.append(f"")
+                message_parts.append(f"**Task 필요 기술**: {', '.join(required_skills)}")
+                message_parts.append(f"")
+                message_parts.append(f"**제안**: 프로젝트 멤버에게 필요한 기술을 추가하거나, 외부 인력을 고려해보세요.")
+        
+        message = "\n".join(message_parts)
         
         return {
             "agent_type": "task_assignment_agent",
