@@ -4,4 +4,5 @@ export { default as TaskCard } from "./TaskCard";
 export { default as TaskAdd } from "./TaskAdd";
 export { default as TaskEdit } from "./TaskEdit";
 export { default as TaskManagement } from "./TaskManagement";
+export { default as TaskView } from "./TaskView";
 
