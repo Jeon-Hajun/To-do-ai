@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, Box, Button, CircularProgress, Typography } from "@mui/material";
 import ProjectDetailCard from "./ProjectDetailCard";
 import { List } from "../tasks";
+import TaskManagement from "../tasks/TaskManagement";
 import ProjectGitHubTab from "../GitHub/ProjectGitHubTab";
 import { useParams } from "react-router-dom";
 import { useAuthContext } from "../../context/AuthContext";
@@ -10,7 +11,7 @@ import { useProjectDetail } from "../../hooks/useProjectDetail";
 export default function ProjectDetailTabs() {
   const { projectId } = useParams();
   const { project, members, loading } = useProjectDetail(projectId);
-  const [activeTab, setActiveTab] = useState("detail"); // "detail" / "task" / "github"
+  const [activeTab, setActiveTab] = useState("detail"); // "detail" / "user" / "task" / "github"
 
   if (loading)
     return <CircularProgress sx={{ display: "block", mx: "auto", mt: 4 }} />;
@@ -43,6 +44,21 @@ export default function ProjectDetailTabs() {
             상세 정보
           </Button>
           <Button
+            onClick={() => setActiveTab("user")}
+            sx={{
+              flex: 1,
+              borderRadius: 0,
+              bgcolor: activeTab === "user" ? "primary.main" : "transparent",
+              color: activeTab === "user" ? "white" : "text.primary",
+              fontWeight: activeTab === "user" ? "bold" : 500,
+              "&:hover": {
+                bgcolor: activeTab === "user" ? "primary.dark" : "action.hover",
+              },
+            }}
+          >
+            User
+          </Button>
+          <Button
             onClick={() => setActiveTab("task")}
             sx={{
               flex: 1,
@@ -55,7 +71,7 @@ export default function ProjectDetailTabs() {
               },
             }}
           >
-            List
+            Task
           </Button>
           <Button
             onClick={() => setActiveTab("github")}
@@ -78,7 +94,8 @@ export default function ProjectDetailTabs() {
           {activeTab === "detail" && (
             <ProjectDetailCard projectId={projectId} showTaskList={false} />
           )}
-          {activeTab === "task" && <List projectId={projectId} />}
+          {activeTab === "user" && <List projectId={projectId} />}
+          {activeTab === "task" && <TaskManagement projectId={projectId} />}
           {activeTab === "github" && (
             <Box sx={{ p: 3 }}>
               <ProjectGitHubTab 
