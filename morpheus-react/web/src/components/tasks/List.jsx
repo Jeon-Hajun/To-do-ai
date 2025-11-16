@@ -612,10 +612,7 @@ export default function List({ projectId }) {
 
       {/* 태스크 관리 영역 */}
       <Box sx={{ mt: 3 }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-          <Typography variant="h6">
-            태스크 관리
-          </Typography>
+        <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", mb: 2 }}>
           <Stack direction="row" spacing={1}>
             <Button
               variant="contained"
