@@ -150,76 +150,15 @@ exports.createWithAI = async function(req, res) {
     
     const { title, description } = aiResponse.data.data;
     
-    // 추출된 정보로 프로젝트 생성
-    const projectData = {
-      title: title || 'AI 생성 프로젝트',
-      description: description || null,
-      isShared: false,
-      password: null,
-      githubRepo: null
-    };
-    
-    // 기존 create 함수 로직 재사용
-    let passwordHash = null;
-    const isShared = projectData.isShared || false;
-    
-    const insertProject = async () => {
-      db.run(
-        'INSERT INTO projects (owner_id, title, description, is_shared, password_hash, github_repo) VALUES (?, ?, ?, ?, ?, ?)',
-        [userId, projectData.title, projectData.description || null, isShared ? 1 : 0, passwordHash, projectData.githubRepo],
-        async function(err) {
-          if (err) {
-            console.error('프로젝트 생성 오류:', err);
-            return res.status(500).json({ 
-              success: false, 
-              error: { 
-                code: 'SERVER_ERROR', 
-                message: '서버 오류가 발생했습니다.' 
-              } 
-            });
-          }
-          
-          const projectId = this.lastID;
-          
-          // owner 멤버 추가
-          db.run(
-            'INSERT INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)',
-            [projectId, userId, 'owner'],
-            async function(err) {
-              if (err) {
-                console.error('프로젝트 멤버 추가 오류:', err);
-                db.run('DELETE FROM projects WHERE id = ?', [projectId], function(deleteErr) {
-                  if (deleteErr) {
-                    console.error('프로젝트 롤백 오류:', deleteErr);
-                  }
-                });
-                return res.status(500).json({ 
-                  success: false, 
-                  error: { 
-                    code: 'SERVER_ERROR', 
-                    message: '프로젝트 생성 중 오류가 발생했습니다.' 
-                  } 
-                });
-              }
-              
-              res.status(201).json({
-                success: true,
-                data: {
-                  id: projectId,
-                  title: projectData.title,
-                  description: projectData.description,
-                  isShared,
-                  githubRepo: projectData.githubRepo
-                },
-                message: 'AI가 프로젝트를 생성했습니다.'
-              });
-            }
-          );
-        }
-      );
-    };
-    
-    insertProject();
+    // 추출된 정보만 반환 (프로젝트 생성은 하지 않음)
+    res.json({
+      success: true,
+      data: {
+        title: title || 'AI 생성 프로젝트',
+        description: description || null
+      },
+      message: 'AI가 프로젝트 정보를 생성했습니다.'
+    });
     
   } catch (error) {
     console.error('AI 프로젝트 생성 오류:', error);
