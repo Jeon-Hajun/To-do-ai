@@ -8,7 +8,6 @@ export default function ProjectPage() {
       <Header title="Project" />
 
       <PageContainer
-        title="프로젝트"
         maxWidth="md"
         sx={{ flex: 1, pt: 4 }}
       >

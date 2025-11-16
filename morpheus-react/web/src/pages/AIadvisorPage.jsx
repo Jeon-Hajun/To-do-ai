@@ -59,7 +59,6 @@ export default function AIadvisorPage() {
       <Header title="AI Advisor" />
 
       <PageContainer
-        title="AI 어시스턴트"
         maxWidth="lg"
         sx={{ flex: 1, pt: 4 }}
       >
