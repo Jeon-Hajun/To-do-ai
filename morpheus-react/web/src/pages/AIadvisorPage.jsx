@@ -6,7 +6,7 @@ import {
 } from "@mui/material";
 import { useAuthContext } from "../context/AuthContext";
 import { useProjects } from "../hooks/useProjects";
-import { Header, ContainerBox, PageContainer, CategoryBar } from "../components/layout/index.js";
+import { ContainerBox, PageContainer, CategoryBar } from "../components/layout/index.js";
 import { getChatHistory } from "../api/ai";
 import ChatBot from "../components/ai/ChatBot";
 
@@ -117,37 +117,33 @@ export default function AIadvisorPage() {
 
   return (
     <ContainerBox>
-      <Header title="AI Advisor" />
-
       <PageContainer
         maxWidth="lg"
-        sx={{ flex: 1, pt: 4 }}
+        sx={{ flex: 1, pt: 2 }}
       >
-        <Box sx={{ mt: 4 }}>
-          {/* 프로젝트 카테고리 바 */}
-          <CategoryBar
-            items={projectItems}
-            selectedId={selectedProjectId}
-            onSelect={handleProjectSelect}
-            onReorder={handleProjectReorder}
-            loading={query.isLoading || loadingHistory}
-            emptyMessage="참여한 프로젝트가 없습니다."
-            sx={{ mb: 3 }}
-          />
+        {/* 프로젝트 카테고리 바 */}
+        <CategoryBar
+          items={projectItems}
+          selectedId={selectedProjectId}
+          onSelect={handleProjectSelect}
+          onReorder={handleProjectReorder}
+          loading={query.isLoading || loadingHistory}
+          emptyMessage="참여한 프로젝트가 없습니다."
+          sx={{ mb: 2 }}
+        />
 
-          {/* 챗봇 */}
-          {selectedProjectId ? (
-            <Card sx={{ height: 600 }}>
-              <ChatBot projectId={selectedProjectId} onError={handleError} />
-            </Card>
-          ) : (
-            <Card sx={{ p: 4, textAlign: "center" }}>
-              <Typography variant="body1" color="text.secondary">
-                프로젝트를 선택하면 AI 어시스턴트와 대화를 시작할 수 있습니다.
-              </Typography>
-            </Card>
-          )}
-        </Box>
+        {/* 챗봇 */}
+        {selectedProjectId ? (
+          <Card sx={{ height: 600 }}>
+            <ChatBot projectId={selectedProjectId} onError={handleError} />
+          </Card>
+        ) : (
+          <Card sx={{ p: 4, textAlign: "center" }}>
+            <Typography variant="body1" color="text.secondary">
+              프로젝트를 선택하면 AI 어시스턴트와 대화를 시작할 수 있습니다.
+            </Typography>
+          </Card>
+        )}
       </PageContainer>
     </ContainerBox>
   );
