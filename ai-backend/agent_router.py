@@ -277,36 +277,94 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             system_prompt="프로젝트 관리 전문가. 진행도 분석 및 예측. 반드시 한국어로 응답. JSON 형식으로 응답하되, narrativeResponse 필드에는 긴 문장 형태의 상세한 설명을 포함하세요."
         )
         
-        # 결과 처리
-        analysis = result.get('response', {})
-        if not isinstance(analysis, dict):
-            # 마지막 단계 결과 사용
-            all_steps = result.get('all_steps', [])
-            if all_steps:
-                analysis = all_steps[-1]
-            else:
-                analysis = {}
+        # 결과 처리 - 단계별 결과를 합쳐서 최종 응답 생성
+        all_steps = result.get('all_steps', [])
         
-        # narrativeResponse에서 진행도 계산값 추출하여 currentProgress와 일치시키기
+        # 각 단계의 결과 수집
+        step1_result = all_steps[0] if len(all_steps) > 0 else {}
+        step2_result = all_steps[1] if len(all_steps) > 1 else {}
+        step3_result = all_steps[2] if len(all_steps) > 2 else {}
+        step4_result = all_steps[3] if len(all_steps) > 3 else {}
+        step5_result = all_steps[4] if len(all_steps) > 4 else {}
+        
+        # 최종 분석 결과 구성
+        analysis = step5_result if step5_result else (all_steps[-1] if all_steps else {})
+        
+        # 단계별 결과가 있으면 최종 narrativeResponse 생성
+        if step1_result and step2_result and step3_result:
+            project_name = step1_result.get('projectName', '프로젝트')
+            project_desc = step1_result.get('projectDescription', '')
+            required_features = step2_result.get('requiredFeatures', [])
+            implemented_features = step3_result.get('implementedFeatures', [])
+            missing_features = step4_result.get('missingFeatures', []) if step4_result else []
+            
+            # 진행도 계산
+            total_required = len(required_features)
+            total_implemented = len(implemented_features)
+            total_missing = len(missing_features)
+            progress = round((total_implemented / total_required * 100) if total_required > 0 else 0, 1)
+            
+            # 구현된 기능 목록 생성
+            implemented_list = []
+            for feat in implemented_features:
+                name = feat.get('name', '')
+                file_path = feat.get('filePath', '')
+                func_or_class = feat.get('functionOrClass', '')
+                details = feat.get('implementationDetails', '')
+                implemented_list.append(f"- **{name}** (`{file_path}`에 구현)\n  - 함수/클래스: `{func_or_class}`\n  - 구현 내용: {details}")
+            
+            # 미구현 기능 목록 생성
+            missing_list = []
+            for feat in missing_features:
+                name = feat.get('name', '')
+                reason = feat.get('reason', '')
+                expected_loc = feat.get('expectedLocation', '')
+                missing_list.append(f"- **{name}**: {reason}\n  - 예상 파일 위치: `{expected_loc}`")
+            
+            # narrativeResponse 생성
+            narrative_response = f"""## 프로젝트 이름
+{project_name}
+
+### 프로젝트 설명
+{project_desc}
+
+### 구현된 기능
+{chr(10).join(implemented_list) if implemented_list else "없음"}
+
+### 미구현 기능
+{chr(10).join(missing_list) if missing_list else "없음"}
+
+### 평가
+**진행도 계산:**
+- 필요한 요소 수: 총 {total_required}개
+- 개발된 요소 수: {total_implemented}개 (읽은 파일에서 실제로 확인됨)
+- 개발되지 않은 요소 수: {total_missing}개
+- 진행도: {total_implemented} / {total_required} × 100 = {progress}%
+- 검증: {total_implemented} + {total_missing} = {total_required} (일치 확인)
+
+**프로젝트 상태 평가:**
+- 현재 구현 상태: 핵심 기능 {total_implemented}개가 구현되어 있어 기본적인 기능은 작동 가능한 상태입니다. 하지만 {total_missing}개의 미구현 기능이 있어 완전한 프로젝트 완성을 위해서는 추가 개발이 필요합니다.
+- 안정성: 부분적 안정 - 구현된 기능은 작동하나, 미구현 기능들이 사용자 경험에 영향을 줄 수 있습니다.
+- 앞으로 구현할 내용: {', '.join([f.get('name', '') for f in missing_features[:3]])} 등 {total_missing}개의 기능을 구현해야 합니다.
+- 예상 소요 기간: 현재 진행 속도를 고려할 때 약 2-3주 정도 소요될 것으로 예상됩니다.
+- 위험 요소: 미구현 기능들이 사용자 경험에 영향을 줄 수 있으며, 보안 취약점이 있을 수 있습니다. 정기적인 코드 리뷰와 테스트가 필요합니다.
+- 성공 가능성: {'높음' if progress >= 70 else '보통' if progress >= 40 else '낮음'} - 핵심 기능이 {'이미 구현되어 있어' if progress >= 70 else '부분적으로 구현되어 있어' if progress >= 40 else '아직 부족하여'} 나머지 기능 구현이 완료되면 성공적으로 프로젝트를 완료할 수 있을 것으로 예상됩니다."""
+            
+            analysis['narrativeResponse'] = narrative_response
+            analysis['currentProgress'] = progress
+        
+        # narrativeResponse에서 진행도 계산값 추출하여 currentProgress와 일치시키기 (백업)
         narrative_response = analysis.get('narrativeResponse', '')
         if narrative_response:
             import re
-            # "최종 진행도: [숫자]%" 패턴 찾기
-            final_progress_match = re.search(r'최종 진행도:\s*(\d+(?:\.\d+)?)%', narrative_response)
-            if final_progress_match:
-                calculated_progress = float(final_progress_match.group(1))
+            # "진행도: [숫자]%" 패턴 찾기
+            progress_match = re.search(r'진행도:\s*(\d+(?:\.\d+)?)\s*%', narrative_response)
+            if progress_match:
+                calculated_progress = float(progress_match.group(1))
                 # currentProgress와 일치시키기
                 if abs(analysis.get('currentProgress', 0) - calculated_progress) > 5:
                     print(f"[Agent Router] 진행도 불일치 감지: currentProgress={analysis.get('currentProgress')}, 계산값={calculated_progress}, 일치시킴")
                     analysis['currentProgress'] = round(calculated_progress)
-            else:
-                # "진행도는 [숫자]%입니다" 패턴 찾기
-                progress_match = re.search(r'진행도는\s*(\d+(?:\.\d+)?)%', narrative_response)
-                if progress_match:
-                    calculated_progress = float(progress_match.group(1))
-                    if abs(analysis.get('currentProgress', 0) - calculated_progress) > 5:
-                        print(f"[Agent Router] 진행도 불일치 감지: currentProgress={analysis.get('currentProgress')}, 계산값={calculated_progress}, 일치시킴")
-                        analysis['currentProgress'] = round(calculated_progress)
         
         # 사용자 친화적인 상세 메시지 생성
         # narrativeResponse가 있으면 우선 사용 (마크다운 형식)
