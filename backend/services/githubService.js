@@ -256,6 +256,111 @@ class GitHubService {
       throw new Error(`브랜치 조회 실패: ${error.message}`);
     }
   }
+
+  /**
+   * 파일 내용 가져오기
+   * @param {string} repoUrl - GitHub 저장소 URL
+   * @param {string} filePath - 파일 경로 (예: 'src/index.js')
+   * @param {string} ref - 브랜치/태그/SHA (기본값: 'main')
+   * @param {number} maxLines - 최대 라인 수 (기본값: 500, 0이면 전체)
+   * @returns {Promise<Object>} { content: string, size: number, encoding: string, truncated: boolean }
+   */
+  async getFileContent(repoUrl, filePath, ref = 'main', maxLines = 500) {
+    try {
+      const { owner, repo } = this.parseRepoUrl(repoUrl);
+      
+      console.log(`[getFileContent] 요청: ${owner}/${repo}, 파일: ${filePath}, 브랜치: ${ref}`);
+      
+      const response = await this.octokit.repos.getContent({
+        owner,
+        repo,
+        path: filePath,
+        ref: ref
+      });
+
+      if (Array.isArray(response.data)) {
+        throw new Error('디렉토리입니다. 파일 경로를 지정해주세요.');
+      }
+
+      if (response.data.type !== 'file') {
+        throw new Error('파일이 아닙니다.');
+      }
+
+      let content = '';
+      let truncated = false;
+      
+      if (response.data.encoding === 'base64') {
+        const Buffer = require('buffer').Buffer;
+        content = Buffer.from(response.data.content, 'base64').toString('utf-8');
+      } else {
+        content = response.data.content || '';
+      }
+
+      // 라인 수 제한
+      if (maxLines > 0) {
+        const lines = content.split('\n');
+        if (lines.length > maxLines) {
+          content = lines.slice(0, maxLines).join('\n');
+          truncated = true;
+        }
+      }
+
+      return {
+        content: content,
+        size: response.data.size,
+        encoding: response.data.encoding,
+        sha: response.data.sha,
+        path: response.data.path,
+        truncated: truncated,
+        totalLines: content.split('\n').length
+      };
+    } catch (error) {
+      console.error(`[getFileContent] 파일 읽기 오류: ${error.message}`);
+      if (error.status === 404) {
+        throw new Error(`파일을 찾을 수 없습니다: ${filePath}`);
+      }
+      throw new Error(`파일 읽기 실패: ${error.message}`);
+    }
+  }
+
+  /**
+   * 여러 파일 내용을 일괄 가져오기
+   * @param {string} repoUrl - GitHub 저장소 URL
+   * @param {Array<string>} filePaths - 파일 경로 배열
+   * @param {string} ref - 브랜치/태그/SHA
+   * @param {number} maxLinesPerFile - 파일당 최대 라인 수
+   * @returns {Promise<Array<Object>>} 파일 내용 배열
+   */
+  async getMultipleFileContents(repoUrl, filePaths, ref = 'main', maxLinesPerFile = 500) {
+    try {
+      const results = await Promise.allSettled(
+        filePaths.map(filePath => 
+          this.getFileContent(repoUrl, filePath, ref, maxLinesPerFile)
+            .then(content => ({ ...content, filePath }))
+            .catch(error => ({ 
+              filePath, 
+              error: error.message,
+              content: null 
+            }))
+        )
+      );
+
+      return results.map((result, index) => {
+        if (result.status === 'fulfilled') {
+          return result.value;
+        } else {
+          return {
+            filePath: filePaths[index],
+            error: result.reason?.message || '알 수 없는 오류',
+            content: null
+          };
+        }
+      });
+    } catch (error) {
+      console.error('[getMultipleFileContents] 일괄 파일 읽기 오류:', error);
+      throw new Error(`일괄 파일 읽기 실패: ${error.message}`);
+    }
+  }
 }
 
 module.exports = GitHubService;

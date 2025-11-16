@@ -1100,6 +1100,7 @@ exports.chat = async function(req, res, next) {
               currentTasks: tasks,
               projectDescription: project.description || project.title,
               githubRepo: project.github_repo || null,
+              githubToken: project.github_token || null,
               projectStartDate: project.created_at || null,
               projectDueDate: null,
               projectMembersWithTags: projectMembersWithTags
