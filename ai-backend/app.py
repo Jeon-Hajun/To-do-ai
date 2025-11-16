@@ -651,9 +651,9 @@ def chat():
         # LLM 호출 함수 정의
         def call_llm(prompt, system_prompt):
             if USE_OPENAI:
-                return call_openai(prompt, system_prompt)
+                return call_openai(prompt, system_prompt, max_tokens=2000)
             else:
-                return call_ollama(prompt, system_prompt)
+                return call_ollama(prompt, system_prompt, max_tokens=2000)
         
         # 1. 의도 분류
         print('[AI Backend] chat - 의도 분류 시작')
