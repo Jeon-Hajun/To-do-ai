@@ -17,7 +17,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import { getCommit } from "../api/github";
-import DiffViewer from "../components/github/DiffViewer";
+import DiffViewer from "../components/GitHub/DiffViewer";
 import { Header, ContainerBox } from "../components/layout/index.js";
 
 export default function CommitDetailPage() {
