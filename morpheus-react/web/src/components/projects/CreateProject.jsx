@@ -18,6 +18,7 @@ export default function CreateProject({ onCancel, onSuccess }) {
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
+  const [aiSuccess, setAiSuccess] = useState(false);
   const [descriptionTab, setDescriptionTab] = useState(0); // 0: 작성, 1: 미리보기
 
   const mutation = useMutation({
@@ -48,6 +49,10 @@ export default function CreateProject({ onCancel, onSuccess }) {
         setDescription(res.data.description || "");
         setShowAIInput(false);
         setAiInput("");
+        setAiSuccess(true);
+        setDescriptionTab(1); // 미리보기 탭으로 전환
+        // 3초 후 성공 메시지 자동 숨김
+        setTimeout(() => setAiSuccess(false), 3000);
       } else {
         setAiError(res.error?.message || "AI 생성에 실패했습니다.");
       }
@@ -103,6 +108,12 @@ export default function CreateProject({ onCancel, onSuccess }) {
         </Button>
       </Box>
 
+      {aiSuccess && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setAiSuccess(false)}>
+          AI가 프로젝트 정보를 생성했습니다. 내용을 확인한 후 "프로젝트 생성" 버튼을 눌러주세요.
+        </Alert>
+      )}
+      
       {showAIInput && (
         <Box sx={{ mb: 2, p: 2, bgcolor: "background.default", borderRadius: 1 }}>
           <TextField
