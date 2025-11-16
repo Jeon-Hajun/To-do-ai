@@ -10,10 +10,24 @@ import {
   IconButton,
   Stack,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItem,
+  ListItemText,
+  Divider,
+  Slide,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import DeleteIcon from "@mui/icons-material/Delete";
+import CloseIcon from "@mui/icons-material/Close";
 import { sendChatMessage, clearConversation, getChatHistory } from "../../api/ai";
+
+const Transition = React.forwardRef(function Transition(props, ref) {
+  return <Slide direction="up" ref={ref} {...props} />;
+});
 
 export default function ChatBot({ projectId, onError }) {
   const [messages, setMessages] = useState([]);
@@ -22,7 +36,18 @@ export default function ChatBot({ projectId, onError }) {
   const [conversationId, setConversationId] = useState(null);
   const [error, setError] = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [resultModalOpen, setResultModalOpen] = useState(false);
+  const [resultData, setResultData] = useState(null);
   const messagesEndRef = useRef(null);
+
+  // 초기 제안 질문들
+  const suggestionButtons = [
+    { text: "진행도 알려줘", query: "진행도 알려줘", icon: "📊" },
+    { text: "할 일 추천해줘", query: "할 일 추천해줘", icon: "💡" },
+    { text: "이 작업 완료됐어?", query: "이 작업 완료됐어?", icon: "✅" },
+    { text: "커밋 몇 개야?", query: "커밋 몇 개야?", icon: "📝" },
+    { text: "Task 할당 추천해줘", query: "Task 할당 추천해줘", icon: "👤" },
+  ];
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -105,6 +130,16 @@ export default function ChatBot({ projectId, onError }) {
         };
         setMessages((prev) => [...prev, assistantMessage]);
         setConversationId(res.data.conversationId);
+
+        // Task 제안 결과가 있으면 모달로 표시
+        if (res.data.response && res.data.response.type === "task_suggestions" && res.data.response.suggestions) {
+          setResultData({
+            type: "task_suggestions",
+            suggestions: res.data.response.suggestions,
+            message: res.data.message,
+          });
+          setResultModalOpen(true);
+        }
       } else {
         setError(res.error?.message || "메시지 전송에 실패했습니다.");
         if (onError) {
@@ -155,6 +190,78 @@ export default function ChatBot({ projectId, onError }) {
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  const handleSuggestionClick = async (query) => {
+    if (loading || !projectId) {
+      return;
+    }
+
+    setInputMessage("");
+    setLoading(true);
+    setError(null);
+
+    // 사용자 메시지를 즉시 표시
+    const newUserMessage = {
+      role: "user",
+      content: query,
+      id: Date.now(),
+    };
+    setMessages((prev) => [...prev, newUserMessage]);
+
+    try {
+      // 대화 히스토리 준비
+      const history = messages.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      }));
+
+      const res = await sendChatMessage(projectId, query, history);
+
+      if (res.success) {
+        const assistantMessage = {
+          role: "assistant",
+          content: res.data.message,
+          agentType: res.data.agentType,
+          response: res.data.response,
+          id: Date.now() + 1,
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+        setConversationId(res.data.conversationId);
+
+        // Task 제안 결과가 있으면 모달로 표시
+        if (res.data.response && res.data.response.type === "task_suggestions" && res.data.response.suggestions) {
+          setResultData({
+            type: "task_suggestions",
+            suggestions: res.data.response.suggestions,
+            message: res.data.message,
+          });
+          setResultModalOpen(true);
+        }
+      } else {
+        setError(res.error?.message || "메시지 전송에 실패했습니다.");
+        if (onError) {
+          onError(res.error);
+        }
+        // 사용자 메시지 제거 (실패한 경우)
+        setMessages((prev) => prev.filter((msg) => msg.id !== newUserMessage.id));
+      }
+    } catch (err) {
+      console.error("메시지 전송 오류:", err);
+      setError(err.message || "메시지 전송 중 오류가 발생했습니다.");
+      if (onError) {
+        onError({ message: err.message });
+      }
+      // 사용자 메시지 제거 (실패한 경우)
+      setMessages((prev) => prev.filter((msg) => msg.id !== newUserMessage.id));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCloseResultModal = () => {
+    setResultModalOpen(false);
+    setResultData(null);
   };
 
   return (
@@ -217,59 +324,40 @@ export default function ChatBot({ projectId, onError }) {
                   p: 3,
                 }}
               >
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: "bold" }}>
+                <Typography variant="h6" sx={{ mb: 3, fontWeight: "bold" }}>
                   안녕하세요! 프로젝트 관리 AI 어시스턴트입니다.
                 </Typography>
                 <Typography variant="body2" sx={{ mb: 3, textAlign: "center" }}>
-                  다음과 같은 기능을 사용할 수 있습니다:
+                  아래 버튼을 클릭하여 바로 질문하거나, 직접 입력할 수 있습니다:
                 </Typography>
-                <Box sx={{ width: "100%", maxWidth: 500 }}>
-                  <Stack spacing={1}>
-                    <Paper sx={{ p: 1.5, bgcolor: "background.paper" }}>
-                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5 }}>
-                        📊 프로젝트 진행도 분석
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        "진행도 알려줘", "프로젝트 상태 분석해줘"
-                      </Typography>
-                    </Paper>
-                    <Paper sx={{ p: 1.5, bgcolor: "background.paper" }}>
-                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5 }}>
-                        💡 Task 제안
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        "할 일 추천해줘", "새로운 작업 제안해줘"
-                      </Typography>
-                    </Paper>
-                    <Paper sx={{ p: 1.5, bgcolor: "background.paper" }}>
-                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5 }}>
-                        ✅ Task 완료 확인
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        "이 작업 완료됐어?", "Task 완료 확인해줘"
-                      </Typography>
-                    </Paper>
-                    <Paper sx={{ p: 1.5, bgcolor: "background.paper" }}>
-                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5 }}>
-                        📝 프로젝트 정보 질문
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        "커밋 몇 개야?", "프로젝트 설명해줘", "작업 몇 개 있어?"
-                      </Typography>
-                    </Paper>
-                    <Paper sx={{ p: 1.5, bgcolor: "background.paper" }}>
-                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5 }}>
-                        👤 Task 할당 추천
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        "이 Task를 누구에게 할당하면 좋을까?", "Task 할당 추천해줘"
-                      </Typography>
-                    </Paper>
+                <Box sx={{ width: "100%", maxWidth: 600 }}>
+                  <Stack spacing={1.5} direction="row" flexWrap="wrap" justifyContent="center" useFlexGap>
+                    {suggestionButtons.map((btn, index) => (
+                      <Button
+                        key={index}
+                        variant="outlined"
+                        onClick={() => handleSuggestionClick(btn.query)}
+                        disabled={loading || !projectId || loadingHistory}
+                        sx={{
+                          borderRadius: 3,
+                          px: 2,
+                          py: 1,
+                          textTransform: "none",
+                          borderColor: "primary.main",
+                          color: "primary.main",
+                          "&:hover": {
+                            bgcolor: "primary.main",
+                            color: "primary.contrastText",
+                            borderColor: "primary.main",
+                          },
+                        }}
+                        startIcon={<span>{btn.icon}</span>}
+                      >
+                        {btn.text}
+                      </Button>
+                    ))}
                   </Stack>
                 </Box>
-                <Typography variant="body2" sx={{ mt: 3, color: "text.secondary" }}>
-                  위의 예시처럼 질문을 입력해주세요!
-                </Typography>
               </Box>
             )}
 
@@ -361,6 +449,94 @@ export default function ChatBot({ projectId, onError }) {
           </IconButton>
         </Stack>
       </Box>
+
+      {/* Task 제안 결과 모달 */}
+      <Dialog
+        open={resultModalOpen}
+        onClose={handleCloseResultModal}
+        TransitionComponent={Transition}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Typography variant="h6">Task 제안 결과</Typography>
+            <IconButton onClick={handleCloseResultModal} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {resultData && resultData.type === "task_suggestions" && (
+            <Box>
+              <Typography variant="body1" sx={{ mb: 2, color: "text.secondary" }}>
+                {resultData.message}
+              </Typography>
+              <List>
+                {resultData.suggestions.map((suggestion, index) => (
+                  <React.Fragment key={index}>
+                    <ListItem
+                      sx={{
+                        flexDirection: "column",
+                        alignItems: "flex-start",
+                        py: 2,
+                      }}
+                    >
+                      <Box sx={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
+                        <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                          {suggestion.title || suggestion.task || "제목 없음"}
+                        </Typography>
+                        <Stack direction="row" spacing={1}>
+                          <Chip
+                            label={suggestion.category || "기타"}
+                            size="small"
+                            color={
+                              suggestion.category === "security"
+                                ? "error"
+                                : suggestion.category === "refactor"
+                                ? "warning"
+                                : suggestion.category === "feature"
+                                ? "primary"
+                                : "default"
+                            }
+                          />
+                          <Chip
+                            label={suggestion.priority || "Low"}
+                            size="small"
+                            color={
+                              suggestion.priority === "High"
+                                ? "error"
+                                : suggestion.priority === "Medium"
+                                ? "warning"
+                                : "default"
+                            }
+                          />
+                        </Stack>
+                      </Box>
+                      {suggestion.description && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                          {suggestion.description}
+                        </Typography>
+                      )}
+                      {suggestion.reason && (
+                        <Typography variant="caption" color="text.secondary" sx={{ fontStyle: "italic" }}>
+                          추천 이유: {suggestion.reason}
+                        </Typography>
+                      )}
+                    </ListItem>
+                    {index < resultData.suggestions.length - 1 && <Divider />}
+                  </React.Fragment>
+                ))}
+              </List>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseResultModal} variant="contained">
+            닫기
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
