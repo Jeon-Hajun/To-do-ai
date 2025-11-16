@@ -60,7 +60,6 @@ export default function AIadvisorPage() {
 
       <PageContainer
         title="AI 어시스턴트"
-        subtitle="프로젝트를 선택하고 자연어로 질문하세요."
         maxWidth="lg"
         sx={{ flex: 1, pt: 4 }}
       >
