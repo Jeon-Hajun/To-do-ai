@@ -82,6 +82,20 @@ def classify_intent(user_message, conversation_history, call_llm_func, project_c
             "extracted_info": {}
         }
 
+def check_github_required(agent_type):
+    """
+    에이전트 타입에 따라 GitHub 연동이 필요한지 확인
+    
+    Returns:
+        bool: GitHub 연동이 필요하면 True
+    """
+    github_required_agents = [
+        "task_suggestion_agent",
+        "progress_analysis_agent",
+        "task_completion_agent"
+    ]
+    return agent_type in github_required_agents
+
 def route_to_agent(agent_type, context, call_llm_func, user_message=None):
     """
     선택된 agent에 따라 적절한 프롬프트를 생성하고 실행합니다.
@@ -96,12 +110,31 @@ def route_to_agent(agent_type, context, call_llm_func, user_message=None):
         dict: agent 실행 결과
     """
     
+    # GitHub 연동 필요 여부 확인
+    if check_github_required(agent_type):
+        github_repo = context.get('githubRepo', '')
+        if not github_repo or github_repo.strip() == '':
+            agent_name = {
+                "task_suggestion_agent": "Task 제안",
+                "progress_analysis_agent": "진행도 분석",
+                "task_completion_agent": "Task 완료 확인"
+            }.get(agent_type, "이 기능")
+            
+            return {
+                "agent_type": agent_type,
+                "error": "GITHUB_REQUIRED",
+                "response": {
+                    "type": "error",
+                    "message": f"{agent_name} 기능을 사용하려면 GitHub 저장소가 연결되어 있어야 합니다. 프로젝트 설정에서 GitHub 저장소를 연결해주세요."
+                }
+            }
+    
     if agent_type == "task_suggestion_agent":
-        return execute_task_suggestion_agent(context, call_llm_func)
+        return execute_task_suggestion_agent(context, call_llm_func, user_message)
     elif agent_type == "progress_analysis_agent":
-        return execute_progress_analysis_agent(context, call_llm_func)
+        return execute_progress_analysis_agent(context, call_llm_func, user_message)
     elif agent_type == "task_completion_agent":
-        return execute_task_completion_agent(context, call_llm_func)
+        return execute_task_completion_agent(context, call_llm_func, user_message)
     elif agent_type == "task_assignment_agent":
         return execute_task_assignment_agent(context, call_llm_func, user_message)
     elif agent_type == "general_qa_agent":

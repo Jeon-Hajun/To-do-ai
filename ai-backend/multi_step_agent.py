@@ -226,13 +226,29 @@ def execute_multi_step_agent(
     step_number = 0
     accumulated_files = []  # 읽은 파일 추적
     accumulated_commits = []  # 분석한 커밋 추적
+    progress_messages = []  # 진행 상황 메시지 추적
     
     github_repo = context.get('githubRepo', '')
     github_token = context.get('githubToken')
     
+    # 에이전트 타입별 한국어 이름
+    agent_name_kr = {
+        "task_suggestion_agent": "Task 제안",
+        "progress_analysis_agent": "진행도 분석",
+        "task_completion_agent": "Task 완료 확인",
+        "general_qa_agent": "질문 답변",
+        "task_assignment_agent": "Task 할당 추천"
+    }.get(agent_type, "분석")
+    
     while step_number < MAX_ANALYSIS_STEPS:
         step_number += 1
         print(f"[Multi-Step Agent] {agent_type} - 단계 {step_number}/{MAX_ANALYSIS_STEPS} 시작")
+        
+        # 진행 상황 메시지 추가
+        if step_number == 1:
+            progress_messages.append(f"🔍 {agent_name_kr}을(를) 위해 정보를 수집하고 있습니다...")
+        else:
+            progress_messages.append(f"📊 추가 정보를 분석 중입니다... (단계 {step_number}/{MAX_ANALYSIS_STEPS})")
         
         # 프롬프트 생성
         if step_number == 1:
@@ -305,6 +321,7 @@ def execute_multi_step_agent(
         # 충분한 정보가 있으면 종료
         if evaluation.get('is_sufficient', False):
             print(f"[Multi-Step Agent] {agent_type} - 정보 충분, 분석 종료 (단계 {step_number})")
+            progress_messages.append(f"✨ 분석 완료! 최종 결과를 정리 중...")
             break
         
         # 추가 정보가 필요한 경우 파일 읽기
@@ -315,6 +332,7 @@ def execute_multi_step_agent(
             # 파일 읽기
             if files_to_read and github_repo:
                 print(f"[Multi-Step Agent] {agent_type} - 파일 읽기 시작: {files_to_read}")
+                progress_messages.append(f"📄 관련 파일을 읽는 중... ({len(files_to_read)}개 파일)")
                 file_contents = get_file_contents(github_repo, github_token, files_to_read)
                 
                 # 읽은 파일을 accumulated_files에 추가
@@ -328,9 +346,11 @@ def execute_multi_step_agent(
                 
                 # 컨텍스트에 파일 내용 추가
                 context['readFiles'] = accumulated_files
+                progress_messages.append(f"✅ 파일 읽기 완료 ({len([f for f in file_contents if f.get('content')])}개 파일)")
             
             # 커밋 상세 분석 (필요시)
             if commits_to_analyze:
+                progress_messages.append(f"🔎 커밋을 상세히 분석 중... ({len(commits_to_analyze)}개 커밋)")
                 # 커밋 상세 정보를 컨텍스트에 추가
                 context['detailedCommits'] = commits_to_analyze
                 accumulated_commits.extend(commits_to_analyze)
@@ -338,6 +358,7 @@ def execute_multi_step_agent(
         # 다음 단계로 진행
         if step_number >= MAX_ANALYSIS_STEPS:
             print(f"[Multi-Step Agent] {agent_type} - 최대 단계 도달, 분석 종료")
+            progress_messages.append(f"✨ 최대 분석 단계에 도달했습니다. 최종 결과를 정리 중...")
             break
     
     # 최종 결과 구성
@@ -346,7 +367,8 @@ def execute_multi_step_agent(
         "response": current_result if current_result else {},
         "analysis_steps": step_number,
         "all_steps": all_steps,
-        "confidence": evaluation.get('confidence', 'medium') if 'evaluation' in locals() else 'low'
+        "confidence": evaluation.get('confidence', 'medium') if 'evaluation' in locals() else 'low',
+        "progress_messages": progress_messages  # 진행 상황 메시지 추가
     }
     
     return final_response

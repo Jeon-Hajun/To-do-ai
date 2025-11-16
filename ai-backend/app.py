@@ -678,13 +678,15 @@ def chat():
                 'extracted_info': intent_result.get('extracted_info', {})
             },
             'response': agent_result.get('response', {}),
-            'message': agent_result.get('response', {}).get('message', '응답을 생성했습니다.')
+            'message': agent_result.get('response', {}).get('message', '응답을 생성했습니다.'),
+            'progress_messages': agent_result.get('progress_messages', []),  # 진행 상황 메시지 추가
+            'analysis_steps': agent_result.get('analysis_steps', 1)  # 분석 단계 수 추가
         }
         
         if 'error' in agent_result:
             response['error'] = agent_result['error']
         
-        print(f'[AI Backend] chat - 응답 생성 완료')
+        print(f'[AI Backend] chat - 응답 생성 완료 (진행 메시지: {len(response.get("progress_messages", []))}개)')
         return jsonify(response)
         
     except Exception as e:

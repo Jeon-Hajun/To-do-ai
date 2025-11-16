@@ -137,6 +137,9 @@ export default function ChatBot({ projectId, onError }) {
     };
     setMessages((prev) => [...prev, newUserMessage]);
 
+    // 진행 상황 메시지를 표시할 임시 메시지 ID
+    let progressMessageId = null;
+
     try {
       // 대화 히스토리 준비 (현재 메시지 제외)
       const history = messages.map((msg) => ({
@@ -144,17 +147,64 @@ export default function ChatBot({ projectId, onError }) {
         content: msg.content,
       }));
 
+      // 진행 상황 표시를 위한 임시 메시지 추가
+      progressMessageId = Date.now() + 1000;
+      const progressMessage = {
+        role: "assistant",
+        content: "🔍 분석을 시작합니다...",
+        id: progressMessageId,
+        isProgress: true,
+      };
+      setMessages((prev) => [...prev, progressMessage]);
+
       const res = await sendChatMessage(projectId, userMessage, history);
 
       if (res.success) {
+        // GitHub 연동 필요 에러 체크
+        if (res.data.error === "GITHUB_REQUIRED") {
+          const errorMessage = {
+            role: "assistant",
+            content: res.data.response?.message || "GitHub 저장소가 연결되어 있지 않습니다.",
+            id: Date.now() + 2,
+          };
+          setMessages((prev) => {
+            const filtered = prev.filter((msg) => msg.id !== progressMessageId);
+            return [...filtered, errorMessage];
+          });
+          setError(res.data.response?.message || "GitHub 저장소가 연결되어 있지 않습니다.");
+          return;
+        }
+
+        // 진행 상황 메시지가 있으면 표시
+        const progressMessages = res.data.progress_messages || [];
+        
+        // 진행 상황 메시지들을 채팅에 추가 (임시 메시지 업데이트)
+        if (progressMessages.length > 0) {
+          // 마지막 진행 상황 메시지로 업데이트
+          setMessages((prev) => 
+            prev.map((msg) => 
+              msg.id === progressMessageId 
+                ? { ...msg, content: progressMessages[progressMessages.length - 1] }
+                : msg
+            )
+          );
+        }
+
+        // 최종 응답 메시지 추가
         const assistantMessage = {
           role: "assistant",
           content: res.data.message,
           agentType: res.data.agentType,
           response: res.data.response,
-          id: Date.now() + 1,
+          id: Date.now() + 2,
         };
-        setMessages((prev) => [...prev, assistantMessage]);
+        
+        // 진행 상황 메시지 제거하고 최종 응답 추가
+        setMessages((prev) => {
+          const filtered = prev.filter((msg) => msg.id !== progressMessageId);
+          return [...filtered, assistantMessage];
+        });
+        
         setConversationId(res.data.conversationId);
 
         // Task 제안 결과가 있으면 모달로 표시
@@ -167,12 +217,15 @@ export default function ChatBot({ projectId, onError }) {
           setResultModalOpen(true);
         }
       } else {
+        // 에러 처리
         setError(res.error?.message || "메시지 전송에 실패했습니다.");
         if (onError) {
           onError(res.error);
         }
-        // 사용자 메시지 제거 (실패한 경우)
-        setMessages((prev) => prev.filter((msg) => msg.id !== newUserMessage.id));
+        // 진행 상황 메시지와 사용자 메시지 제거
+        setMessages((prev) => 
+          prev.filter((msg) => msg.id !== newUserMessage.id && msg.id !== progressMessageId)
+        );
       }
     } catch (err) {
       console.error("메시지 전송 오류:", err);
@@ -180,8 +233,10 @@ export default function ChatBot({ projectId, onError }) {
       if (onError) {
         onError({ message: err.message });
       }
-      // 사용자 메시지 제거 (실패한 경우)
-      setMessages((prev) => prev.filter((msg) => msg.id !== newUserMessage.id));
+      // 진행 상황 메시지와 사용자 메시지 제거
+      setMessages((prev) => 
+        prev.filter((msg) => msg.id !== newUserMessage.id && msg.id !== progressMessageId)
+      );
     } finally {
       setLoading(false);
     }
@@ -235,6 +290,9 @@ export default function ChatBot({ projectId, onError }) {
     };
     setMessages((prev) => [...prev, newUserMessage]);
 
+    // 진행 상황 메시지를 표시할 임시 메시지 ID
+    let progressMessageId = null;
+
     try {
       // 대화 히스토리 준비
       const history = messages.map((msg) => ({
@@ -242,17 +300,64 @@ export default function ChatBot({ projectId, onError }) {
         content: msg.content,
       }));
 
+      // 진행 상황 표시를 위한 임시 메시지 추가
+      progressMessageId = Date.now() + 1000;
+      const progressMessage = {
+        role: "assistant",
+        content: "🔍 분석을 시작합니다...",
+        id: progressMessageId,
+        isProgress: true,
+      };
+      setMessages((prev) => [...prev, progressMessage]);
+
       const res = await sendChatMessage(projectId, query, history);
 
       if (res.success) {
+        // GitHub 연동 필요 에러 체크
+        if (res.data.error === "GITHUB_REQUIRED") {
+          const errorMessage = {
+            role: "assistant",
+            content: res.data.response?.message || "GitHub 저장소가 연결되어 있지 않습니다.",
+            id: Date.now() + 2,
+          };
+          setMessages((prev) => {
+            const filtered = prev.filter((msg) => msg.id !== progressMessageId);
+            return [...filtered, errorMessage];
+          });
+          setError(res.data.response?.message || "GitHub 저장소가 연결되어 있지 않습니다.");
+          return;
+        }
+
+        // 진행 상황 메시지가 있으면 표시
+        const progressMessages = res.data.progress_messages || [];
+        
+        // 진행 상황 메시지들을 채팅에 추가 (임시 메시지 업데이트)
+        if (progressMessages.length > 0) {
+          // 마지막 진행 상황 메시지로 업데이트
+          setMessages((prev) => 
+            prev.map((msg) => 
+              msg.id === progressMessageId 
+                ? { ...msg, content: progressMessages[progressMessages.length - 1] }
+                : msg
+            )
+          );
+        }
+
+        // 최종 응답 메시지 추가
         const assistantMessage = {
           role: "assistant",
           content: res.data.message,
           agentType: res.data.agentType,
           response: res.data.response,
-          id: Date.now() + 1,
+          id: Date.now() + 2,
         };
-        setMessages((prev) => [...prev, assistantMessage]);
+        
+        // 진행 상황 메시지 제거하고 최종 응답 추가
+        setMessages((prev) => {
+          const filtered = prev.filter((msg) => msg.id !== progressMessageId);
+          return [...filtered, assistantMessage];
+        });
+        
         setConversationId(res.data.conversationId);
 
         // Task 제안 결과가 있으면 모달로 표시
@@ -269,8 +374,10 @@ export default function ChatBot({ projectId, onError }) {
         if (onError) {
           onError(res.error);
         }
-        // 사용자 메시지 제거 (실패한 경우)
-        setMessages((prev) => prev.filter((msg) => msg.id !== newUserMessage.id));
+        // 진행 상황 메시지와 사용자 메시지 제거
+        setMessages((prev) => 
+          prev.filter((msg) => msg.id !== newUserMessage.id && msg.id !== progressMessageId)
+        );
       }
     } catch (err) {
       console.error("메시지 전송 오류:", err);
@@ -278,8 +385,10 @@ export default function ChatBot({ projectId, onError }) {
       if (onError) {
         onError({ message: err.message });
       }
-      // 사용자 메시지 제거 (실패한 경우)
-      setMessages((prev) => prev.filter((msg) => msg.id !== newUserMessage.id));
+      // 진행 상황 메시지와 사용자 메시지 제거
+      setMessages((prev) => 
+        prev.filter((msg) => msg.id !== newUserMessage.id && msg.id !== progressMessageId)
+      );
     } finally {
       setLoading(false);
     }
