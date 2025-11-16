@@ -196,7 +196,8 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
                 "message": f"{len(suggestions)}개의 Task를 제안했습니다."
             },
             "analysis_steps": result.get('analysis_steps', 1),
-            "confidence": result.get('confidence', 'medium')
+            "confidence": result.get('confidence', 'medium'),
+            "progress_messages": result.get('progress_messages', [])  # 진행 상황 메시지 추가
         }
     except Exception as e:
         print(f"[Agent Router] Task 제안 agent 실행 실패: {e}")
@@ -253,7 +254,8 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
                 "message": message
             },
             "analysis_steps": result.get('analysis_steps', 1),
-            "confidence": result.get('confidence', 'medium')
+            "confidence": result.get('confidence', 'medium'),
+            "progress_messages": result.get('progress_messages', [])  # 진행 상황 메시지 추가
         }
     except Exception as e:
         print(f"[Agent Router] 진행도 분석 agent 실행 실패: {e}")
@@ -328,7 +330,8 @@ def execute_task_completion_agent(context, call_llm_func, user_message=None):
                 "message": message
             },
             "analysis_steps": result.get('analysis_steps', 1),
-            "confidence": result.get('confidence', 'low')
+            "confidence": result.get('confidence', 'low'),
+            "progress_messages": result.get('progress_messages', [])  # 진행 상황 메시지 추가
         }
     except Exception as e:
         print(f"[Agent Router] Task 완료 확인 agent 실행 실패: {e}")
@@ -387,7 +390,8 @@ def execute_general_qa_agent(context, call_llm_func, user_message=None):
                     "details": final_result.get('details', {})
                 },
                 "analysis_steps": result.get('analysis_steps', 1),
-                "confidence": result.get('confidence', 'medium')
+                "confidence": result.get('confidence', 'medium'),
+                "progress_messages": result.get('progress_messages', [])  # 진행 상황 메시지 추가
             }
         else:
             return {
@@ -398,7 +402,8 @@ def execute_general_qa_agent(context, call_llm_func, user_message=None):
                     "suggestion": final_result.get('suggestion', '프로젝트 진행도, Task 제안, Task 완료 확인 등의 기능을 사용해주세요.')
                 },
                 "analysis_steps": result.get('analysis_steps', 1),
-                "confidence": result.get('confidence', 'medium')
+                "confidence": result.get('confidence', 'medium'),
+                "progress_messages": result.get('progress_messages', [])  # 진행 상황 메시지 추가
             }
     except Exception as e:
         print(f"[Agent Router] 일반 질문 답변 agent 실행 실패: {e}")
@@ -503,7 +508,8 @@ def execute_task_assignment_agent(context, call_llm_func, user_message=None):
                 "message": message
             },
             "analysis_steps": result.get('analysis_steps', 1),
-            "confidence": result.get('confidence', 'medium')
+            "confidence": result.get('confidence', 'medium'),
+            "progress_messages": result.get('progress_messages', [])  # 진행 상황 메시지 추가
         }
     except Exception as e:
         print(f"[Agent Router] Task 할당 추천 agent 실행 실패: {e}")
