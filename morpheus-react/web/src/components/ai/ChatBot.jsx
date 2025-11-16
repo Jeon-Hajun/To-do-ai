@@ -329,7 +329,7 @@ export default function ChatBot({ projectId, onError }) {
           bgcolor: "background.paper",
         }}
       >
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row" spacing={1} alignItems="flex-end">
           <TextField
             fullWidth
             multiline
@@ -341,14 +341,24 @@ export default function ChatBot({ projectId, onError }) {
             disabled={loading || !projectId || loadingHistory}
             size="small"
           />
-          <Button
-            variant="contained"
+          <IconButton
+            color="primary"
             onClick={handleSendMessage}
             disabled={!inputMessage.trim() || loading || !projectId || loadingHistory}
-            startIcon={loading ? <CircularProgress size={20} /> : <SendIcon />}
+            sx={{ 
+              bgcolor: "primary.main",
+              color: "primary.contrastText",
+              "&:hover": {
+                bgcolor: "primary.dark",
+              },
+              "&.Mui-disabled": {
+                bgcolor: "action.disabledBackground",
+                color: "action.disabled",
+              },
+            }}
           >
-            전송
-          </Button>
+            {loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
+          </IconButton>
         </Stack>
       </Box>
     </Box>
