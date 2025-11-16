@@ -674,7 +674,32 @@ def chat():
         print(f'[AI Backend] chat - {agent_type} 실행 시작')
         agent_result = route_to_agent(agent_type, context, call_llm, user_message)
         
-        # 3. 응답 구성
+        # 3. 에러 처리 (GITHUB_REQUIRED 등)
+        if 'error' in agent_result:
+            error_code = agent_result.get('error')
+            error_response = agent_result.get('response', {})
+            error_message = error_response.get('message', '알 수 없는 오류가 발생했습니다.')
+            
+            print(f'[AI Backend] chat - 에러 발생: {error_code}')
+            
+            # GITHUB_REQUIRED 에러는 400 상태 코드로 반환
+            if error_code == 'GITHUB_REQUIRED':
+                return jsonify({
+                    'error': error_code,
+                    'message': error_message,
+                    'agent_type': agent_type,
+                    'response': error_response
+                }), 400
+            
+            # 기타 에러는 500 상태 코드로 반환
+            return jsonify({
+                'error': error_code,
+                'message': error_message,
+                'agent_type': agent_type,
+                'response': error_response
+            }), 500
+        
+        # 4. 정상 응답 구성
         response = {
             'agent_type': agent_type,
             'intent_classification': {
@@ -687,9 +712,6 @@ def chat():
             'progress_messages': agent_result.get('progress_messages', []),  # 진행 상황 메시지 추가
             'analysis_steps': agent_result.get('analysis_steps', 1)  # 분석 단계 수 추가
         }
-        
-        if 'error' in agent_result:
-            response['error'] = agent_result['error']
         
         print(f'[AI Backend] chat - 응답 생성 완료 (진행 메시지: {len(response.get("progress_messages", []))}개)')
         return jsonify(response)

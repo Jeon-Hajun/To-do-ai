@@ -1114,11 +1114,34 @@ exports.chat = async function(req, res, next) {
         console.log('[AI Controller] chat - AI 백엔드 응답 수신:', {
           status: aiResponse.status,
           hasError: !!aiResponse.data.error,
-          agentType: aiResponse.data.agent_type
+          agentType: aiResponse.data.agent_type,
+          errorCode: aiResponse.data.error
         });
         
+        // GITHUB_REQUIRED 등 에러 처리
         if (aiResponse.data.error) {
-          throw new Error(aiResponse.data.error);
+          const errorCode = aiResponse.data.error;
+          const errorMessage = aiResponse.data.message || '알 수 없는 오류가 발생했습니다.';
+          
+          // GITHUB_REQUIRED 에러는 특별 처리
+          if (errorCode === 'GITHUB_REQUIRED') {
+            return res.status(400).json({
+              success: false,
+              error: {
+                code: 'GITHUB_REQUIRED',
+                message: errorMessage
+              }
+            });
+          }
+          
+          // 기타 에러는 500으로 반환
+          return res.status(500).json({
+            success: false,
+            error: {
+              code: errorCode,
+              message: errorMessage
+            }
+          });
         }
         
         // AI 응답 메시지 저장
