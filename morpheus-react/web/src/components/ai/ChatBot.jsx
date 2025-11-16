@@ -22,13 +22,17 @@ import {
 import SendIcon from "@mui/icons-material/Send";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
+import AddIcon from "@mui/icons-material/Add";
 import { sendChatMessage, clearConversation, getChatHistory } from "../../api/ai";
+import { createTask } from "../../api/tasks";
+import { useQueryClient } from "@tanstack/react-query";
 
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
 });
 
 export default function ChatBot({ projectId, onError }) {
+  const queryClient = useQueryClient();
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,6 +41,7 @@ export default function ChatBot({ projectId, onError }) {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [resultModalOpen, setResultModalOpen] = useState(false);
   const [resultData, setResultData] = useState(null);
+  const [addingTasks, setAddingTasks] = useState(new Set());
   const messagesEndRef = useRef(null);
 
   // 초기 제안 질문들
@@ -263,6 +268,40 @@ export default function ChatBot({ projectId, onError }) {
     setResultData(null);
   };
 
+  const handleAddTask = async (suggestion, index) => {
+    if (!projectId || addingTasks.has(index)) return;
+
+    const taskTitle = suggestion.title || suggestion.task || "제목 없음";
+    const taskDescription = suggestion.description || "";
+
+    setAddingTasks((prev) => new Set(prev).add(index));
+
+    try {
+      await createTask({
+        projectId,
+        title: taskTitle,
+        description: taskDescription,
+        dueDate: null,
+        assignedUserId: null,
+      });
+
+      // Task 목록 새로고침
+      queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
+
+      // 성공 메시지 표시
+      alert(`"${taskTitle}" Task가 추가되었습니다.`);
+    } catch (err) {
+      console.error("Task 추가 실패:", err);
+      alert(`Task 추가 실패: ${err.message || "알 수 없는 오류"}`);
+    } finally {
+      setAddingTasks((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(index);
+        return newSet;
+      });
+    }
+  };
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 500 }}>
       {/* 헤더 */}
@@ -482,10 +521,10 @@ export default function ChatBot({ projectId, onError }) {
                       }}
                     >
                       <Box sx={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
-                        <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                        <Typography variant="h6" sx={{ fontWeight: "bold", flex: 1 }}>
                           {suggestion.title || suggestion.task || "제목 없음"}
                         </Typography>
-                        <Stack direction="row" spacing={1}>
+                        <Stack direction="row" spacing={1} alignItems="center">
                           <Chip
                             label={suggestion.category || "기타"}
                             size="small"
@@ -510,6 +549,16 @@ export default function ChatBot({ projectId, onError }) {
                                 : "default"
                             }
                           />
+                          <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={addingTasks.has(index) ? <CircularProgress size={16} /> : <AddIcon />}
+                            onClick={() => handleAddTask(suggestion, index)}
+                            disabled={addingTasks.has(index) || !projectId}
+                            sx={{ ml: 1 }}
+                          >
+                            {addingTasks.has(index) ? "추가 중..." : "추가"}
+                          </Button>
                         </Stack>
                       </Box>
                       {suggestion.description && (
