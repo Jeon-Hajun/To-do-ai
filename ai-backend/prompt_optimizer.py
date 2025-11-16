@@ -215,18 +215,28 @@ def create_optimized_progress_prompt(commits, tasks, projectDescription, project
 {json.dumps(task_details, ensure_ascii=False, indent=2)[:1000]}
 
 ## 분석 요청사항:
-다음 항목들을 **구체적이고 상세하게** 분석하여 JSON 형식으로 응답하세요:
+다음 항목들을 **구체적이고 상세하게** 분석하여 JSON 형식으로 응답하세요. 특히 **narrativeResponse** 필드에는 GPT처럼 긴 문장 형태의 상세한 설명을 포함하세요.
 
 1. **currentProgress (0-100)**: Task 완료율, 커밋 활동, 시간 경과 등을 종합하여 정확한 진행도 계산
 2. **activityTrend**: 최근 활동 패턴을 분석하여 "increasing" (증가 중), "stable" (안정적), "decreasing" (감소 중) 중 하나 선택
 3. **estimatedCompletionDate**: 현재 진행 속도를 바탕으로 예상 완료일 계산 (YYYY-MM-DD 형식 또는 null)
 4. **delayRisk**: 마감일 대비 현재 진행 속도를 분석하여 "Low", "Medium", "High" 중 하나 선택
-5. **insights**: 최소 3개 이상의 구체적인 인사이트 제공 (예: "최근 7일간 커밋 활동이 증가하여 개발 속도가 향상되고 있습니다", "완료된 Task 비율이 60%로 프로젝트 중반 단계에 있습니다" 등)
-6. **recommendations**: 최소 3개 이상의 구체적인 개선 제안 제공 (예: "대기 중인 Task를 우선순위에 따라 진행 중 상태로 전환하세요", "마감일이 임박한 Task에 집중하여 완료율을 높이세요" 등)
+5. **insights**: 최소 3개 이상의 구체적인 인사이트 제공
+6. **recommendations**: 최소 3개 이상의 구체적인 개선 제안 제공
 7. **recentActivity**: 최근 활동 요약 (최근 7일, 30일 활동 패턴)
 8. **keyMetrics**: 주요 지표 (평균 커밋 빈도, Task 완료 속도 등)
+9. **narrativeResponse**: **매우 중요** - 다음 내용을 포함한 긴 문장 형태의 상세한 설명 (최소 500자 이상, GPT처럼 자연스럽고 상세하게):
+   - **프로젝트 목표**: 이 프로젝트의 최종 목표와 비전을 설명
+   - **현재 구현된 내용**: 지금까지 완료된 기능, 구현된 모듈, 달성한 마일스톤을 구체적으로 설명
+   - **앞으로 구현할 내용**: 남은 작업, 계획된 기능, 향후 개발 방향을 상세히 설명
+   - **예상 소요 기간**: 현재 진행 속도를 바탕으로 남은 작업 완료까지의 예상 기간과 일정
+   - **프로젝트 상태 종합 평가**: 전체적인 프로젝트 상태, 위험 요소, 성공 가능성 등을 종합적으로 평가
 
-⚠️ 중요: 반드시 한국어로만 응답하고, JSON 형식으로만 응답하세요. 각 항목을 구체적이고 상세하게 작성하세요.
+⚠️ 중요: 
+- 반드시 한국어로만 응답하고, JSON 형식으로만 응답하세요.
+- **narrativeResponse** 필드는 단답형이 아닌 긴 문장 형태로 작성하세요 (최소 500자 이상).
+- GPT처럼 자연스럽고 읽기 쉬운 문장으로 작성하세요.
+- 각 항목을 구체적이고 상세하게 작성하세요.
 
 다음 JSON 형식으로만 응답:
 {{
@@ -244,7 +254,8 @@ def create_optimized_progress_prompt(commits, tasks, projectDescription, project
     "averageCommitsPerDay": 0.0,
     "taskCompletionRate": 0.0,
     "codeGrowthRate": "증가율 설명"
-  }}
+  }},
+  "narrativeResponse": "프로젝트 목표, 현재 구현된 내용, 앞으로 구현할 내용, 예상 소요 기간 등을 포함한 긴 문장 형태의 상세한 설명 (최소 500자 이상)"
 }}"""
     
     return prompt

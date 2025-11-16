@@ -55,7 +55,7 @@ def check_ollama_model():
         print(f"Ollama 모델 확인 실패: {e}")
         return False
 
-def call_ollama(prompt, system_prompt="당신은 도움이 되는 AI 어시스턴트입니다."):
+def call_ollama(prompt, system_prompt="당신은 도움이 되는 AI 어시스턴트입니다.", max_tokens=2000):
     """Ollama API 호출"""
     try:
         # 모델 확인
@@ -63,18 +63,23 @@ def call_ollama(prompt, system_prompt="당신은 도움이 되는 AI 어시스�
             raise Exception(f"Ollama 모델 '{OLLAMA_MODEL}'이 설치되지 않았습니다. 다음 명령어로 설치하세요: ollama pull {OLLAMA_MODEL}")
         
         print(f'[AI Backend] call_ollama - 프롬프트 길이: {len(prompt)} 문자, 시스템 프롬프트: {len(system_prompt)} 문자')
-        print(f'[AI Backend] call_ollama - Ollama URL: {OLLAMA_BASE_URL}, 모델: {OLLAMA_MODEL}')
+        print(f'[AI Backend] call_ollama - Ollama URL: {OLLAMA_BASE_URL}, 모델: {OLLAMA_MODEL}, max_tokens: {max_tokens}')
+        
+        request_data = {
+            "model": OLLAMA_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ],
+            "stream": False,
+            "options": {
+                "num_predict": max_tokens  # Ollama에서 토큰 제한 설정
+            }
+        }
         
         response = httpx.post(
             f"{OLLAMA_BASE_URL}/api/chat",
-            json={
-                "model": OLLAMA_MODEL,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
-                ],
-                "stream": False
-            },
+            json=request_data,
             timeout=300.0  # 5분으로 증가 (큰 모델의 경우 더 오래 걸릴 수 있음)
         )
         response.raise_for_status()
@@ -89,7 +94,7 @@ def call_ollama(prompt, system_prompt="당신은 도움이 되는 AI 어시스�
         print(f"Ollama API 호출 오류: {str(e)}")
         raise
 
-def call_openai(prompt, system_prompt="당신은 도움이 되는 AI 어시스턴트입니다."):
+def call_openai(prompt, system_prompt="당신은 도움이 되는 AI 어시스턴트입니다.", max_tokens=2000):
     """OpenAI API 호출"""
     if not openai_client:
         raise Exception("OpenAI 클라이언트가 초기화되지 않았습니다.")
@@ -102,7 +107,7 @@ def call_openai(prompt, system_prompt="당신은 도움이 되는 AI 어시스�
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
-            max_tokens=1000
+            max_tokens=max_tokens
         )
         return response.choices[0].message.content
     except Exception as e:

@@ -254,14 +254,27 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
 def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
     """진행도 분석 agent 실행 (다단계 분석)"""
     try:
+        # 진행도 분석용 LLM 호출 함수 (더 긴 응답을 위해 토큰 제한 증가)
+        # app.py에서 전달된 call_llm_func를 래핑하여 토큰 제한 증가
+        import os
+        USE_OPENAI = os.getenv('USE_OPENAI', 'false').lower() == 'true'
+        
+        def call_llm_with_more_tokens(prompt, system_prompt):
+            # app.py의 함수를 직접 호출하기 위해 import
+            from app import call_openai, call_ollama
+            if USE_OPENAI:
+                return call_openai(prompt, system_prompt, max_tokens=3000)
+            else:
+                return call_ollama(prompt, system_prompt, max_tokens=3000)
+        
         result = execute_multi_step_agent(
             agent_type="progress_analysis_agent",
             context=context,
-            call_llm_func=call_llm_func,
+            call_llm_func=call_llm_with_more_tokens,
             user_message=user_message,
             initial_prompt_func=create_progress_analysis_initial_prompt,
             followup_prompt_func=create_progress_analysis_followup_prompt,
-            system_prompt="프로젝트 관리 전문가. 진행도 분석 및 예측. 반드시 한국어로 응답. JSON만 응답."
+            system_prompt="프로젝트 관리 전문가. 진행도 분석 및 예측. 반드시 한국어로 응답. JSON 형식으로 응답하되, narrativeResponse 필드에는 긴 문장 형태의 상세한 설명을 포함하세요."
         )
         
         # 결과 처리
@@ -275,68 +288,99 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
                 analysis = {}
         
         # 사용자 친화적인 상세 메시지 생성
-        progress = analysis.get('currentProgress', 0)
-        trend = analysis.get('activityTrend', 'stable')
-        trend_kr = {
-            'increasing': '증가 중',
-            'stable': '안정적',
-            'decreasing': '감소 중'
-        }.get(trend, trend)
+        # narrativeResponse가 있으면 우선 사용 (긴 문장 형태)
+        narrative_response = analysis.get('narrativeResponse', '')
         
-        delay_risk = analysis.get('delayRisk', 'Low')
-        delay_risk_kr = {
-            'Low': '낮음',
-            'Medium': '보통',
-            'High': '높음'
-        }.get(delay_risk, delay_risk)
-        
-        estimated_date = analysis.get('estimatedCompletionDate')
-        insights = analysis.get('insights', [])
-        recommendations = analysis.get('recommendations', [])
-        recent_activity = analysis.get('recentActivity', {})
-        key_metrics = analysis.get('keyMetrics', {})
-        
-        # 상세 메시지 구성
-        message_parts = [
-            f"📊 **프로젝트 진행도: {progress}%**",
-            f"",
-            f"**활동 추세**: {trend_kr}",
-            f"**지연 위험도**: {delay_risk_kr}"
-        ]
-        
-        if estimated_date:
-            message_parts.append(f"**예상 완료일**: {estimated_date}")
-        
-        if recent_activity:
-            if recent_activity.get('last7Days'):
+        if narrative_response and len(narrative_response) > 100:
+            # 긴 문장 형태의 응답이 있으면 이를 메인 메시지로 사용
+            message = narrative_response
+            
+            # 추가 정보는 요약하여 포함
+            progress = analysis.get('currentProgress', 0)
+            trend = analysis.get('activityTrend', 'stable')
+            trend_kr = {
+                'increasing': '증가 중',
+                'stable': '안정적',
+                'decreasing': '감소 중'
+            }.get(trend, trend)
+            
+            delay_risk = analysis.get('delayRisk', 'Low')
+            delay_risk_kr = {
+                'Low': '낮음',
+                'Medium': '보통',
+                'High': '높음'
+            }.get(delay_risk, delay_risk)
+            
+            estimated_date = analysis.get('estimatedCompletionDate')
+            
+            # 메시지 끝에 핵심 지표 추가
+            message += f"\n\n---\n\n**핵심 지표**: 진행도 {progress}% | 활동 추세: {trend_kr} | 지연 위험도: {delay_risk_kr}"
+            if estimated_date:
+                message += f" | 예상 완료일: {estimated_date}"
+        else:
+            # narrativeResponse가 없거나 짧으면 기존 방식 사용
+            progress = analysis.get('currentProgress', 0)
+            trend = analysis.get('activityTrend', 'stable')
+            trend_kr = {
+                'increasing': '증가 중',
+                'stable': '안정적',
+                'decreasing': '감소 중'
+            }.get(trend, trend)
+            
+            delay_risk = analysis.get('delayRisk', 'Low')
+            delay_risk_kr = {
+                'Low': '낮음',
+                'Medium': '보통',
+                'High': '높음'
+            }.get(delay_risk, delay_risk)
+            
+            estimated_date = analysis.get('estimatedCompletionDate')
+            insights = analysis.get('insights', [])
+            recommendations = analysis.get('recommendations', [])
+            recent_activity = analysis.get('recentActivity', {})
+            key_metrics = analysis.get('keyMetrics', {})
+            
+            # 상세 메시지 구성
+            message_parts = [
+                f"📊 **프로젝트 진행도: {progress}%**",
+                f"",
+                f"**활동 추세**: {trend_kr}",
+                f"**지연 위험도**: {delay_risk_kr}"
+            ]
+            
+            if estimated_date:
+                message_parts.append(f"**예상 완료일**: {estimated_date}")
+            
+            if recent_activity:
+                if recent_activity.get('last7Days'):
+                    message_parts.append(f"")
+                    message_parts.append(f"**최근 7일 활동**: {recent_activity.get('last7Days')}")
+                if recent_activity.get('last30Days'):
+                    message_parts.append(f"**최근 30일 활동**: {recent_activity.get('last30Days')}")
+            
+            if insights:
                 message_parts.append(f"")
-                message_parts.append(f"**최근 7일 활동**: {recent_activity.get('last7Days')}")
-            if recent_activity.get('last30Days'):
-                message_parts.append(f"**최근 30일 활동**: {recent_activity.get('last30Days')}")
-        
-        if insights:
-            message_parts.append(f"")
-            message_parts.append(f"**주요 인사이트**:")
-            for i, insight in enumerate(insights[:5], 1):  # 최대 5개
-                message_parts.append(f"{i}. {insight}")
-        
-        if recommendations:
-            message_parts.append(f"")
-            message_parts.append(f"**개선 제안**:")
-            for i, rec in enumerate(recommendations[:5], 1):  # 최대 5개
-                message_parts.append(f"{i}. {rec}")
-        
-        if key_metrics:
-            message_parts.append(f"")
-            message_parts.append(f"**주요 지표**:")
-            if key_metrics.get('averageCommitsPerDay'):
-                message_parts.append(f"- 평균 일일 커밋: {key_metrics.get('averageCommitsPerDay', 0):.1f}개")
-            if key_metrics.get('taskCompletionRate'):
-                message_parts.append(f"- Task 완료율: {key_metrics.get('taskCompletionRate', 0):.1f}%")
-            if key_metrics.get('codeGrowthRate'):
-                message_parts.append(f"- 코드 성장률: {key_metrics.get('codeGrowthRate', 'N/A')}")
-        
-        message = "\n".join(message_parts)
+                message_parts.append(f"**주요 인사이트**:")
+                for i, insight in enumerate(insights[:5], 1):  # 최대 5개
+                    message_parts.append(f"{i}. {insight}")
+            
+            if recommendations:
+                message_parts.append(f"")
+                message_parts.append(f"**개선 제안**:")
+                for i, rec in enumerate(recommendations[:5], 1):  # 최대 5개
+                    message_parts.append(f"{i}. {rec}")
+            
+            if key_metrics:
+                message_parts.append(f"")
+                message_parts.append(f"**주요 지표**:")
+                if key_metrics.get('averageCommitsPerDay'):
+                    message_parts.append(f"- 평균 일일 커밋: {key_metrics.get('averageCommitsPerDay', 0):.1f}개")
+                if key_metrics.get('taskCompletionRate'):
+                    message_parts.append(f"- Task 완료율: {key_metrics.get('taskCompletionRate', 0):.1f}%")
+                if key_metrics.get('codeGrowthRate'):
+                    message_parts.append(f"- 코드 성장률: {key_metrics.get('codeGrowthRate', 'N/A')}")
+            
+            message = "\n".join(message_parts)
         
         return {
             "agent_type": "progress_analysis_agent",
