@@ -251,11 +251,25 @@ def execute_multi_step_agent(
         step_number += 1
         print(f"[Multi-Step Agent] {agent_type} - 단계 {step_number}/{MAX_ANALYSIS_STEPS} 시작")
         
-        # 진행 상황 메시지 추가
-        if step_number == 1:
-            progress_messages.append(f"🔍 {agent_name_kr}을(를) 위해 정보를 수집하고 있습니다...")
+        # 진행 상황 메시지 추가 (에이전트 타입별로 구체적인 메시지)
+        if agent_type == "progress_analysis_agent":
+            if step_number == 1:
+                progress_messages.append("🔍 1단계: 프로젝트 분석 중...")
+            elif step_number == 2:
+                progress_messages.append("📋 2단계: 필요한 기능 분석 중...")
+            elif step_number == 3:
+                progress_messages.append("🔎 3단계: 구현된 기능 확인 중...")
+            elif step_number == 4:
+                progress_messages.append("⚠️ 4단계: 미구현 기능 분석 중...")
+            elif step_number == 5:
+                progress_messages.append("📊 5단계: 평가 및 진행도 계산 중...")
+            else:
+                progress_messages.append(f"📊 추가 분석 중... (단계 {step_number}/{MAX_ANALYSIS_STEPS})")
         else:
-            progress_messages.append(f"📊 추가 정보를 분석 중입니다... (단계 {step_number}/{MAX_ANALYSIS_STEPS})")
+            if step_number == 1:
+                progress_messages.append(f"🔍 {agent_name_kr}을(를) 위해 정보를 수집하고 있습니다...")
+            else:
+                progress_messages.append(f"📊 추가 정보를 분석 중입니다... (단계 {step_number}/{MAX_ANALYSIS_STEPS})")
         
         # 진행도 분석 에이전트의 경우 첫 단계에서 README 파일 자동 읽기
         if step_number == 1 and agent_type == "progress_analysis_agent" and github_repo:
@@ -343,6 +357,19 @@ def execute_multi_step_agent(
             step_result['step_number'] = step_number
             all_steps.append(step_result)
             current_result = step_result
+            
+            # 단계 완료 메시지 추가
+            if agent_type == "progress_analysis_agent":
+                if step_number == 1:
+                    progress_messages.append("✅ 1단계 완료: 프로젝트 분석 완료")
+                elif step_number == 2:
+                    progress_messages.append("✅ 2단계 완료: 필요한 기능 분석 완료")
+                elif step_number == 3:
+                    progress_messages.append("✅ 3단계 완료: 구현된 기능 확인 완료")
+                elif step_number == 4:
+                    progress_messages.append("✅ 4단계 완료: 미구현 기능 분석 완료")
+                elif step_number == 5:
+                    progress_messages.append("✅ 5단계 완료: 평가 및 진행도 계산 완료")
             
             print(f"[Multi-Step Agent] {agent_type} - 단계 {step_number} 완료")
             
