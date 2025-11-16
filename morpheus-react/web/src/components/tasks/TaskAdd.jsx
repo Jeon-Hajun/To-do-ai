@@ -70,18 +70,12 @@ export default function TaskAdd({ open, onClose, projectId, members, editingTask
       return;
     }
 
-    if (!dueDate) {
-      setDueDateError(true);
-      return;
-    }
-
     const taskData = {
       projectId,
       title,
       description,
       dueDate: dueDate || null,
       assignedUserId: assignedUserId || null,
-      status,
     };
 
     if (onCreate) {
@@ -151,12 +145,12 @@ export default function TaskAdd({ open, onClose, projectId, members, editingTask
         />
 
         <TextField
-          label="마감일"
+          label="마감일 (선택사항)"
           type="date"
           value={dueDate}
           onChange={(e) => {
             setDueDate(e.target.value);
-            if (e.target.value) setDueDateError(false);
+            setDueDateError(false);
           }}
           fullWidth
           margin="normal"
