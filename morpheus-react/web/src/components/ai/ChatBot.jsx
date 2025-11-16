@@ -64,10 +64,20 @@ export default function ChatBot({ projectId, onError }) {
   // 프로젝트 변경 시 대화 히스토리 로드
   useEffect(() => {
     if (projectId) {
+      // 프로젝트 변경 시 메시지와 상태 초기화
+      setMessages([]);
+      setConversationId(null);
+      setResultModalOpen(false);
+      setResultData(null);
+      setInputMessage("");
+      setError(null);
+      // 히스토리 로드
       loadHistory();
     } else {
       setMessages([]);
       setConversationId(null);
+      setResultModalOpen(false);
+      setResultData(null);
     }
   }, [projectId]);
 
@@ -79,6 +89,7 @@ export default function ChatBot({ projectId, onError }) {
       const res = await getChatHistory(projectId);
       if (res.success && res.data) {
         setConversationId(res.data.conversationId);
+        // 메시지가 있으면 설정, 없으면 빈 배열 유지
         if (res.data.messages && res.data.messages.length > 0) {
           const formattedMessages = res.data.messages.map((msg) => ({
             id: msg.id,
@@ -88,10 +99,18 @@ export default function ChatBot({ projectId, onError }) {
             // response는 저장되지 않으므로 재구성 필요 없음
           }));
           setMessages(formattedMessages);
+        } else {
+          // 메시지가 없으면 빈 배열로 설정
+          setMessages([]);
         }
+      } else {
+        // 응답이 없거나 실패한 경우 빈 배열로 설정
+        setMessages([]);
       }
     } catch (err) {
       console.error("대화 히스토리 로드 실패:", err);
+      // 에러 발생 시에도 빈 배열로 설정
+      setMessages([]);
     } finally {
       setLoadingHistory(false);
     }
