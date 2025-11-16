@@ -3,13 +3,11 @@ import { Box } from "@mui/material";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
 import Navbar, { APPBAR_HEIGHT, APPBAR_HEIGHT_MOBILE, BOTTOM_NAV_HEIGHT } from "./NavBar";
-import { isMobile as detectMobile, isTablet as detectTablet } from "react-device-detect";
-
 
 export default function Layout({ children }) {
-  const isMobileDevice = detectMobile;
-  const isTabletDevice = detectTablet;
-  const isMobileLayout = isMobileDevice || isTabletDevice;
+  const theme = useTheme();
+  // 화면 크기로 모바일/웹 판단 (768px 이하를 모바일로 간주)
+  const isMobileLayout = useMediaQuery(theme.breakpoints.down('md'));
 
   const topBarHeight = isMobileLayout ? APPBAR_HEIGHT_MOBILE : APPBAR_HEIGHT;
   const bottomBarHeight = isMobileLayout ? BOTTOM_NAV_HEIGHT : 0;
