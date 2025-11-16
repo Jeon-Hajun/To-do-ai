@@ -616,15 +616,15 @@ export default function List({ projectId }) {
           <Typography variant="h6">
             태스크 관리
           </Typography>
-          {isEditing && (
-            <Stack direction="row" spacing={1}>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => setAddModalOpen(true)}
-              >
-                생성
-              </Button>
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => setAddModalOpen(true)}
+            >
+              새 태스크 생성
+            </Button>
+            {isEditing && (
               <Button
                 variant="contained"
                 color="secondary"
@@ -638,8 +638,8 @@ export default function List({ projectId }) {
               >
                 {isEditMode ? "수정 완료" : "수정"}
               </Button>
-            </Stack>
-          )}
+            )}
+          </Stack>
         </Box>
         <Paper
           data-drop-zone="true"
