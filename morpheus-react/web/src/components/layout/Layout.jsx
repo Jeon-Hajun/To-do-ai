@@ -7,7 +7,7 @@ import { isMobile as detectMobile, isTablet as detectTablet } from "react-device
 
 
 export default function Layout({ children }) {
-  const isMobileDevice = detectMobile();
+  const isMobileDevice = detectMobile;
   const isTabletDevice = detectTablet;
   const isMobileLayout = isMobileDevice || isTabletDevice;
 
