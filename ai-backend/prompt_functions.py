@@ -88,16 +88,22 @@ def create_progress_analysis_initial_prompt(context, user_message, read_files, a
     # 읽은 파일 내용 추가
     if read_files:
         files_section = "\n\n## 📄 읽은 파일 내용 (반드시 이 내용을 활용하여 분석하세요):\n\n"
+        files_section += "⚠️ **매우 중요**: 아래 파일 내용을 읽고, 실제로 파일에서 확인된 기능/모듈만 '개발된 부분'에 나열하세요. 추측하지 마세요.\n\n"
+        
         for file_info in read_files:
             file_path = file_info.get('path', '')
             file_content = file_info.get('content', '')
             if file_content:
-                # 파일 내용이 너무 길면 일부만 표시
-                content_preview = file_content[:2000] if len(file_content) > 2000 else file_content
+                # 파일 내용이 너무 길면 일부만 표시 (더 많이 표시하여 분석 정확도 향상)
+                content_preview = file_content[:3000] if len(file_content) > 3000 else file_content
                 files_section += f"### 파일: {file_path}\n```\n{content_preview}\n```\n\n"
         
         base_prompt += files_section
-        base_prompt += "\n⚠️ **중요**: 위에서 읽은 파일 내용을 반드시 활용하여 프로젝트가 무엇인지, 어떤 기능들이 필요한지, 어떤 것이 구현되어 있는지 분석하세요.\n"
+        base_prompt += "\n⚠️ **중요 지침**:\n"
+        base_prompt += "1. 위에서 읽은 파일 내용을 바탕으로 프로젝트가 무엇인지 파악하세요.\n"
+        base_prompt += "2. 읽은 파일에서 실제로 확인된 함수, 클래스, 컴포넌트만 '개발된 부분'에 나열하세요.\n"
+        base_prompt += "3. 파일 내용에서 확인되지 않은 기능은 '개발되지 않은 부분'에 나열하세요.\n"
+        base_prompt += "4. 진행도 계산 시 읽은 파일에서 확인된 기능 수를 정확히 세세요.\n"
     
     return base_prompt
 

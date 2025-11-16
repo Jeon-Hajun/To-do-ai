@@ -287,6 +287,27 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             else:
                 analysis = {}
         
+        # narrativeResponse에서 진행도 계산값 추출하여 currentProgress와 일치시키기
+        narrative_response = analysis.get('narrativeResponse', '')
+        if narrative_response:
+            import re
+            # "최종 진행도: [숫자]%" 패턴 찾기
+            final_progress_match = re.search(r'최종 진행도:\s*(\d+(?:\.\d+)?)%', narrative_response)
+            if final_progress_match:
+                calculated_progress = float(final_progress_match.group(1))
+                # currentProgress와 일치시키기
+                if abs(analysis.get('currentProgress', 0) - calculated_progress) > 5:
+                    print(f"[Agent Router] 진행도 불일치 감지: currentProgress={analysis.get('currentProgress')}, 계산값={calculated_progress}, 일치시킴")
+                    analysis['currentProgress'] = round(calculated_progress)
+            else:
+                # "진행도는 [숫자]%입니다" 패턴 찾기
+                progress_match = re.search(r'진행도는\s*(\d+(?:\.\d+)?)%', narrative_response)
+                if progress_match:
+                    calculated_progress = float(progress_match.group(1))
+                    if abs(analysis.get('currentProgress', 0) - calculated_progress) > 5:
+                        print(f"[Agent Router] 진행도 불일치 감지: currentProgress={analysis.get('currentProgress')}, 계산값={calculated_progress}, 일치시킴")
+                        analysis['currentProgress'] = round(calculated_progress)
+        
         # 사용자 친화적인 상세 메시지 생성
         # narrativeResponse가 있으면 우선 사용 (마크다운 형식)
         narrative_response = analysis.get('narrativeResponse', '')
