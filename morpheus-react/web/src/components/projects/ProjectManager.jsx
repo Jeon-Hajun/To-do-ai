@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import CreateProject from "./CreateProject";
-import JoinProject from "./JoinProject";
 import UpdateProject from "./UpdateProject";
 import ProjectCard from "./ProjectCard";
 import { Button, IconButton, Dialog, DialogTitle, DialogContent, Box, CircularProgress, Typography } from "@mui/material";
@@ -60,7 +59,7 @@ export default function ProjectManager() {
         <Button variant="contained" onClick={() => handleModalOpen("create")}>
           프로젝트 생성
         </Button>
-        <Button variant="outlined" onClick={() => handleModalOpen("join")}>
+        <Button variant="outlined" onClick={() => navigate("/projects/all")}>
           프로젝트 참여
         </Button>
       </Box>
@@ -106,7 +105,6 @@ export default function ProjectManager() {
       <Dialog open={modalOpen} onClose={handleModalClose} fullWidth maxWidth="sm">
         <DialogTitle>
           {modalType === "create" && "프로젝트 생성"}
-          {modalType === "join" && "프로젝트 참여"}
           {modalType === "update" && "프로젝트 수정"}
         </DialogTitle>
         <DialogContent dividers>
@@ -114,12 +112,6 @@ export default function ProjectManager() {
             <CreateProject
               onCancel={handleModalClose}
               onSuccess={handleModalClose}
-            />
-          )}
-          {modalType === "join" && (
-            <JoinProject
-              onJoinSuccess={handleModalClose}
-              onClose={handleModalClose}
             />
           )}
           {modalType === "update" && (

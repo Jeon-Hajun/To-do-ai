@@ -1,6 +1,6 @@
 import React from "react";
 import { Typography } from "@mui/material";
-import { Header, NavBar, ContainerBox, PageContainer } from "../components/layout";
+import { Header, ContainerBox, PageContainer } from "../components/layout/index.js";
 
 export default function Dashboard() {
   return (
@@ -9,7 +9,6 @@ export default function Dashboard() {
       <PageContainer title="Dashboard">
         <Typography variant="h6">Dashboard (Protected)</Typography>
       </PageContainer>
-      <NavBar />
     </ContainerBox>
   );
 }

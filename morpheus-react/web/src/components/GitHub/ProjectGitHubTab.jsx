@@ -19,6 +19,7 @@ import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import BugReportIcon from "@mui/icons-material/BugReport";
 import { syncGitHub } from "../../api/github";
 import { updateProject } from "../../api/projects";
+import { useQueryClient } from "@tanstack/react-query";
 import CommitList from "./CommitList";
 import BranchList from "./BranchList";
 import IssueList from "./IssueList";
@@ -28,6 +29,7 @@ import IssueList from "./IssueList";
  * 동기화 버튼과 아코디언으로 커밋/브랜치/이슈를 표시합니다.
  */
 export default function ProjectGitHubTab({ projectId, githubRepo: initialGithubRepo, hasGithubToken: initialHasGithubToken = false, isOwner, onRepoUpdate }) {
+  const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
   const [syncError, setSyncError] = useState(null);
@@ -111,6 +113,10 @@ export default function ProjectGitHubTab({ projectId, githubRepo: initialGithubR
         const tokenWasUpdated = githubTokenInput.trim() !== "" && 
                                  githubTokenInput !== "••••••••••••••••";
         setHasGithubToken(tokenWasUpdated || hasGithubToken);
+        
+        // 프로젝트 정보 쿼리 무효화하여 최신 정보 가져오기
+        queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+        queryClient.invalidateQueries({ queryKey: ["projects"] });
         
         if (onRepoUpdate) {
           onRepoUpdate(githubRepoInput);

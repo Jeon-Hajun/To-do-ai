@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS projects (
   id INT AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
   description TEXT,
-  project_code VARCHAR(6) UNIQUE,
+  is_shared TINYINT(1) DEFAULT 0 COMMENT '공유 프로젝트 여부 (0: 비공유, 1: 공유)',
   password_hash VARCHAR(255),
   owner_id INT NOT NULL,
   github_repo VARCHAR(500),
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS projects (
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT,
   INDEX idx_projects_owner (owner_id),
-  INDEX idx_projects_code (project_code),
+  INDEX idx_projects_is_shared (is_shared),
   INDEX idx_projects_status (status),
   INDEX idx_projects_github_synced (github_last_synced_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

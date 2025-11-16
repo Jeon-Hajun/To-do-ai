@@ -10,8 +10,8 @@ router.post('/create', authenticateToken, projectController.create);
 // AI 기반 프로젝트 생성
 router.post('/create-with-ai', authenticateToken, projectController.createWithAI);
 
-// 프로젝트 코드 검증
-router.get('/validate-code', authenticateToken, projectController.validateCode);
+// 전체 공유 프로젝트 목록 조회
+router.get('/shared', authenticateToken, projectController.getAllSharedProjects);
 
 // 프로젝트 참여 (공유 프로젝트용)
 router.post('/join', authenticateToken, projectController.join);

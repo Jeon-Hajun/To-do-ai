@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { createProject, createProjectWithAI } from "../../api/projects";
-import { TextField, Button, FormControlLabel, Checkbox, Box, Alert, CircularProgress } from "@mui/material";
+import { TextField, Button, FormControlLabel, Checkbox, Box, Alert, CircularProgress, Tabs, Tab, Paper } from "@mui/material";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import MarkdownRenderer from "../common/MarkdownRenderer";
 
 export default function CreateProject({ onCancel, onSuccess }) {
   const queryClient = useQueryClient();
@@ -17,6 +18,7 @@ export default function CreateProject({ onCancel, onSuccess }) {
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
+  const [descriptionTab, setDescriptionTab] = useState(0); // 0: 작성, 1: 미리보기
 
   const mutation = useMutation({
     mutationFn: (newProject) => createProject(newProject),
@@ -143,17 +145,65 @@ export default function CreateProject({ onCancel, onSuccess }) {
         </Box>
       )}
 
-      <TextField
-        label="프로젝트 설명"
-        fullWidth
-        multiline
-        rows={5}
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        margin="normal"
-        placeholder="예시 형식:&#10;&#10;## 프로젝트 목적&#10;이 프로젝트의 목표와 배경을 설명해주세요.&#10;&#10;## 주요 기능&#10;- 기능 1&#10;- 기능 2&#10;&#10;## 기술 스택&#10;사용할 기술들을 나열해주세요.&#10;&#10;## 기간/일정&#10;프로젝트 기간과 주요 마일스톤을 작성해주세요."
-        helperText="마크다운 형식을 사용할 수 있습니다. 제목(#), 리스트(-), 코드(`) 등을 활용해보세요."
-      />
+      <Box sx={{ mt: 2 }}>
+        <Tabs 
+          value={descriptionTab} 
+          onChange={(e, newValue) => setDescriptionTab(newValue)}
+          sx={{ mb: 1 }}
+        >
+          <Tab label="작성" />
+          <Tab label="미리보기" />
+        </Tabs>
+        
+        {descriptionTab === 0 ? (
+          <TextField
+            label="프로젝트 설명"
+            fullWidth
+            multiline
+            rows={8}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder={`## 프로젝트 목적
+이 프로젝트의 목표와 배경을 설명해주세요.
+
+## 주요 기능
+- 기능 1
+- 기능 2
+- 기능 3
+
+## 기술 스택
+- **프론트엔드**: React, TypeScript
+- **백엔드**: Node.js, Express
+- **데이터베이스**: MySQL
+
+## 기간/일정
+- 시작일: 2024년 1월
+- 마감일: 2024년 3월
+- 주요 마일스톤: 설계 완료, MVP 개발, 테스트`}
+            helperText="마크다운 형식을 사용할 수 있습니다. 제목(#), 리스트(-), 굵게(**텍스트**), 코드(`코드`) 등을 활용해보세요."
+            sx={{ mt: 1 }}
+          />
+        ) : (
+          <Paper 
+            sx={{ 
+              p: 2, 
+              minHeight: 200, 
+              bgcolor: "background.paper",
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1
+            }}
+          >
+            {description ? (
+              <MarkdownRenderer content={description} />
+            ) : (
+              <Box sx={{ color: "text.secondary", fontStyle: "italic", textAlign: "center", py: 4 }}>
+                작성한 내용이 여기에 표시됩니다.
+              </Box>
+            )}
+          </Paper>
+        )}
+      </Box>
 
       <FormControlLabel
         control={

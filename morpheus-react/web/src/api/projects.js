@@ -71,9 +71,18 @@ export const deleteProject = async (projectId) => {
   return res.data;
 };
 
-// 프로젝트 참여
-export const joinProject = async ({ projectCode, password }) => {
-  const res = await axios.post(`${API_URL}/join`, { projectCode, password }, {
+// 전체 공유 프로젝트 목록 조회
+export const fetchAllSharedProjects = async () => {
+  const res = await axios.get(`${API_URL}/shared`, {
+    headers: getAuthHeader(),
+    withCredentials: true,
+  });
+  return res.data.data.projects || [];
+};
+
+// 프로젝트 참여 (projectId 사용)
+export const joinProject = async ({ projectId, password }) => {
+  const res = await axios.post(`${API_URL}/join`, { projectId, password }, {
     headers: getAuthHeader(),
     withCredentials: true,
   });
@@ -102,26 +111,6 @@ export const removeProjectMember = async ({ projectId, userId }) => {
   return res.data;
 };
 
-/**
- * 프로젝트 코드 검증 / 조회
- * @param {string} projectCode 
- * @returns {isValid, exists, projectId?, title?}
- */
-export const validateProjectCode = async (projectCode) => {
-  if (!projectCode) throw new Error("projectCode가 필요합니다.");
-
-  const res = await axios.get(`${API_URL}/validate-code`, {
-    params: { projectCode },
-    headers: getAuthHeader(),
-    withCredentials: true
-  });
-
-  if (!res.data.success) {
-    throw new Error(res.data.error?.message || "프로젝트 코드 검증 실패");
-  }
-
-  return res.data.data;
-};
 
 export const fetchProjectOwner = async (projectId) => {
   const { data } = await axios.get(`/api/projects/${projectId}/owner`);

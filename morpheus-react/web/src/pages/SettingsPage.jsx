@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Paper, Avatar, Typography, Divider, Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Snackbar, Alert, Stack, RadioGroup, FormControlLabel, Radio, FormControl, FormLabel } from '@mui/material';
+import { Box, Paper, Avatar, Typography, Divider, Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Snackbar, Alert, Stack, RadioGroup, FormControlLabel, Radio, FormControl, FormLabel, Tabs, Tab } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { deleteUser } from '../utils/auth';
 import { getProfileImageSrc } from '../utils/profileImage';
 import EditProfileModal from '../components/EditProfileModal';
-import { Header, NavBar, ContainerBox } from '../components/layout';
-import { themes } from '../theme';
+import { Header, ContainerBox } from '../components/layout/index.js';
+import { themeModes, parseThemeName, formatThemeName } from '../theme';
 
 export default function SettingsPage() {
     const { user, loading, setUser, logout } = useAuthContext();
@@ -15,15 +15,24 @@ export default function SettingsPage() {
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
     const [openThemeDialog, setOpenThemeDialog] = useState(false);
     const [currentTheme, setCurrentTheme] = useState(() => {
-        return localStorage.getItem("theme") || "light";
+        const savedTheme = localStorage.getItem("theme") || "light-green";
+        return savedTheme;
     });
     const [snackbar, setSnackbar] = useState({ open: false, severity: 'success', message: '' });
+
+    const { mode: currentMode, color: currentColor } = parseThemeName(currentTheme);
+    const [selectedMode, setSelectedMode] = useState(currentMode);
+    const [selectedColor, setSelectedColor] = useState(currentColor);
 
     useEffect(() => {
         // 테마 변경 감지
         const handleStorageChange = (e) => {
             if (e.key === "theme") {
-                setCurrentTheme(e.newValue || "light");
+                const newTheme = e.newValue || "light-green";
+                setCurrentTheme(newTheme);
+                const { mode, color } = parseThemeName(newTheme);
+                setSelectedMode(mode);
+                setSelectedColor(color);
             }
         };
         window.addEventListener("storage", handleStorageChange);
@@ -52,12 +61,29 @@ export default function SettingsPage() {
         }
     };
 
+    const handleThemeDialogOpen = () => {
+        const { mode, color } = parseThemeName(currentTheme);
+        setSelectedMode(mode);
+        setSelectedColor(color);
+        setOpenThemeDialog(true);
+    };
+
+    const handleThemeChange = () => {
+        const newThemeName = formatThemeName(selectedMode, selectedColor);
+        setCurrentTheme(newThemeName);
+        localStorage.setItem("theme", newThemeName);
+        // 테마 변경 함수 호출 (현재 탭에서 즉시 반영)
+        if (window.changeTheme) {
+            window.changeTheme(newThemeName);
+        }
+        setOpenThemeDialog(false);
+    };
+
     if (loading) {
         return (
             <ContainerBox sx={{ pb: 8 }}>
                 <Header title="설정" />
                 <Box sx={{ p: 3 }}>로딩 중...</Box>
-                <NavBar />
             </ContainerBox>
         );
     }
@@ -85,7 +111,7 @@ export default function SettingsPage() {
                             계정 정보 수정
                         </Button>
                         <Divider sx={{ my: 1 }} />
-                        <Button fullWidth variant="outlined" onClick={() => setOpenThemeDialog(true)}>
+                        <Button fullWidth variant="outlined" onClick={handleThemeDialogOpen}>
                             디스플레이 설정
                         </Button>
                         <Button fullWidth variant="outlined">
@@ -127,33 +153,43 @@ export default function SettingsPage() {
             <Dialog open={openThemeDialog} onClose={() => setOpenThemeDialog(false)} maxWidth="sm" fullWidth>
                 <DialogTitle>테마 설정</DialogTitle>
                 <DialogContent>
-                    <FormControl component="fieldset" fullWidth>
-                        <FormLabel component="legend" sx={{ mb: 2 }}>테마 선택</FormLabel>
-                        <RadioGroup
-                            value={currentTheme}
-                            onChange={(e) => {
-                                const newTheme = e.target.value;
-                                setCurrentTheme(newTheme);
-                                localStorage.setItem("theme", newTheme);
-                                // 테마 변경 함수 호출 (현재 탭에서 즉시 반영)
-                                if (window.changeTheme) {
-                                    window.changeTheme(newTheme);
-                                }
+                    <Box sx={{ mb: 3 }}>
+                        <FormLabel component="legend" sx={{ mb: 2, fontWeight: 600 }}>모드 선택</FormLabel>
+                        <Tabs
+                            value={selectedMode}
+                            onChange={(e, newValue) => {
+                                setSelectedMode(newValue);
+                                // 모드 변경 시 기본 색상으로 설정
+                                const defaultColor = Object.keys(themeModes[newValue].colors)[0];
+                                setSelectedColor(defaultColor);
                             }}
+                            sx={{ mb: 2 }}
                         >
-                            {Object.entries(themes).map(([key, themeConfig]) => (
+                            <Tab label={themeModes.light.name} value="light" />
+                            <Tab label={themeModes.dark.name} value="dark" />
+                        </Tabs>
+                    </Box>
+
+                    <FormControl component="fieldset" fullWidth>
+                        <FormLabel component="legend" sx={{ mb: 2, fontWeight: 600 }}>색상 선택</FormLabel>
+                        <RadioGroup
+                            value={selectedColor}
+                            onChange={(e) => setSelectedColor(e.target.value)}
+                        >
+                            {Object.entries(themeModes[selectedMode].colors).map(([colorKey, colorInfo]) => (
                                 <FormControlLabel
-                                    key={key}
-                                    value={key}
+                                    key={colorKey}
+                                    value={colorKey}
                                     control={<Radio />}
-                                    label={themeConfig.name}
+                                    label={colorInfo.name}
                                 />
                             ))}
                         </RadioGroup>
                     </FormControl>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setOpenThemeDialog(false)}>닫기</Button>
+                    <Button onClick={() => setOpenThemeDialog(false)}>취소</Button>
+                    <Button onClick={handleThemeChange} variant="contained">적용</Button>
                 </DialogActions>
             </Dialog>
 
@@ -167,8 +203,6 @@ export default function SettingsPage() {
                     {snackbar.message}
                 </Alert>
             </Snackbar>
-
-            <NavBar />
         </ContainerBox>
     );
 }

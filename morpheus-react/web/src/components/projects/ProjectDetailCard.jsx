@@ -29,14 +29,28 @@ export default function ProjectDetailCard({ projectId, showTaskList = true }) {
 
   return (
     <Box>
-      {/* 진행도 카드 */}
-      <ProjectProgressCard projectId={projectId} />
+      {/* 프로젝트명 */}
+      <Typography variant="h4" sx={{ mb: 2, fontWeight: "bold" }}>
+        {project.title}
+      </Typography>
 
-      {/* 프로젝트 정보 카드 */}
-      <Box p={3} boxShadow={3} borderRadius={2} sx={{ mt: 2 }}>
-        <Typography variant="h5">{project.title}</Typography>
-        {project.description && (
-          <Box sx={{ mt: 1 }}>
+      {/* 프로젝트 상세 설명 카드 */}
+      <Box p={3} boxShadow={1} borderRadius={2}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: "bold" }}>
+          프로젝트 상세 설명
+        </Typography>
+        {project.description ? (
+          <Box
+            sx={{
+              p: 2,
+              bgcolor: "grey.50",
+              borderRadius: 1,
+              border: "1px solid",
+              borderColor: "divider",
+              maxHeight: 400,
+              overflowY: "auto",
+            }}
+          >
             <MarkdownRenderer 
               content={project.description} 
               sx={{ 
@@ -47,53 +61,58 @@ export default function ProjectDetailCard({ projectId, showTaskList = true }) {
               }} 
             />
           </Box>
+        ) : (
+          <Box
+            sx={{
+              p: 2,
+              bgcolor: "grey.50",
+              borderRadius: 1,
+              border: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              프로젝트 설명이 없습니다.
+            </Typography>
+          </Box>
         )}
 
-        {/* 프로젝트 코드 표시 */}
-        {project.isShared && project.projectCode && (
-          <Typography variant="body2" color="text.secondary" mt={1}>
-            프로젝트 코드: <strong>{project.projectCode}</strong>
-          </Typography>
-        )}
 
-        <Stack direction="row" spacing={2} mt={2} alignItems="center" flexWrap="wrap">
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-            <AvatarGroup max={4}>
+        <Stack direction="row" spacing={1} mt={2} alignItems="center" flexWrap="wrap">
+          <AvatarGroup max={4}>
+            {members.map((m) => (
+              <Avatar
+                key={m.id}
+                alt={m.nickname || m.email}
+                src={getProfileImageSrc(m.profileImage, true)}
+                sx={{ width: 32, height: 32 }}
+              >
+                {m.nickname?.[0] || m.email?.[0]}
+              </Avatar>
+            ))}
+          </AvatarGroup>
+          
+          {/* 멤버 역할 표시 */}
+          {members.length > 0 && (
+            <Stack direction="row" spacing={0.5} sx={{ ml: 1 }} flexWrap="wrap">
               {members.map((m) => (
-                <Avatar
+                <Chip
                   key={m.id}
-                  alt={m.nickname || m.email}
-                  src={getProfileImageSrc(m.profileImage, true)}
-                  sx={{ width: 32, height: 32 }}
-                >
-                  {m.nickname?.[0] || m.email?.[0]}
-                </Avatar>
+                  label={`${m.nickname || m.email}: ${m.role === 'owner' ? '소유자' : '멤버'}`}
+                  size="small"
+                  color={m.role === 'owner' ? 'primary' : 'default'}
+                  variant="outlined"
+                  sx={{ fontSize: '0.7rem', height: 20 }}
+                />
               ))}
-            </AvatarGroup>
-            
-            {/* 멤버 역할 표시 */}
-            {members.length > 0 && (
-              <Stack direction="row" spacing={0.5} sx={{ ml: 1 }} flexWrap="wrap">
-                {members.map((m) => (
-                  <Chip
-                    key={m.id}
-                    label={`${m.nickname || m.email}: ${m.role === 'owner' ? '소유자' : '멤버'}`}
-                    size="small"
-                    color={m.role === 'owner' ? 'primary' : 'default'}
-                    variant="outlined"
-                    sx={{ fontSize: '0.7rem', height: 20 }}
-                  />
-                ))}
-              </Stack>
-            )}
-          </Stack>
-
-          {/* 삭제 버튼 */}
-          <DeleteOrLeaveProject projectId={project.id} mode="delete" />
-
-          {/* 수정 버튼 */}
-          <EditProject project={project} />
+            </Stack>
+          )}
         </Stack>
+      </Box>
+
+      {/* 진행도 카드 */}
+      <Box sx={{ mt: 2 }}>
+        <ProjectProgressCard projectId={projectId} />
       </Box>
 
       {/* showTaskList가 true일 때만 List 렌더링 */}
@@ -102,6 +121,12 @@ export default function ProjectDetailCard({ projectId, showTaskList = true }) {
           <List projectId={projectId} />
         </Box>
       )}
+
+      {/* 삭제/수정 버튼 */}
+      <Stack direction="row" spacing={2} sx={{ mt: 3, justifyContent: "center" }}>
+        <EditProject project={project} />
+        <DeleteOrLeaveProject projectId={project.id} mode="delete" />
+      </Stack>
     </Box>
   );
 }

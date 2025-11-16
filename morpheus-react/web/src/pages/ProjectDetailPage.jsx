@@ -1,7 +1,7 @@
 import React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Box, CircularProgress, Stack, Button } from "@mui/material";
-import { Header, NavBar, ContainerBox } from "../components/layout";
+import { Header, ContainerBox } from "../components/layout/index.js";
 import ProjectDetailTabs from "../components/projects/ProjectDetailTabs";
 
 export default function ProjectDetailPage() {
@@ -21,8 +21,6 @@ export default function ProjectDetailPage() {
 
         <ProjectDetailTabs />
       </Box>
-
-      <NavBar />
     </ContainerBox>
   );
 }

@@ -1,6 +1,6 @@
 import React from "react";
 import ProjectManager from "../components/projects/ProjectManager";
-import { Header, NavBar, ContainerBox, PageContainer } from "../components/layout";
+import { Header, ContainerBox, PageContainer } from "../components/layout/index.js";
 
 export default function ProjectPage() {
   return (
@@ -15,8 +15,6 @@ export default function ProjectPage() {
       >
         <ProjectManager />
       </PageContainer>
-
-      <NavBar />
     </ContainerBox>
   );
 }

@@ -22,7 +22,7 @@ import {
   Snackbar,
 } from "@mui/material";
 import { useAuthContext } from "../context/AuthContext";
-import { Header, NavBar, ContainerBox, PageContainer } from "../components/layout";
+import { Header, ContainerBox, PageContainer } from "../components/layout/index.js";
 import { createTask } from "../api/tasks";
 import { fetchProjectById } from "../api/projects";
 
@@ -177,7 +177,6 @@ export default function AINextStepPage() {
         <PageContainer title="로딩 중..." maxWidth="sm" sx={{ flex: 1, pt: 4 }}>
           <CircularProgress />
         </PageContainer>
-        <NavBar />
       </ContainerBox>
     );
   }
@@ -352,8 +351,6 @@ export default function AINextStepPage() {
           {successMessage}
         </Alert>
       </Snackbar>
-
-      <NavBar />
     </ContainerBox>
   );
 }

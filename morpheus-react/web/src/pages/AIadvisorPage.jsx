@@ -11,7 +11,7 @@ import {
 } from "@mui/material";
 import { useAuthContext } from "../context/AuthContext";
 import { useProjects } from "../hooks/useProjects";
-import { Header, NavBar, ContainerBox, PageContainer } from "../components/layout";
+import { Header, ContainerBox, PageContainer } from "../components/layout/index.js";
 import { getChatHistory } from "../api/ai";
 import ChatBot from "../components/ai/ChatBot";
 
@@ -110,8 +110,6 @@ export default function AIadvisorPage() {
           )}
         </Box>
       </PageContainer>
-
-      <NavBar />
     </ContainerBox>
   );
 }

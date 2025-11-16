@@ -7,7 +7,6 @@ var {
   validateProjectDescription, 
   validateGitHubUrl, 
   validateProjectPassword,
-  validateProjectCode,
   validateId
 } = require('../utils/validators');
 
@@ -16,16 +15,6 @@ function convertToMySQLDateTime(isoDateString) {
   if (!isoDateString) return null;
   // '2025-11-03T00:05:03Z' -> '2025-11-03 00:05:03'
   return isoDateString.replace('T', ' ').replace('Z', '').substring(0, 19);
-}
-
-// 프로젝트 코드 생성 (6자리 영숫자)
-function generateProjectCode() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
 }
 
 // 프로젝트 생성
@@ -51,12 +40,11 @@ exports.create = async function(req, res) {
   }
 
   let passwordHash = null;
-  let projectCode = isShared ? generateProjectCode() : null;
 
   const insertProject = async () => {
     db.run(
-      'INSERT INTO projects (owner_id, title, description, project_code, password_hash, github_repo) VALUES (?, ?, ?, ?, ?, ?)',
-      [userId, title, description || null, projectCode, passwordHash, githubRepo],
+      'INSERT INTO projects (owner_id, title, description, is_shared, password_hash, github_repo) VALUES (?, ?, ?, ?, ?, ?)',
+      [userId, title, description || null, isShared ? 1 : 0, passwordHash, githubRepo],
       async function(err) {
         if (err) {
           console.error('프로젝트 생성 오류:', err);
@@ -95,7 +83,7 @@ exports.create = async function(req, res) {
               data: {
                 id: projectId,
                 title,
-                projectCode,
+                isShared,
                 githubRepo
               },
               message: '프로젝트가 생성되었습니다.'
@@ -173,12 +161,12 @@ exports.createWithAI = async function(req, res) {
     
     // 기존 create 함수 로직 재사용
     let passwordHash = null;
-    let projectCode = null;
+    const isShared = projectData.isShared || false;
     
     const insertProject = async () => {
       db.run(
-        'INSERT INTO projects (owner_id, title, description, project_code, password_hash, github_repo) VALUES (?, ?, ?, ?, ?, ?)',
-        [userId, projectData.title, projectData.description || null, projectCode, passwordHash, projectData.githubRepo],
+        'INSERT INTO projects (owner_id, title, description, is_shared, password_hash, github_repo) VALUES (?, ?, ?, ?, ?, ?)',
+        [userId, projectData.title, projectData.description || null, isShared ? 1 : 0, passwordHash, projectData.githubRepo],
         async function(err) {
           if (err) {
             console.error('프로젝트 생성 오류:', err);
@@ -220,7 +208,7 @@ exports.createWithAI = async function(req, res) {
                   id: projectId,
                   title: projectData.title,
                   description: projectData.description,
-                  projectCode,
+                  isShared,
                   githubRepo: projectData.githubRepo
                 },
                 message: 'AI가 프로젝트를 생성했습니다.'
@@ -254,25 +242,77 @@ exports.createWithAI = async function(req, res) {
   }
 };
 
-// 프로젝트 참여 (공유 프로젝트용)
-exports.join = function(req, res, next) {
-  const { projectCode, password } = req.body;
+// 전체 공유 프로젝트 목록 조회
+exports.getAllSharedProjects = function(req, res, next) {
   const userId = req.user.userId;
   
-  // 입력 검증
-  const codeValidation = validateProjectCode(projectCode);
-  if (!codeValidation.valid) {
+  // 공유 프로젝트 목록 조회 (is_shared = 1인 프로젝트)
+  // 사용자가 이미 멤버인 프로젝트는 제외
+  db.all(
+    `SELECT p.id, p.title, p.description, p.created_at, p.owner_id,
+            u.nickname as owner_nickname, u.email as owner_email,
+            COUNT(DISTINCT pm.id) as member_count
+     FROM projects p
+     LEFT JOIN users u ON p.owner_id = u.id
+     LEFT JOIN project_members pm ON p.id = pm.project_id
+     WHERE p.is_shared = 1
+       AND p.status = 'active'
+       AND NOT EXISTS (
+         SELECT 1 FROM project_members pm2 
+         WHERE pm2.project_id = p.id AND pm2.user_id = ?
+       )
+     GROUP BY p.id
+     ORDER BY p.created_at DESC`,
+    [userId],
+    function(err, projects) {
+      if (err) {
+        console.error('공유 프로젝트 목록 조회 오류:', err);
+        return res.status(500).json({
+          success: false,
+          error: {
+            code: 'SERVER_ERROR',
+            message: '서버 오류가 발생했습니다.'
+          }
+        });
+      }
+      
+      res.json({
+        success: true,
+        data: {
+          projects: (projects || []).map(p => ({
+            id: p.id,
+            title: p.title,
+            description: p.description,
+            ownerId: p.owner_id,
+            ownerNickname: p.owner_nickname,
+            ownerEmail: p.owner_email,
+            memberCount: p.member_count,
+            createdAt: p.created_at
+          }))
+        }
+      });
+    }
+  );
+};
+
+// 프로젝트 참여 (공유 프로젝트용) - 프로젝트 ID로 참여
+exports.join = function(req, res, next) {
+  const { projectId, password } = req.body;
+  const userId = req.user.userId;
+  
+  // projectId 필수
+  if (!projectId) {
     return res.status(400).json({ 
       success: false,
       error: { 
         code: 'INVALID_INPUT',
-        message: codeValidation.message
+        message: '프로젝트 ID가 필요합니다.'
       }
     });
   }
   
   // 프로젝트 조회
-  db.get('SELECT * FROM projects WHERE project_code = ?', [projectCode], function(err, project) {
+  db.get('SELECT * FROM projects WHERE id = ?', [projectId], function(err, project) {
     if (err) {
       console.error('프로젝트 조회 오류:', err);
       return res.status(500).json({ 
@@ -290,6 +330,17 @@ exports.join = function(req, res, next) {
         error: { 
           code: 'PROJECT_NOT_FOUND',
           message: '프로젝트를 찾을 수 없습니다.' 
+        }
+      });
+    }
+    
+    // 공유 프로젝트인지 확인
+    if (!project.is_shared) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'NOT_SHARED_PROJECT',
+          message: '공유 프로젝트가 아닙니다.'
         }
       });
     }
@@ -539,8 +590,7 @@ exports.getInfo = function(req, res, next) {
               hasGithubToken: !!project.github_token, // 토큰 존재 여부만 반환 (보안)
               status: project.status,
               ownerId: project.owner_id,
-              isShared: !!project.project_code,
-              projectCode: project.project_code
+              isShared: !!project.is_shared
             }
           }
         });
@@ -549,7 +599,7 @@ exports.getInfo = function(req, res, next) {
   } else {
     // 프로젝트 목록 조회 (사용자가 멤버인 프로젝트)
     db.all(
-      `SELECT p.id, p.title, p.status, p.project_code, p.github_repo, p.github_token, COUNT(pm.id) as member_count
+      `SELECT p.id, p.title, p.status, p.is_shared, p.github_repo, p.github_token, COUNT(pm.id) as member_count
        FROM projects p 
        JOIN project_members pm ON p.id = pm.project_id
        WHERE pm.user_id = ?
@@ -576,7 +626,7 @@ exports.getInfo = function(req, res, next) {
               title: p.title,
               status: p.status,
               memberCount: p.member_count,
-              isShared: !!p.project_code,
+              isShared: !!p.is_shared,
               githubRepo: p.github_repo || null,
               hasGithubToken: !!p.github_token // 토큰 존재 여부만 반환 (보안)
             }))
@@ -866,59 +916,9 @@ exports.connectGithub = function(req, res, next) {
   );
 };
 
-// 프로젝트 코드 검증
-exports.validateCode = function(req, res, next) {
-  const { projectCode } = req.query;
-  
-  // 입력 검증
-  const codeValidation = validateProjectCode(projectCode);
-  if (!codeValidation.valid) {
-    return res.status(400).json({ 
-      success: false,
-      error: { 
-        code: 'INVALID_INPUT',
-        message: codeValidation.message
-      }
-    });
-  }
-  
-  db.get('SELECT id, title FROM projects WHERE project_code = ?', [projectCode], function(err, project) {
-    if (err) {
-      console.error('프로젝트 코드 검증 오류:', err);
-      return res.status(500).json({ 
-        success: false,
-        error: { 
-          code: 'SERVER_ERROR',
-          message: '서버 오류가 발생했습니다.' 
-        }
-      });
-    }
-    
-    if (!project) {
-      return res.json({
-        success: true,
-        data: {
-          isValid: false,
-          exists: false
-        }
-      });
-    }
-    
-    res.json({
-      success: true,
-      data: {
-        isValid: true,
-        exists: true,
-        projectId: project.id,
-        title: project.title
-      }
-    });
-  });
-};
-
 // 프로젝트 수정 (owner만)
 exports.update = function(req, res, next) {
-  const { projectId, title, description, status, githubRepo, githubToken } = req.body;
+  const { projectId, title, description, status, isShared, password, githubRepo, githubToken } = req.body;
   const userId = req.user.userId;
   
   // 입력 검증
@@ -1029,6 +1029,32 @@ exports.update = function(req, res, next) {
         updates.push('status = ?');
         values.push(status);
       }
+      if (isShared !== undefined) {
+        updates.push('is_shared = ?');
+        values.push(isShared ? 1 : 0);
+      }
+      
+      // 비밀번호 업데이트 처리
+      if (password !== undefined) {
+        if (password === "") {
+          // 빈 문자열이면 비밀번호 제거
+          updates.push('password_hash = ?');
+          values.push(null);
+        } else {
+          // 비밀번호 검증
+          const passwordValidation = validateProjectPassword(password);
+          if (!passwordValidation.valid) {
+            return res.status(400).json({
+              success: false,
+              error: {
+                code: 'INVALID_INPUT',
+                message: passwordValidation.message
+              }
+            });
+          }
+          // 비밀번호 해시화는 아래에서 처리
+        }
+      }
       
       // GitHub 저장소 URL 업데이트
       if (githubRepo !== undefined) {
@@ -1050,6 +1076,19 @@ exports.update = function(req, res, next) {
           updates.push('github_token = ?');
           values.push(githubToken);
         }
+      }
+      
+      // 비밀번호 해시화가 필요한 경우
+      const updateWithPassword = (passwordHash) => {
+        // 비밀번호 해시가 있으면 업데이트 목록에 추가
+        if (password !== undefined && password !== "") {
+          const passwordIndex = updates.findIndex(u => u.startsWith('password_hash'));
+          if (passwordIndex !== -1) {
+            values[passwordIndex] = passwordHash;
+          } else {
+            updates.push('password_hash = ?');
+            values.push(passwordHash);
+          }
       }
       
       if (updates.length === 0) {
@@ -1080,16 +1119,16 @@ exports.update = function(req, res, next) {
             });
           }
           
-          // 성공 응답 먼저 전송
+            // 성공 응답 먼저 전송
           res.json({
             success: true,
             message: '프로젝트가 수정되었습니다.'
           });
-          
-          // GitHub 저장소가 업데이트되었으면 즉시 동기화 시작
-          if (githubRepo !== undefined && githubRepo) {
-            // 업데이트된 프로젝트 정보 조회 후 동기화
-            db.get(
+            
+            // GitHub 저장소가 업데이트되었으면 즉시 동기화 시작
+            if (githubRepo !== undefined && githubRepo) {
+              // 업데이트된 프로젝트 정보 조회 후 동기화
+              db.get(
               'SELECT * FROM projects WHERE id = ?',
               [projectId],
               function(err, updatedProject) {
@@ -1284,6 +1323,26 @@ exports.update = function(req, res, next) {
           }
         }
       );
+      
+      // 비밀번호가 있고 빈 문자열이 아닌 경우 해시화 후 업데이트
+      if (password !== undefined && password !== "") {
+        bcrypt.hash(password, 10, function(err, hash) {
+          if (err) {
+            console.error('비밀번호 해시화 오류:', err);
+            return res.status(500).json({
+              success: false,
+              error: {
+                code: 'SERVER_ERROR',
+                message: '서버 오류가 발생했습니다.'
+              }
+            });
+          }
+          updateWithPassword(hash);
+        });
+      } else {
+        // 비밀번호가 없거나 빈 문자열인 경우 바로 업데이트
+        updateWithPassword(null);
+      }
     }
   );
 };

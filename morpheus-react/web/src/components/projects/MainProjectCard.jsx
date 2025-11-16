@@ -150,7 +150,7 @@ export default function MainProjectCard({ projectId, userId }) {
   const theme = useTheme();
 
   return (
-    <Box sx={{ mt: 3, px: 2 }}>
+    <Box sx={{ mt: 3, px: 0 }}>
       <MuiCard
         variant="outlined"
         sx={{

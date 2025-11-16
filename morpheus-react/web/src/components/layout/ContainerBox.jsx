@@ -14,7 +14,7 @@ export default function ContainerBox({ children, sx = {}, ...props }) {
   return (
     <Box
       sx={{
-        minHeight: "100vh",
+        minHeight: '100%',
         display: "flex",
         flexDirection: "column",
         bgcolor: theme.palette.background.default,

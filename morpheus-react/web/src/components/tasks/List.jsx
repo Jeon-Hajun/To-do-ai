@@ -21,6 +21,10 @@ export default function List({ projectId }) {
   const [expandedTasks, setExpandedTasks] = useState({}); // 클릭한 태스크의 상세 설명 표시
   const [taskDescriptions, setTaskDescriptions] = useState({}); // 태스크 상세 설명 캐시
   const [editingTaskData, setEditingTaskData] = useState({}); // 수정 중인 태스크 데이터
+  const [touchDragData, setTouchDragData] = useState(null); // 모바일 터치 드래그 데이터
+  const [touchStartPos, setTouchStartPos] = useState(null); // 터치 시작 위치
+  const [draggingElement, setDraggingElement] = useState(null); // 드래그 중인 요소 참조
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 }); // 드래그 오프셋
 
   // 프로젝트 멤버 조회
   const { data: members = [], isLoading: membersLoading } = useQuery({
@@ -128,6 +132,144 @@ export default function List({ projectId }) {
     } catch (err) {
       console.error("드롭 데이터 파싱 실패:", err);
     }
+  };
+
+  // 모바일 터치 드래그 시작
+  const handleTouchStart = (e, tasksByUser, memberId) => {
+    if (isEditing) return;
+    
+    const touch = e.touches[0];
+    const element = e.currentTarget;
+    const rect = element.getBoundingClientRect();
+    const startPos = { x: touch.clientX, y: touch.clientY };
+    setTouchStartPos(startPos);
+    
+    // 요소의 시작 위치 기준 오프셋 계산
+    setDragOffset({
+      x: touch.clientX - rect.left,
+      y: touch.clientY - rect.top,
+    });
+    
+    const memberTasks = tasksByUser[String(memberId)] || [];
+    setTouchDragData({
+      memberId,
+      tasks: memberTasks,
+      startTime: Date.now(),
+    });
+    
+    // 드래그 시작 시 시각적 피드백
+    setDraggingElement(element);
+    element.style.opacity = "0.7";
+    element.style.transform = "scale(0.95)";
+    element.style.transition = "none";
+    element.style.zIndex = "1000";
+    element.style.position = "fixed";
+    element.style.left = `${rect.left}px`;
+    element.style.top = `${rect.top}px`;
+    element.style.width = `${rect.width}px`;
+  };
+
+  const handleUnassignedTouchStart = (e, unassignedTasks) => {
+    if (isEditing) return;
+    
+    const touch = e.touches[0];
+    const element = e.currentTarget;
+    const rect = element.getBoundingClientRect();
+    const startPos = { x: touch.clientX, y: touch.clientY };
+    setTouchStartPos(startPos);
+    
+    // 요소의 시작 위치 기준 오프셋 계산
+    setDragOffset({
+      x: touch.clientX - rect.left,
+      y: touch.clientY - rect.top,
+    });
+    
+    setTouchDragData({
+      memberId: null,
+      tasks: unassignedTasks,
+      startTime: Date.now(),
+    });
+    
+    // 드래그 시작 시 시각적 피드백
+    setDraggingElement(element);
+    element.style.opacity = "0.7";
+    element.style.transform = "scale(0.95)";
+    element.style.transition = "none";
+    element.style.zIndex = "1000";
+    element.style.position = "fixed";
+    element.style.left = `${rect.left}px`;
+    element.style.top = `${rect.top}px`;
+    element.style.width = `${rect.width}px`;
+  };
+
+  // 모바일 터치 이동
+  const handleTouchMove = (e) => {
+    if (!touchDragData || !touchStartPos || !draggingElement) return;
+    
+    const touch = e.touches[0];
+    const deltaX = Math.abs(touch.clientX - touchStartPos.x);
+    const deltaY = Math.abs(touch.clientY - touchStartPos.y);
+    
+    // 10px 이상 이동하면 드래그로 인식
+    if (deltaX > 10 || deltaY > 10) {
+      setDragOver(true);
+      
+      // 드래그 중인 요소를 터치 위치로 이동
+      const moveX = touch.clientX - dragOffset.x;
+      const moveY = touch.clientY - dragOffset.y;
+      
+      draggingElement.style.opacity = "0.6";
+      draggingElement.style.left = `${moveX}px`;
+      draggingElement.style.top = `${moveY}px`;
+      draggingElement.style.transform = "scale(0.95)";
+      draggingElement.style.boxShadow = "0 8px 16px rgba(0, 0, 0, 0.3)";
+    }
+  };
+
+  // 모바일 터치 종료
+  const handleTouchEnd = (e) => {
+    // 드래그 중이었던 요소의 스타일 복원
+    if (draggingElement) {
+      draggingElement.style.opacity = "";
+      draggingElement.style.transform = "";
+      draggingElement.style.transition = "";
+      draggingElement.style.zIndex = "";
+      draggingElement.style.position = "";
+      draggingElement.style.left = "";
+      draggingElement.style.top = "";
+      draggingElement.style.width = "";
+      draggingElement.style.boxShadow = "";
+      setDraggingElement(null);
+    }
+    
+    if (!touchDragData) {
+      setTouchStartPos(null);
+      setDragOffset({ x: 0, y: 0 });
+      return;
+    }
+
+    // 드롭 영역 확인 (Paper 영역)
+    const dropZone = document.querySelector('[data-drop-zone="true"]');
+    if (dropZone) {
+      const rect = dropZone.getBoundingClientRect();
+      const touch = e.changedTouches[0];
+      
+      if (
+        touch.clientX >= rect.left &&
+        touch.clientX <= rect.right &&
+        touch.clientY >= rect.top &&
+        touch.clientY <= rect.bottom
+      ) {
+        // 드롭 영역에 있으면 드롭 처리
+        setEditingTasks(touchDragData.tasks || []);
+        setSelectedMemberId(touchDragData.memberId);
+      }
+    }
+
+    setTouchDragData(null);
+    setTouchStartPos(null);
+    setDragOffset({ x: 0, y: 0 });
+    setDragOver(false);
   };
 
   const handleTaskClick = async (taskId) => {
@@ -255,9 +397,16 @@ export default function List({ projectId }) {
           <Accordion 
             key={member.id} 
             defaultExpanded 
-            sx={{ mb: 1, cursor: !isEditing ? "grab" : "default" }}
+            sx={{ 
+              mb: 1, 
+              cursor: !isEditing ? "grab" : "default",
+              touchAction: !isEditing ? "none" : "auto", // 드래그 가능할 때 터치 동작 제어
+            }}
             draggable={!isEditing}
             onDragStart={createAccordionDragHandler(tasksByUser, member.id)}
+            onTouchStart={(e) => handleTouchStart(e, tasksByUser, member.id)}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
           >
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
               <Stack direction="row" spacing={1} alignItems="center">
@@ -370,9 +519,16 @@ export default function List({ projectId }) {
       {unassignedTasks.length > 0 && (
         <Accordion 
           defaultExpanded 
-          sx={{ mt: 2, cursor: !isEditing ? "grab" : "default" }}
+          sx={{ 
+            mt: 2, 
+            cursor: !isEditing ? "grab" : "default",
+            touchAction: !isEditing ? "none" : "auto", // 드래그 가능할 때 터치 동작 제어
+          }}
           draggable={!isEditing}
           onDragStart={createUnassignedDragHandler(unassignedTasks)}
+          onTouchStart={(e) => handleUnassignedTouchStart(e, unassignedTasks)}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="h6">할당되지 않은 작업</Typography>
@@ -486,14 +642,17 @@ export default function List({ projectId }) {
           )}
         </Box>
         <Paper
+          data-drop-zone="true"
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
           sx={{
             p: 3,
             minHeight: 200,
-            border: dragOver ? "2px dashed #1976d2" : "2px dashed #ccc",
-            bgcolor: dragOver ? "action.hover" : "background.paper",
+            border: dragOver || touchDragData ? "2px dashed #1976d2" : "2px dashed #ccc",
+            bgcolor: dragOver || touchDragData ? "action.hover" : "background.paper",
             transition: "all 0.3s",
             display: "flex",
             flexDirection: "column",

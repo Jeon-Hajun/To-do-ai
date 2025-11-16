@@ -14,9 +14,11 @@ import Unauthorized from "./pages/Unauthorized";
 import TaskListPage from "./pages/TaskListPage";
 import TaskDetailPage from "./pages/TaskDetailPage";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
+import CommitDetailPage from "./pages/CommitDetailPage";
 import AIadvisorPage from "./pages/AIadvisorPage";
 import AINextStepPage from "./pages/AINextStepPage";
 import SettingsPage from "./pages/SettingsPage";
+import AllProjectsPage from "./pages/AllProjectsPage";
 
 
 import {
@@ -27,8 +29,11 @@ import {
 import { Navigate } from "react-router-dom";
 
 export default function AppRoutes({ user }) {
-  return (
-    <Routes>
+  console.log('[AppRoutes] 렌더링 시작, user:', user);
+  
+  try {
+    return (
+      <Routes>
       <Route 
         path="/" 
         element={
@@ -98,13 +103,21 @@ export default function AppRoutes({ user }) {
         }
       />
       <Route
-  path="/projects"
-  element={
-    <ProtectedRoute>
-      <ProjectPage />
-    </ProtectedRoute>
-  }
-/>
+        path="/projects"
+        element={
+          <ProtectedRoute>
+            <ProjectPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/all"
+        element={
+          <ProtectedRoute>
+            <AllProjectsPage />
+          </ProtectedRoute>
+        }
+      />
 <Route
   path="/projects/:projectId/tasks/:taskId"
   element={
@@ -122,6 +135,14 @@ export default function AppRoutes({ user }) {
   }
 />
 <Route
+  path="/projects/:projectId/commit/:commitSha"
+  element={
+    <ProtectedRoute>
+      <CommitDetailPage />
+    </ProtectedRoute>
+  }
+/>
+<Route
   path="/projects/:projectId"
   element={
     <ProtectedRoute>
@@ -133,5 +154,15 @@ export default function AppRoutes({ user }) {
       <Route path="/unauthorized" element={<Unauthorized />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
-  );
+    );
+  } catch (error) {
+    console.error('[AppRoutes] 에러 발생:', error);
+    return (
+      <div style={{ padding: '20px', color: 'red' }}>
+        <h1>AppRoutes 에러 발생</h1>
+        <pre>{error.toString()}</pre>
+        <pre>{error.stack}</pre>
+      </div>
+    );
+  }
 }
