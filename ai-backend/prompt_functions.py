@@ -80,9 +80,26 @@ def create_progress_analysis_initial_prompt(context, user_message, read_files, a
     projectStartDate = context.get('projectStartDate', None)
     projectDueDate = context.get('projectDueDate', None)
     
-    return create_optimized_progress_prompt(
+    # 읽은 파일 내용을 프롬프트에 포함
+    base_prompt = create_optimized_progress_prompt(
         commits, tasks, projectDescription, projectStartDate, projectDueDate
     )
+    
+    # 읽은 파일 내용 추가
+    if read_files:
+        files_section = "\n\n## 📄 읽은 파일 내용 (반드시 이 내용을 활용하여 분석하세요):\n\n"
+        for file_info in read_files:
+            file_path = file_info.get('path', '')
+            file_content = file_info.get('content', '')
+            if file_content:
+                # 파일 내용이 너무 길면 일부만 표시
+                content_preview = file_content[:2000] if len(file_content) > 2000 else file_content
+                files_section += f"### 파일: {file_path}\n```\n{content_preview}\n```\n\n"
+        
+        base_prompt += files_section
+        base_prompt += "\n⚠️ **중요**: 위에서 읽은 파일 내용을 반드시 활용하여 프로젝트가 무엇인지, 어떤 기능들이 필요한지, 어떤 것이 구현되어 있는지 분석하세요.\n"
+    
+    return base_prompt
 
 def create_progress_analysis_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits):
     """진행도 분석 에이전트 후속 프롬프트"""

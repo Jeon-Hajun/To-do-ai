@@ -45,6 +45,12 @@ def evaluate_information_sufficiency(
 3. **추가 탐색 필요성**: 더 많은 정보가 필요한가?
 4. **다음 단계 전략**: 추가 탐색이 필요하다면 어떤 파일이나 데이터를 확인해야 하는가?
 
+## 진행도 분석 에이전트 특별 규칙:
+- 진행도 분석의 경우, 소스코드 구조를 파악하기 위해 주요 디렉토리의 파일들을 읽어야 합니다.
+- src/, app/, components/, routes/, controllers/ 등의 주요 디렉토리에서 파일들을 찾아 읽으세요.
+- 각 파일의 내용을 확인하여 어떤 기능이 구현되어 있는지 파악하세요.
+- README만으로는 부족하며, 실제 소스코드를 확인해야 정확한 분석이 가능합니다.
+
 ## 응답 형식
 다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
 {{
@@ -60,8 +66,9 @@ def evaluate_information_sufficiency(
 규칙:
 - 충분한 정보가 있고 신뢰도가 high이면 is_sufficient: true
 - 정보가 부족하거나 신뢰도가 낮으면 needs_more_info: true
-- files_to_read는 확인해야 할 파일 경로 배열 (최대 5개)
+- files_to_read는 확인해야 할 파일 경로 배열 (최대 10개, 진행도 분석의 경우 더 많이 권장)
 - commits_to_analyze는 더 자세히 분석해야 할 커밋 SHA 배열 (최대 5개)
+- 진행도 분석의 경우, 소스코드 파일들을 충분히 읽지 않았다면 needs_more_info: true
 - 단계가 {MAX_ANALYSIS_STEPS}에 도달하면 무조건 is_sufficient: true로 설정
 """
     
@@ -371,7 +378,36 @@ def execute_multi_step_agent(
             files_to_read = evaluation.get('files_to_read', [])
             commits_to_analyze = evaluation.get('commits_to_analyze', [])
             
-            # 파일 읽기
+            # 진행도 분석의 경우 소스코드 구조 파악을 위한 추가 파일 읽기
+            if agent_type == "progress_analysis_agent" and github_repo and step_number == 1:
+                # 주요 디렉토리의 파일들을 자동으로 찾아 읽기 시도
+                common_source_dirs = ["src", "app", "components", "routes", "controllers", "services", "utils", "lib"]
+                progress_messages.append("🔍 소스코드 구조를 파악하기 위해 주요 파일들을 찾는 중...")
+                
+                # 각 디렉토리에서 대표 파일 찾기 시도
+                for dir_name in common_source_dirs:
+                    common_files = [
+                        f"{dir_name}/index.js", f"{dir_name}/index.ts", f"{dir_name}/index.jsx", f"{dir_name}/index.tsx",
+                        f"{dir_name}/app.js", f"{dir_name}/app.ts", f"{dir_name}/main.js", f"{dir_name}/main.ts",
+                        f"{dir_name}/App.jsx", f"{dir_name}/App.tsx"
+                    ]
+                    for file_path in common_files[:2]:  # 각 디렉토리당 최대 2개 파일만
+                        if file_path not in [f.get('path', '') for f in accumulated_files]:
+                            try:
+                                file_contents = get_file_contents(github_repo, github_token, [file_path])
+                                if file_contents and file_contents[0].get('content'):
+                                    accumulated_files.append({
+                                        "path": file_path,
+                                        "content": file_contents[0]['content'],
+                                        "truncated": file_contents[0].get('truncated', False)
+                                    })
+                                    progress_messages.append(f"✅ {file_path} 파일을 읽었습니다.")
+                                    context['readFiles'] = accumulated_files
+                                    break  # 한 파일만 읽고 다음 디렉토리로
+                            except:
+                                continue
+            
+            # 평가에서 제안한 파일 읽기
             if files_to_read and github_repo:
                 print(f"[Multi-Step Agent] {agent_type} - 파일 읽기 시작: {files_to_read}")
                 progress_messages.append(f"📄 관련 파일을 읽는 중... ({len(files_to_read)}개 파일)")
@@ -380,11 +416,14 @@ def execute_multi_step_agent(
                 # 읽은 파일을 accumulated_files에 추가
                 for file_info in file_contents:
                     if file_info.get('content'):
-                        accumulated_files.append({
-                            "path": file_info['filePath'],
-                            "content": file_info['content'],
-                            "truncated": file_info.get('truncated', False)
-                        })
+                        file_path = file_info.get('filePath', '')
+                        # 중복 방지
+                        if file_path not in [f.get('path', '') for f in accumulated_files]:
+                            accumulated_files.append({
+                                "path": file_path,
+                                "content": file_info['content'],
+                                "truncated": file_info.get('truncated', False)
+                            })
                 
                 # 컨텍스트에 파일 내용 추가
                 context['readFiles'] = accumulated_files
