@@ -1177,9 +1177,11 @@ exports.chat = async function(req, res, next) {
           data: {
             conversationId: conversationId,
             agentType: agentType,
+            agent_type: agentType, // 프론트엔드 호환성을 위해 둘 다 포함
             message: assistantMessage,
             response: aiResponse.data.response,
-            intentClassification: aiResponse.data.intent_classification
+            intentClassification: aiResponse.data.intent_classification,
+            progress_messages: aiResponse.data.progress_messages || [] // 진행 메시지도 전달
           },
           message: '챗봇 응답이 생성되었습니다.'
         });

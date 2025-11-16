@@ -202,7 +202,7 @@ export default function ChatBot({ projectId, onError }) {
         const assistantMessage = {
           role: "assistant",
           content: res.data.message,
-          agentType: res.data.agentType,
+          agentType: res.data.agentType || res.data.agent_type, // 백엔드 응답 형식에 맞춤
           response: res.data.response,
           id: Date.now() + 2,
         };
@@ -362,7 +362,7 @@ export default function ChatBot({ projectId, onError }) {
         const assistantMessage = {
           role: "assistant",
           content: res.data.message,
-          agentType: res.data.agentType,
+          agentType: res.data.agentType || res.data.agent_type, // 백엔드 응답 형식에 맞춤
           response: res.data.response,
           id: Date.now() + 2,
         };
@@ -572,7 +572,9 @@ export default function ChatBot({ projectId, onError }) {
                     <CircularProgress size={16} />
                     <Typography variant="body2">{message.content}</Typography>
                   </Box>
-                ) : message.agentType === "progress_analysis_agent" ? (
+                ) : (message.agentType === "progress_analysis_agent" || 
+                      message.agentType === "progress_analysis" ||
+                      (message.response && message.response.type === "progress_analysis")) ? (
                   <MarkdownRenderer content={message.content} />
                 ) : (
                   <Typography variant="body1" component="div">

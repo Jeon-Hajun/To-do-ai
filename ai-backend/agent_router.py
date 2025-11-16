@@ -321,7 +321,7 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             if estimated_date:
                 message += f"- **예상 완료일**: {estimated_date}\n"
         else:
-            # narrativeResponse가 없거나 짧으면 기존 방식 사용
+            # narrativeResponse가 없거나 짧으면 더 상세한 메시지 생성
             progress = analysis.get('currentProgress', 0)
             trend = analysis.get('activityTrend', 'stable')
             trend_kr = {
@@ -343,45 +343,65 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             recent_activity = analysis.get('recentActivity', {})
             key_metrics = analysis.get('keyMetrics', {})
             
-            # 상세 메시지 구성
+            # 마크다운 형식의 상세 메시지 구성
             message_parts = [
-                f"📊 **프로젝트 진행도: {progress}%**",
+                f"# 📊 프로젝트 진행도 분석",
                 f"",
-                f"**활동 추세**: {trend_kr}",
-                f"**지연 위험도**: {delay_risk_kr}"
+                f"## 현재 진행 상황",
+                f"",
+                f"- **진행도**: {progress}%",
+                f"- **활동 추세**: {trend_kr}",
+                f"- **지연 위험도**: {delay_risk_kr}"
             ]
             
             if estimated_date:
-                message_parts.append(f"**예상 완료일**: {estimated_date}")
+                message_parts.append(f"- **예상 완료일**: {estimated_date}")
             
             if recent_activity:
+                message_parts.append(f"")
+                message_parts.append(f"## 최근 활동")
                 if recent_activity.get('last7Days'):
-                    message_parts.append(f"")
-                    message_parts.append(f"**최근 7일 활동**: {recent_activity.get('last7Days')}")
+                    message_parts.append(f"- **최근 7일**: {recent_activity.get('last7Days')}")
                 if recent_activity.get('last30Days'):
-                    message_parts.append(f"**최근 30일 활동**: {recent_activity.get('last30Days')}")
+                    message_parts.append(f"- **최근 30일**: {recent_activity.get('last30Days')}")
             
             if insights:
                 message_parts.append(f"")
-                message_parts.append(f"**주요 인사이트**:")
+                message_parts.append(f"## 주요 인사이트")
                 for i, insight in enumerate(insights[:5], 1):  # 최대 5개
                     message_parts.append(f"{i}. {insight}")
             
             if recommendations:
                 message_parts.append(f"")
-                message_parts.append(f"**개선 제안**:")
+                message_parts.append(f"## 개선 제안")
                 for i, rec in enumerate(recommendations[:5], 1):  # 최대 5개
                     message_parts.append(f"{i}. {rec}")
             
             if key_metrics:
                 message_parts.append(f"")
-                message_parts.append(f"**주요 지표**:")
+                message_parts.append(f"## 주요 지표")
                 if key_metrics.get('averageCommitsPerDay'):
-                    message_parts.append(f"- 평균 일일 커밋: {key_metrics.get('averageCommitsPerDay', 0):.1f}개")
+                    message_parts.append(f"- **평균 일일 커밋**: {key_metrics.get('averageCommitsPerDay', 0):.1f}개")
                 if key_metrics.get('taskCompletionRate'):
-                    message_parts.append(f"- Task 완료율: {key_metrics.get('taskCompletionRate', 0):.1f}%")
+                    message_parts.append(f"- **Task 완료율**: {key_metrics.get('taskCompletionRate', 0):.1f}%")
                 if key_metrics.get('codeGrowthRate'):
-                    message_parts.append(f"- 코드 성장률: {key_metrics.get('codeGrowthRate', 'N/A')}")
+                    message_parts.append(f"- **코드 성장률**: {key_metrics.get('codeGrowthRate', 'N/A')}")
+            
+            # narrativeResponse가 없으면 기본 상세 설명 추가
+            if not narrative_response or len(narrative_response) <= 100:
+                message_parts.append(f"")
+                message_parts.append(f"## 프로젝트 상태 요약")
+                message_parts.append(f"")
+                message_parts.append(f"현재 프로젝트는 {progress}% 진행되었으며, 활동 추세는 {trend_kr}입니다. ")
+                if delay_risk_kr == '높음':
+                    message_parts.append(f"지연 위험이 높으므로 주의가 필요합니다. ")
+                elif delay_risk_kr == '보통':
+                    message_parts.append(f"지연 위험이 보통 수준이므로 계획된 일정을 지키는 것이 중요합니다. ")
+                else:
+                    message_parts.append(f"지연 위험이 낮아 안정적으로 진행되고 있습니다. ")
+                
+                if insights:
+                    message_parts.append(f"주요 인사이트를 바탕으로 프로젝트를 관리하시기 바랍니다.")
             
             message = "\n".join(message_parts)
         
