@@ -313,7 +313,7 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             total_implemented = len(implemented_features)
             total_missing = len(missing_features)
             
-            # 진행도 계산: 핵심 기능별 진행도를 가중 평균으로 계산
+            # 기본 진행도 계산: 핵심 기능별 진행도를 가중 평균으로 계산
             if core_feature_progress and core_features:
                 # 각 핵심 기능의 weight를 가져와서 가중 평균 계산
                 total_weighted_progress = 0
@@ -330,10 +330,22 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
                     total_weighted_progress += progress_value * cf_weight
                     total_weight += cf_weight
                 
-                progress = round((total_weighted_progress / total_weight) if total_weight > 0 else 0, 1)
+                base_progress = round((total_weighted_progress / total_weight) if total_weight > 0 else 0, 1)
             else:
                 # 기존 방식: 전체 기능 수로 계산
-                progress = round((total_implemented / total_required * 100) if total_required > 0 else 0, 1)
+                base_progress = round((total_implemented / total_required * 100) if total_required > 0 else 0, 1)
+            
+            # 테스트/배포 비율 적용하여 최종 진행도 계산
+            test_deployment_ratio = step5_result.get('testDeploymentRatio', 0) if step5_result else 0
+            test_deployment_progress = step5_result.get('testDeploymentProgress', 0) if step5_result else 0
+            
+            if test_deployment_ratio > 0 and test_deployment_progress >= 0:
+                # 테스트/배포 비율 적용: 기본 진행도 × (1 - 비율) + 테스트/배포 진행도 × 비율
+                ratio_decimal = test_deployment_ratio / 100.0
+                progress = round(base_progress * (1 - ratio_decimal) + test_deployment_progress * ratio_decimal, 1)
+            else:
+                # 테스트/배포 비율이 0이거나 없으면 기본 진행도 사용
+                progress = base_progress
             
             # 구현된 기능 목록 생성 (페이지, API, 컴포넌트, 인프라, 테스트/배포로 분류)
             # 프로젝트 특성에 따라 유동적으로 소제목 생성
