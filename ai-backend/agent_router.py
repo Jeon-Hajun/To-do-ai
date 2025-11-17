@@ -1111,22 +1111,6 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
                 if key_metrics.get('codeGrowthRate'):
                     message_parts.append(f"- **코드 성장률**: {key_metrics.get('codeGrowthRate', 'N/A')}")
             
-            # narrativeResponse가 없으면 기본 상세 설명 추가
-            if not narrative_response or len(narrative_response) <= 100:
-                message_parts.append(f"")
-                message_parts.append(f"## 프로젝트 상태 요약")
-                message_parts.append(f"")
-                message_parts.append(f"현재 프로젝트는 {progress}% 진행되었으며, 활동 추세는 {trend_kr}입니다. ")
-                if delay_risk_kr == '높음':
-                    message_parts.append(f"지연 위험이 높으므로 주의가 필요합니다. ")
-                elif delay_risk_kr == '보통':
-                    message_parts.append(f"지연 위험이 보통 수준이므로 계획된 일정을 지키는 것이 중요합니다. ")
-                else:
-                    message_parts.append(f"지연 위험이 낮아 안정적으로 진행되고 있습니다. ")
-                
-                if insights:
-                    message_parts.append(f"주요 인사이트를 바탕으로 프로젝트를 관리하시기 바랍니다.")
-            
             message = "\n".join(message_parts)
         
         return {
