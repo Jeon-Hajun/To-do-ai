@@ -66,11 +66,11 @@ def call_ollama(prompt, system_prompt="당신은 도움이 되는 AI 어시스�
         print(f'[AI Backend] call_ollama - Ollama URL: {OLLAMA_BASE_URL}, 모델: {OLLAMA_MODEL}, max_tokens: {max_tokens}')
         
         request_data = {
-            "model": OLLAMA_MODEL,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ],
+                "model": OLLAMA_MODEL,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
             "stream": False,
             "options": {
                 "num_predict": max_tokens  # Ollama에서 토큰 제한 설정
@@ -327,12 +327,12 @@ def progress_analysis():
             'githubToken': githubToken,
             'projectName': data.get('projectName', '프로젝트')
         }
-        
+
         # LLM 호출 함수
         def call_llm_func(prompt, system_prompt):
             if USE_OPENAI:
                 return call_openai(prompt, system_prompt, max_tokens=3000)
-            else:
+                    else:
                 return call_ollama(prompt, system_prompt, max_tokens=3000)
         
         # 새로운 multi-step agent 실행
@@ -349,7 +349,7 @@ def progress_analysis():
         if progress_match:
             current_progress = float(progress_match.group(1))
         
-        return jsonify({
+            return jsonify({
             'currentProgress': current_progress,
             'activityTrend': analysis.get('activityTrend', 'stable'),
             'estimatedCompletionDate': analysis.get('estimatedCompletionDate'),

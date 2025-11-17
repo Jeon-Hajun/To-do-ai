@@ -198,9 +198,14 @@ export default function ChatBot({ projectId, onError }) {
         }
 
         // 최종 응답 메시지 추가 (중복 방지)
+        // needs_more_info 응답의 경우 response.message를 우선 사용
+        const messageContent = res.data.response?.type === "needs_more_info" 
+          ? (res.data.response.message || res.data.message)
+          : (res.data.message || res.data.response?.message);
+        
         const assistantMessage = {
           role: "assistant",
-          content: res.data.message,
+          content: messageContent,
           agentType: res.data.agentType || res.data.agent_type, // 백엔드 응답 형식에 맞춤
           response: res.data.response,
           id: Date.now() + 2,
@@ -223,8 +228,13 @@ export default function ChatBot({ projectId, onError }) {
         
         setConversationId(res.data.conversationId);
 
+        // needs_more_info 응답 처리
+        if (res.data.response && res.data.response.type === "needs_more_info") {
+          // 질문 메시지는 이미 assistantMessage에 포함되어 있으므로 추가 처리 불필요
+          // 질문 목록이 있으면 메시지에 포함되어 표시됨
+        }
         // Task 제안 결과가 있으면 채팅 메시지로 표시 (팝업 제거)
-        if (res.data.response && res.data.response.type === "task_suggestions" && res.data.response.suggestions) {
+        else if (res.data.response && res.data.response.type === "task_suggestions" && res.data.response.suggestions) {
           // Task 제안 결과를 채팅 메시지로 표시
           const suggestions = res.data.response.suggestions || [];
           const taskSuggestionMessage = {
@@ -382,9 +392,14 @@ export default function ChatBot({ projectId, onError }) {
         }
 
         // 최종 응답 메시지 추가 (중복 방지)
+        // needs_more_info 응답의 경우 response.message를 우선 사용
+        const messageContent = res.data.response?.type === "needs_more_info" 
+          ? (res.data.response.message || res.data.message)
+          : (res.data.message || res.data.response?.message);
+        
         const assistantMessage = {
           role: "assistant",
-          content: res.data.message,
+          content: messageContent,
           agentType: res.data.agentType || res.data.agent_type, // 백엔드 응답 형식에 맞춤
           response: res.data.response,
           id: Date.now() + 2,
@@ -407,8 +422,13 @@ export default function ChatBot({ projectId, onError }) {
         
         setConversationId(res.data.conversationId);
 
+        // needs_more_info 응답 처리
+        if (res.data.response && res.data.response.type === "needs_more_info") {
+          // 질문 메시지는 이미 assistantMessage에 포함되어 있으므로 추가 처리 불필요
+          // 질문 목록이 있으면 메시지에 포함되어 표시됨
+        }
         // Task 제안 결과가 있으면 채팅 메시지로 표시 (팝업 제거)
-        if (res.data.response && res.data.response.type === "task_suggestions" && res.data.response.suggestions) {
+        else if (res.data.response && res.data.response.type === "task_suggestions" && res.data.response.suggestions) {
           // Task 제안 결과를 채팅 메시지로 표시
           const suggestions = res.data.response.suggestions || [];
           const taskSuggestionMessage = {
@@ -626,6 +646,29 @@ export default function ChatBot({ projectId, onError }) {
                       message.agentType === "progress_analysis" ||
                       (message.response && message.response.type === "progress_analysis")) ? (
                   <MarkdownRenderer content={message.content} />
+                ) : (message.response && message.response.type === "needs_more_info") ? (
+                  <Box>
+                    <MarkdownRenderer content={message.content} />
+                    {message.response.questions && message.response.questions.length > 0 && (
+                      <Box sx={{ mt: 2, p: 2, bgcolor: "action.hover", borderRadius: 1 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: "bold", mb: 1 }}>
+                          다음 정보를 제공해주세요:
+                        </Typography>
+                        <Box component="ul" sx={{ m: 0, pl: 2 }}>
+                          {message.response.questions.map((question, index) => (
+                            <Typography
+                              key={index}
+                              component="li"
+                              variant="body2"
+                              sx={{ mb: 0.5, fontSize: { xs: "0.8rem", md: "0.875rem" } }}
+                            >
+                              {question}
+                            </Typography>
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+                  </Box>
                 ) : (message.agentType === "task_suggestion_agent" ||
                       (message.response && message.response.type === "task_suggestions")) ? (
                   <Box>

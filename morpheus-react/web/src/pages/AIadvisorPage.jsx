@@ -56,7 +56,7 @@ export default function AIadvisorPage() {
   useEffect(() => {
     if (orderedProjects.length > 0 && !selectedProjectId) {
       setSelectedProjectId(orderedProjects[0].id);
-    }
+      }
   }, [orderedProjects, selectedProjectId]);
 
   // 프로젝트 선택 시 대화 히스토리 로드
@@ -133,7 +133,7 @@ export default function AIadvisorPage() {
               loading={query.isLoading || loadingHistory}
               emptyMessage="참여한 프로젝트가 없습니다."
             />
-          </Box>
+            </Box>
 
           {/* 챗봇 */}
           <Box sx={{ flex: 1, overflow: "hidden" }}>
@@ -143,11 +143,11 @@ export default function AIadvisorPage() {
               <Box sx={{ p: { xs: 2, md: 4 }, textAlign: "center", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Typography variant="body1" color="text.secondary" sx={{ fontSize: { xs: "0.875rem", md: "1rem" } }}>
                   프로젝트를 선택하면 AI 어시스턴트와 대화를 시작할 수 있습니다.
-                </Typography>
-              </Box>
-            )}
-          </Box>
-        </Card>
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+            </Card>
       </PageContainer>
     </ContainerBox>
   );

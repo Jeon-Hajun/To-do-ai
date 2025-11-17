@@ -613,14 +613,14 @@ export default function List({ projectId }) {
       {/* 태스크 관리 영역 */}
       <Box sx={{ mt: 3 }}>
         <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", mb: 2 }}>
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => setAddModalOpen(true)}
-            >
+            <Stack direction="row" spacing={1}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => setAddModalOpen(true)}
+              >
               새 태스크 생성
-            </Button>
+              </Button>
             {isEditing && (
               <Button
                 variant="contained"
@@ -636,7 +636,7 @@ export default function List({ projectId }) {
                 {isEditMode ? "수정 완료" : "수정"}
               </Button>
             )}
-          </Stack>
+            </Stack>
         </Box>
         <Paper
           data-drop-zone="true"

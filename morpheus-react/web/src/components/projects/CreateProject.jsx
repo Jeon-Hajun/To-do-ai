@@ -87,13 +87,13 @@ export default function CreateProject({ onCancel, onSuccess }) {
   return (
     <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-        <TextField
-          label="프로젝트 제목"
-          fullWidth
-          required
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
+      <TextField
+        label="프로젝트 제목"
+        fullWidth
+        required
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+      />
         <Button
           type="button"
           variant="outlined"
