@@ -673,46 +673,27 @@ export default function ChatBot({ projectId, onError }) {
                       (message.response && message.response.type === "task_suggestions")) ? (
                   <Box>
                     {/* Task 제안인 경우 프로젝트 이름과 제목만 표시, 상세 목록은 카드로만 표시 */}
-                    {message.content && (
-                      <Box sx={{ mb: 2 }}>
-                        {/* 프로젝트 이름과 "💡 N개의 Task를 제안했습니다" 부분만 추출 */}
-                        {(() => {
-                          const lines = message.content.split('\n');
-                          let headerLines = [];
-                          let foundHeader = false;
-                          for (let i = 0; i < lines.length; i++) {
-                            const line = lines[i].trim();
-                            if (line.startsWith('# ') || line.startsWith('## 💡')) {
-                              headerLines.push(lines[i]);
-                              foundHeader = true;
-                            } else if (foundHeader && (line.startsWith('###') || line.startsWith('---') || line.startsWith('💡'))) {
-                              break;
-                            } else if (foundHeader && line === '') {
-                              headerLines.push(lines[i]);
-                            }
-                          }
-                          return headerLines.length > 0 ? headerLines.join('\n') : message.content.split('\n').slice(0, 3).join('\n');
-                        })() && (
-                          <MarkdownRenderer content={(() => {
-                            const lines = message.content.split('\n');
-                            let headerLines = [];
-                            let foundHeader = false;
-                            for (let i = 0; i < lines.length; i++) {
-                              const line = lines[i].trim();
-                              if (line.startsWith('# ') || line.startsWith('## 💡')) {
-                                headerLines.push(lines[i]);
-                                foundHeader = true;
-                              } else if (foundHeader && (line.startsWith('###') || line.startsWith('---') || line.startsWith('💡'))) {
-                                break;
-                              } else if (foundHeader && line === '') {
-                                headerLines.push(lines[i]);
-                              }
-                            }
-                            return headerLines.length > 0 ? headerLines.join('\n') : message.content.split('\n').slice(0, 3).join('\n');
-                          })()} />
-                        )}
-                      </Box>
-                    )}
+                    {message.content && (() => {
+                      // 프로젝트 이름과 "💡 N개의 Task를 제안했습니다" 부분만 추출
+                      const lines = message.content.split('\n');
+                      let headerLines = [];
+                      for (let i = 0; i < lines.length; i++) {
+                        const line = lines[i].trim();
+                        if (line.startsWith('# ') || line.startsWith('## 💡')) {
+                          headerLines.push(lines[i]);
+                        } else if (headerLines.length > 0 && (line.startsWith('###') || line.startsWith('---') || line.startsWith('💡 각 Task를'))) {
+                          break;
+                        } else if (headerLines.length > 0 && line === '') {
+                          headerLines.push(lines[i]);
+                        }
+                      }
+                      const headerContent = headerLines.length > 0 ? headerLines.join('\n') : '';
+                      return headerContent ? (
+                        <Box sx={{ mb: 2 }}>
+                          <MarkdownRenderer content={headerContent} />
+                        </Box>
+                      ) : null;
+                    })()}
                     {message.response && message.response.suggestions && message.response.suggestions.length > 0 && (
                       <Box sx={{ mt: 2 }}>
                         {message.response.suggestions.map((suggestion, index) => {
