@@ -598,32 +598,86 @@ def execute_multi_step_agent(
                     # 1단계: README와 설정 파일 읽기 (이미 위에서 처리됨)
                     pass
                 elif step_number == 2:
-                    # 2단계: 2단계 결과 기반 파일 읽기 + 일반적인 API 라우트 파일들 읽기
-                    progress_messages.append("🔍 API 엔드포인트를 파악하기 위해 라우트 파일들을 찾는 중...")
+                    # 2단계: 사용자 요청에 따라 파일 읽기 우선순위 결정
+                    user_msg_lower = (user_message or "").lower()
                     
-                    # 2단계에서 추론한 파일들은 이미 위에서 읽었으므로, 추가로 일반적인 파일들도 읽기
-                    # 백엔드 API 라우트 파일들 (2단계에서 읽지 못한 경우를 대비)
-                    backend_routes = [
-                        "backend/routes/user.js", "backend/routes/project.js", "backend/routes/task.js",
-                        "backend/routes/ai.js", "backend/routes/github.js", "backend/routes/progress.js",
-                        "backend/routes/index.js", "backend/app.js"
-                    ]
-                    
-                    # 프론트엔드 API 호출 파일들
-                    frontend_api = [
-                        "morpheus-react/web/src/api/user.js", "morpheus-react/web/src/api/project.js",
-                        "morpheus-react/web/src/api/task.js", "morpheus-react/web/src/api/ai.js",
-                        "morpheus-react/web/src/api/github.js"
-                    ]
-                    
-                    # 컨트롤러 파일들
-                    controllers = [
-                        "backend/controllers/userController.js", "backend/controllers/projectController.js",
-                        "backend/controllers/taskController.js", "backend/controllers/aiController.js",
-                        "backend/controllers/githubController.js", "backend/controllers/progressController.js"
-                    ]
-                    
-                    all_files_to_read = backend_routes + frontend_api + controllers
+                    # 사용자 요청에 따라 파일 읽기 우선순위 조정
+                    if any(keyword in user_msg_lower for keyword in ['프론트', 'frontend', '프론트엔드', 'ui', '화면', '페이지']):
+                        progress_messages.append("🔍 프론트엔드 파일을 우선적으로 찾는 중...")
+                        # 프론트엔드 파일 우선
+                        frontend_api = [
+                            "morpheus-react/web/src/api/user.js", "morpheus-react/web/src/api/project.js",
+                            "morpheus-react/web/src/api/task.js", "morpheus-react/web/src/api/ai.js",
+                            "morpheus-react/web/src/api/github.js"
+                        ]
+                        backend_routes = [
+                            "backend/routes/user.js", "backend/routes/project.js", "backend/routes/task.js",
+                            "backend/routes/ai.js", "backend/routes/github.js", "backend/routes/progress.js",
+                            "backend/routes/index.js", "backend/app.js"
+                        ]
+                        controllers = [
+                            "backend/controllers/userController.js", "backend/controllers/projectController.js",
+                            "backend/controllers/taskController.js", "backend/controllers/aiController.js",
+                            "backend/controllers/githubController.js", "backend/controllers/progressController.js"
+                        ]
+                        all_files_to_read = frontend_api + backend_routes + controllers
+                    elif any(keyword in user_msg_lower for keyword in ['백엔드', 'backend', '서버', 'api', '엔드포인트']):
+                        progress_messages.append("🔍 백엔드 파일을 우선적으로 찾는 중...")
+                        # 백엔드 파일 우선
+                        backend_routes = [
+                            "backend/routes/user.js", "backend/routes/project.js", "backend/routes/task.js",
+                            "backend/routes/ai.js", "backend/routes/github.js", "backend/routes/progress.js",
+                            "backend/routes/index.js", "backend/app.js"
+                        ]
+                        controllers = [
+                            "backend/controllers/userController.js", "backend/controllers/projectController.js",
+                            "backend/controllers/taskController.js", "backend/controllers/aiController.js",
+                            "backend/controllers/githubController.js", "backend/controllers/progressController.js"
+                        ]
+                        frontend_api = [
+                            "morpheus-react/web/src/api/user.js", "morpheus-react/web/src/api/project.js",
+                            "morpheus-react/web/src/api/task.js", "morpheus-react/web/src/api/ai.js",
+                            "morpheus-react/web/src/api/github.js"
+                        ]
+                        all_files_to_read = backend_routes + controllers + frontend_api
+                    elif any(keyword in user_msg_lower for keyword in ['연동', '연결', '통합', 'integration', '연계']):
+                        progress_messages.append("🔍 프론트엔드-백엔드 연동 파일을 찾는 중...")
+                        # 연동 관련 파일 우선 (프론트엔드 API + 백엔드 라우트)
+                        frontend_api = [
+                            "morpheus-react/web/src/api/user.js", "morpheus-react/web/src/api/project.js",
+                            "morpheus-react/web/src/api/task.js", "morpheus-react/web/src/api/ai.js",
+                            "morpheus-react/web/src/api/github.js"
+                        ]
+                        backend_routes = [
+                            "backend/routes/user.js", "backend/routes/project.js", "backend/routes/task.js",
+                            "backend/routes/ai.js", "backend/routes/github.js", "backend/routes/progress.js",
+                            "backend/routes/index.js", "backend/app.js"
+                        ]
+                        controllers = [
+                            "backend/controllers/userController.js", "backend/controllers/projectController.js",
+                            "backend/controllers/taskController.js", "backend/controllers/aiController.js",
+                            "backend/controllers/githubController.js", "backend/controllers/progressController.js"
+                        ]
+                        all_files_to_read = frontend_api + backend_routes + controllers
+                    else:
+                        progress_messages.append("🔍 API 엔드포인트를 파악하기 위해 라우트 파일들을 찾는 중...")
+                        # 기본: 백엔드 우선
+                        backend_routes = [
+                            "backend/routes/user.js", "backend/routes/project.js", "backend/routes/task.js",
+                            "backend/routes/ai.js", "backend/routes/github.js", "backend/routes/progress.js",
+                            "backend/routes/index.js", "backend/app.js"
+                        ]
+                        frontend_api = [
+                            "morpheus-react/web/src/api/user.js", "morpheus-react/web/src/api/project.js",
+                            "morpheus-react/web/src/api/task.js", "morpheus-react/web/src/api/ai.js",
+                            "morpheus-react/web/src/api/github.js"
+                        ]
+                        controllers = [
+                            "backend/controllers/userController.js", "backend/controllers/projectController.js",
+                            "backend/controllers/taskController.js", "backend/controllers/aiController.js",
+                            "backend/controllers/githubController.js", "backend/controllers/progressController.js"
+                        ]
+                        all_files_to_read = backend_routes + frontend_api + controllers
                     
                     for file_path in all_files_to_read:
                         if file_path not in [f.get('path', '') for f in accumulated_files]:
