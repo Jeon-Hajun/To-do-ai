@@ -159,7 +159,66 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
         # 결과 처리
         final_result = result.get('response', {})
         
-        # 정보 부족으로 질문이 필요한 경우 처리
+        # 정보 충분성 확인 (먼저 체크하여 needs_more_info 응답 결정)
+        commits = context.get('commits', [])
+        issues = context.get('issues', [])
+        currentTasks = context.get('currentTasks', [])
+        projectDescription = context.get('projectDescription', '')
+        githubRepo = context.get('githubRepo', '')
+        user_message = user_message or ""
+        
+        has_project_desc = projectDescription and len(projectDescription.strip()) > 20
+        has_user_request = user_message and len(user_message.strip()) > 10
+        has_tasks = len(currentTasks) > 0
+        has_commits = len(commits) > 0
+        has_issues = len(issues) > 0
+        
+        # 정보 부족으로 질문이 필요한 경우 처리 (먼저 체크)
+        if not has_project_desc and not has_user_request and not has_tasks and not has_commits and not has_issues:
+            # LLM 응답에서 needsMoreInfo 확인
+            needs_more_info = False
+            questions = []
+            message = ""
+            
+            if isinstance(final_result, dict) and final_result.get('needsMoreInfo'):
+                needs_more_info = True
+                questions = final_result.get('questions', [])
+                message = final_result.get('message', '추가 정보가 필요합니다.')
+            else:
+                # all_steps에서 needsMoreInfo 확인
+                all_steps = result.get('all_steps', [])
+                if all_steps:
+                    last_step = all_steps[-1]
+                    if isinstance(last_step, dict) and last_step.get('needsMoreInfo'):
+                        needs_more_info = True
+                        questions = last_step.get('questions', [])
+                        message = last_step.get('message', '추가 정보가 필요합니다.')
+            
+            # needsMoreInfo가 없어도 정보가 부족하면 질문 요청
+            if not needs_more_info:
+                questions = [
+                    "프로젝트의 핵심 기능은 무엇인가요?",
+                    "현재 어떤 기능이 구현되어 있나요?",
+                    "다음으로 구현하고 싶은 기능은 무엇인가요?"
+                ]
+                message = "프로젝트에 대한 정보가 부족합니다. 위 질문에 답변해주시면 더 정확한 Task를 제안할 수 있습니다."
+            
+            question_text = "\n".join([f"- {q}" for q in questions]) if questions else ""
+            full_message = f"{message}\n\n{question_text}" if question_text else message
+            
+            return {
+                "agent_type": "task_suggestion_agent",
+                "response": {
+                    "type": "needs_more_info",
+                    "message": full_message,
+                    "questions": questions
+                },
+                "analysis_steps": result.get('analysis_steps', 1),
+                "confidence": result.get('confidence', 'low'),
+                "progress_messages": result.get('progress_messages', [])
+            }
+        
+        # 정보 부족으로 질문이 필요한 경우 처리 (LLM 응답에서)
         if isinstance(final_result, dict) and final_result.get('needsMoreInfo'):
             questions = final_result.get('questions', [])
             message = final_result.get('message', '추가 정보가 필요합니다.')
@@ -219,21 +278,7 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
         if not isinstance(suggestions, list):
             suggestions = [suggestions] if suggestions else []
         
-        # 정보 충분성 확인 (suggestions가 비어있고 정보가 부족한 경우 질문 요청)
-        commits = context.get('commits', [])
-        issues = context.get('issues', [])
-        currentTasks = context.get('currentTasks', [])
-        projectDescription = context.get('projectDescription', '')
-        githubRepo = context.get('githubRepo', '')
-        user_message = user_message or ""
-        
-        has_project_desc = projectDescription and len(projectDescription.strip()) > 20
-        has_user_request = user_message and len(user_message.strip()) > 10
-        has_tasks = len(currentTasks) > 0
-        has_commits = len(commits) > 0
-        has_issues = len(issues) > 0
-        
-        # suggestions가 비어있고 정보가 부족한 경우 질문 요청
+        # suggestions가 비어있고 정보가 부족한 경우 질문 요청 (추가 체크)
         if len(suggestions) == 0 and not has_project_desc and not has_user_request and not has_tasks and not has_commits and not has_issues:
             questions = [
                 "프로젝트의 핵심 기능은 무엇인가요?",
