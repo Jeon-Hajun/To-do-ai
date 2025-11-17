@@ -209,9 +209,17 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 
 **중요**: 읽은 파일에서 **가능한 대부분의 기능을 확인**하세요. 일부만 확인하지 말고 모든 기능을 찾아보세요.
 
-**표시 형식 (4가지 분류로 나누어 표시):**
-- **페이지**: `페이지명 /경로/경로/.jsx` (예: 로그인 페이지 /src/pages/Login.jsx)
+**프로젝트 특성에 따른 유동적 소제목 분류:**
+- 프로젝트 구조에 따라 소제목을 유동적으로 나누세요.
+- **웹 애플리케이션**: 페이지, API, 컴포넌트, 인프라
+- **API 서버**: 엔드포인트, 서비스, 인프라
+- **라이브러리**: 모듈, 함수, 유틸리티
+- **프로젝트에 페이지나 컴포넌트가 없다면**: 해당 소제목을 생략하고 다른 소제목에 집중하세요.
+
+**표시 형식 (프로젝트 특성에 따라 유동적으로 분류):**
+- **페이지** (웹 앱인 경우): `페이지명 /경로/경로/.jsx` (예: 로그인 페이지 /src/pages/Login.jsx)
   - 읽은 페이지 파일들에서 각 페이지의 역할과 경로를 확인하세요.
+  - 페이지가 없다면 이 소제목을 생략하세요.
 - **API**: 비슷한 API끼리 묶어서 그룹화하여 표시
   - 예: **사용자 인증 API** /api/user/login, /api/user/logout, /api/user/register, /api/user/signup, /api/user/me
   - 예: **프로젝트 관리 API** /api/project/create, /api/project/update, /api/project/delete, /api/project/info, /api/project/list, /api/project/members
@@ -220,11 +228,16 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
   - 예: **AI API** /api/ai/chat, /api/ai/task-suggestion, /api/ai/progress-analysis, /api/ai/task-completion-check
   - 예: **진행도 조회 API** /api/progress/project/:projectId
   - 읽은 라우트 파일들에서 **모든 엔드포인트를 찾아서** 비슷한 것끼리 묶어서 그룹화하세요.
-- **컴포넌트**: `컴포넌트명 /경로/경로/.jsx` (예: Task 카드 컴포넌트 /src/components/tasks/TaskCard.jsx)
+- **컴포넌트** (웹 앱인 경우): `컴포넌트명 /경로/경로/.jsx` (예: Task 카드 컴포넌트 /src/components/tasks/TaskCard.jsx)
   - 읽은 컴포넌트 파일들에서 재사용 가능한 UI 컴포넌트를 확인하세요.
   - 예: ChatBot 컴포넌트, TaskView 컴포넌트, ProjectCard 컴포넌트, GitHub CommitList 컴포넌트 등
+  - 컴포넌트가 없다면 이 소제목을 생략하세요.
 - **인프라**: `기능명 /위치` (예: 데이터베이스 연결 /database/db.js, JWT 인증 미들웨어 /middleware/auth.js)
   - 데이터베이스 연결, 인증 미들웨어, 파일 업로드, CORS 설정 등 백엔드 인프라 기능을 확인하세요.
+
+**파일 검색 전략:**
+- 읽은 파일에서 페이지나 컴포넌트가 없다고 판단되면, 다른 UI 관련 파일들(views/, screens/, ui/ 등)을 찾아보세요.
+- 프로젝트 구조를 파악하여 적절한 디렉토리에서 파일을 찾으세요.
 
 읽은 파일에서 실제로 확인된 것만 나열하세요. 추측하지 마세요.
 

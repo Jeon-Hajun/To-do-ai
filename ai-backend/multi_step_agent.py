@@ -50,6 +50,9 @@ def evaluate_information_sufficiency(
 - src/, app/, components/, routes/, controllers/ 등의 주요 디렉토리에서 파일들을 찾아 읽으세요.
 - 각 파일의 내용을 확인하여 어떤 기능이 구현되어 있는지 파악하세요.
 - README만으로는 부족하며, 실제 소스코드를 확인해야 정확한 분석이 가능합니다.
+- **페이지와 컴포넌트 분석**: 프로젝트 특성에 따라 페이지나 컴포넌트가 없을 수도 있습니다. 하지만 웹 애플리케이션이라면 pages/, components/, views/ 등의 디렉토리를 확인하세요.
+- **유동적 소제목 분류**: 프로젝트 구조에 따라 소제목을 유동적으로 나누세요 (예: 웹 앱이면 페이지/컴포넌트, API 서버면 엔드포인트/서비스, 라이브러리면 모듈/함수 등).
+- **동적 파일 검색**: 각 소제목에 따라 필요한 파일을 찾아 읽으세요. 예를 들어, 페이지가 없다고 판단되면 다른 UI 관련 파일들을 찾아보세요.
 
 ## 응답 형식
 다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
@@ -453,73 +456,87 @@ def execute_multi_step_agent(
                                 continue
                 
                 elif step_number == 3:
-                    # 3단계: 페이지 파일들을 대량으로 읽기
-                    progress_messages.append("🔍 페이지 구조를 파악하기 위해 페이지 파일들을 찾는 중...")
+                    # 3단계: 페이지와 컴포넌트 파일들을 동적으로 찾아 읽기
+                    progress_messages.append("🔍 프로젝트 구조를 파악하여 페이지와 컴포넌트 파일들을 찾는 중...")
                     
-                    # 모든 페이지 파일들 (18개)
-                    pages = [
-                        "morpheus-react/web/src/pages/About.jsx",
-                        "morpheus-react/web/src/pages/AdminPage.jsx",
-                        "morpheus-react/web/src/pages/AIadvisorPage.jsx",
-                        "morpheus-react/web/src/pages/AINextStepPage.jsx",
-                        "morpheus-react/web/src/pages/AllProjectsPage.jsx",
-                        "morpheus-react/web/src/pages/CommitDetailPage.jsx",
-                        "morpheus-react/web/src/pages/Dashboard.jsx",
-                        "morpheus-react/web/src/pages/Home.jsx",
+                    # 프로젝트 구조에 따라 다양한 경로 시도
+                    # 웹 애플리케이션의 경우 일반적인 디렉토리 구조
+                    common_paths = [
+                        # React/Vue 등 프론트엔드 프레임워크
+                        "src/pages", "src/components", "src/views", "src/screens",
+                        "web/src/pages", "web/src/components", "web/src/views",
+                        "frontend/src/pages", "frontend/src/components",
+                        "app/pages", "app/components", "app/views",
+                        "pages", "components", "views",
+                        # Morpheus React 구조
+                        "morpheus-react/web/src/pages", "morpheus-react/web/src/components",
+                        # Next.js 구조
+                        "pages", "app", "components",
+                        # Nuxt.js 구조
+                        "pages", "components", "layouts",
+                        # 기타
+                        "ui", "widgets", "features"
+                    ]
+                    
+                    # 각 경로에서 일반적인 파일 패턴 시도
+                    files_to_try = []
+                    for base_path in common_paths[:10]:  # 최대 10개 경로만 시도
+                        # 페이지 파일 패턴
+                        page_patterns = [
+                            f"{base_path}/**/*Page.jsx", f"{base_path}/**/*Page.js",
+                            f"{base_path}/**/*Page.tsx", f"{base_path}/**/*Page.ts",
+                            f"{base_path}/**/index.jsx", f"{base_path}/**/index.js"
+                        ]
+                        # 컴포넌트 파일 패턴
+                        component_patterns = [
+                            f"{base_path}/**/*.jsx", f"{base_path}/**/*.js",
+                            f"{base_path}/**/*.tsx", f"{base_path}/**/*.ts"
+                        ]
+                        
+                        # 실제로는 GitHub API로 디렉토리 내용을 확인해야 하지만,
+                        # 여기서는 일반적인 파일명을 시도
+                        common_page_names = ["Login", "Signup", "Home", "Dashboard", "Project", "Task", "Settings", "About"]
+                        common_component_names = ["Button", "Card", "Modal", "List", "Form", "Layout", "NavBar", "Header"]
+                        
+                        for name in common_page_names:
+                            files_to_try.extend([
+                                f"{base_path}/{name}.jsx", f"{base_path}/{name}.js",
+                                f"{base_path}/{name}Page.jsx", f"{base_path}/{name}Page.js"
+                            ])
+                        
+                        for name in common_component_names:
+                            files_to_try.extend([
+                                f"{base_path}/{name}.jsx", f"{base_path}/{name}.js",
+                                f"{base_path}/components/{name}.jsx", f"{base_path}/components/{name}.js"
+                            ])
+                    
+                    # 기존 하드코딩된 파일 목록도 포함 (확실한 파일들)
+                    known_files = [
+                        # 페이지 파일들
                         "morpheus-react/web/src/pages/Login.jsx",
-                        "morpheus-react/web/src/pages/ManagerPage.jsx",
-                        "morpheus-react/web/src/pages/NotFound.jsx",
-                        "morpheus-react/web/src/pages/ProjectDetailPage.jsx",
-                        "morpheus-react/web/src/pages/ProjectPage.jsx",
-                        "morpheus-react/web/src/pages/SettingsPage.jsx",
                         "morpheus-react/web/src/pages/SignupPage.jsx",
+                        "morpheus-react/web/src/pages/Home.jsx",
+                        "morpheus-react/web/src/pages/ProjectPage.jsx",
+                        "morpheus-react/web/src/pages/ProjectDetailPage.jsx",
+                        "morpheus-react/web/src/pages/AIadvisorPage.jsx",
                         "morpheus-react/web/src/pages/TaskDetailPage.jsx",
                         "morpheus-react/web/src/pages/TaskListPage.jsx",
-                        "morpheus-react/web/src/pages/Unauthorized.jsx"
-                    ]
-                    
-                    # 주요 컴포넌트 파일들
-                    components = [
-                        # AI 컴포넌트
+                        # 컴포넌트 파일들
                         "morpheus-react/web/src/components/ai/ChatBot.jsx",
-                        # Task 컴포넌트
                         "morpheus-react/web/src/components/tasks/TaskView.jsx",
                         "morpheus-react/web/src/components/tasks/List.jsx",
-                        "morpheus-react/web/src/components/tasks/TaskManagement.jsx",
-                        "morpheus-react/web/src/components/tasks/TaskAdd.jsx",
-                        "morpheus-react/web/src/components/tasks/TaskEdit.jsx",
                         "morpheus-react/web/src/components/tasks/TaskCard.jsx",
-                        # Project 컴포넌트
                         "morpheus-react/web/src/components/projects/CreateProject.jsx",
-                        "morpheus-react/web/src/components/projects/ProjectDetailTabs.jsx",
-                        "morpheus-react/web/src/components/projects/ProjectProgressCard.jsx",
-                        "morpheus-react/web/src/components/projects/ProjectManager.jsx",
-                        "morpheus-react/web/src/components/projects/ProjectDetailCard.jsx",
-                        "morpheus-react/web/src/components/projects/MainProjectCard.jsx",
                         "morpheus-react/web/src/components/projects/ProjectCard.jsx",
-                        "morpheus-react/web/src/components/projects/UpdateProject.jsx",
-                        "morpheus-react/web/src/components/projects/JoinProject.jsx",
-                        # GitHub 컴포넌트
-                        "morpheus-react/web/src/components/GitHub/ProjectGitHubTab.jsx",
-                        "morpheus-react/web/src/components/GitHub/IssueList.jsx",
-                        "morpheus-react/web/src/components/GitHub/DiffViewer.jsx",
-                        "morpheus-react/web/src/components/GitHub/CommitList.jsx",
-                        "morpheus-react/web/src/components/GitHub/CommitDetailModal.jsx",
-                        "morpheus-react/web/src/components/GitHub/BranchList.jsx",
-                        # Layout 컴포넌트
                         "morpheus-react/web/src/components/layout/Layout.jsx",
-                        "morpheus-react/web/src/components/layout/NavBar.jsx",
-                        "morpheus-react/web/src/components/layout/Header.jsx",
-                        "morpheus-react/web/src/components/layout/CategoryBar.jsx",
-                        # 공통 컴포넌트
-                        "morpheus-react/web/src/components/common/MarkdownRenderer.jsx",
-                        "morpheus-react/web/src/components/EditProfileModal.jsx"
+                        "morpheus-react/web/src/components/layout/CategoryBar.jsx"
                     ]
                     
-                    all_files_to_read = pages + components
+                    all_files_to_read = list(set(known_files + files_to_try[:30]))  # 중복 제거 및 최대 30개
                     
+                    read_count = 0
                     for file_path in all_files_to_read:
-                        if file_path not in [f.get('path', '') for f in accumulated_files]:
+                        if file_path not in [f.get('path', '') for f in accumulated_files] and read_count < 20:  # 최대 20개만 읽기
                             try:
                                 file_contents = get_file_contents(github_repo, github_token, [file_path])
                                 if file_contents and file_contents[0].get('content'):
@@ -530,8 +547,12 @@ def execute_multi_step_agent(
                                     })
                                     progress_messages.append(f"✅ {file_path} 파일을 읽었습니다.")
                                     context['readFiles'] = accumulated_files
+                                    read_count += 1
                             except:
                                 continue
+                    
+                    if read_count == 0:
+                        progress_messages.append("⚠️ 페이지나 컴포넌트 파일을 찾지 못했습니다. 프로젝트 구조를 확인 중...")
             
             # 평가에서 제안한 파일 읽기
             if files_to_read and github_repo:

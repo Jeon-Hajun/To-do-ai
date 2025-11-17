@@ -313,6 +313,7 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             progress = round((total_implemented / total_required * 100) if total_required > 0 else 0, 1)
             
             # 구현된 기능 목록 생성 (페이지, API, 컴포넌트, 인프라로 분류)
+            # 프로젝트 특성에 따라 유동적으로 소제목 생성
             pages_list = []
             apis_list = []
             components_list = []
@@ -362,23 +363,30 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
                 total_evaluation += f"주요 미구현 기능으로는 {missing_names} 등이 있으며, "
             total_evaluation += f"{'안정적으로 진행 중' if progress >= 70 else '추가 개발이 필요' if progress >= 40 else '초기 단계'}입니다."
             
-            # narrativeResponse 생성 (페이지, API, 컴포넌트, 인프라로 구분)
+            # narrativeResponse 생성 (프로젝트 특성에 따라 유동적으로 소제목 생성)
             # 프로젝트 설명은 타이틀 없이 내용만 포함
+            # 페이지나 컴포넌트가 없으면 해당 소제목 생략
+            sections = []
+            
+            if pages_list:
+                sections.append(f"#### 페이지\n{chr(10).join(pages_list)}")
+            
+            if apis_list:
+                sections.append(f"#### API\n{chr(10).join(apis_list)}")
+            
+            if components_list:
+                sections.append(f"#### 컴포넌트\n{chr(10).join(components_list)}")
+            
+            if infrastructure_list:
+                sections.append(f"#### 인프라\n{chr(10).join(infrastructure_list)}")
+            
+            implemented_section = "\n\n".join(sections) if sections else "없음"
+            
             narrative_response = f"""{project_desc}
 
 ### 구현된 기능
 
-#### 페이지
-{chr(10).join(pages_list) if pages_list else "없음"}
-
-#### API
-{chr(10).join(apis_list) if apis_list else "없음"}
-
-#### 컴포넌트
-{chr(10).join(components_list) if components_list else "없음"}
-
-#### 인프라
-{chr(10).join(infrastructure_list) if infrastructure_list else "없음"}
+{implemented_section}
 
 ### 미구현 기능
 {chr(10).join(missing_list) if missing_list else "없음"}
