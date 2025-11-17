@@ -363,9 +363,8 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             total_evaluation += f"{'안정적으로 진행 중' if progress >= 70 else '추가 개발이 필요' if progress >= 40 else '초기 단계'}입니다."
             
             # narrativeResponse 생성 (페이지, API, 컴포넌트, 인프라로 구분)
-            # 프로젝트 이름과 설명은 제목 없이 내용만 포함
-            narrative_response = f"""## 프로젝트 설명
-{project_desc}
+            # 프로젝트 설명은 타이틀 없이 내용만 포함
+            narrative_response = f"""{project_desc}
 
 ### 구현된 기능
 
@@ -416,6 +415,7 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
         
         if narrative_response and len(narrative_response) > 100:
             # 프로젝트 이름을 맨 위에 추가하고 narrativeResponse를 메인 메시지로 사용
+            # 불필요한 타이틀은 제거하고 내용만 표시
             message = f"# {project_name}\n\n{narrative_response}"
             
             # 추가 정보는 요약하여 포함

@@ -357,7 +357,7 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 {{
   "step": 5,
   "currentProgress": {progress},
-  "narrativeResponse": "# 프로젝트 이름\\n{project_name}\\n\\n## 프로젝트 설명\\n{project_desc}\\n\\n### 구현된 기능\\n{chr(10).join(implemented_list) if implemented_list else '없음'}\\n\\n### 미구현 기능\\n{chr(10).join(missing_list) if missing_list else '없음'}\\n\\n### 평가\\n**진행도**: {progress}%\\n\\n**예상 완성일**: [현재 진행 속도를 고려한 예상 완성일 또는 '미정']\\n\\n**총평**: [프로젝트의 현재 상태를 2-3줄로 요약한 총평. 핵심 기능 구현 상태, 주요 미구현 기능, 전체적인 프로젝트 상태를 간결하게 설명]",
+  "narrativeResponse": "{project_desc}\\n\\n### 구현된 기능\\n{chr(10).join(implemented_list) if implemented_list else '없음'}\\n\\n### 미구현 기능\\n{chr(10).join(missing_list) if missing_list else '없음'}\\n\\n### 평가\\n**진행도**: {progress}%\\n\\n**예상 완성일**: [현재 진행 속도를 고려한 예상 완성일 또는 '미정']\\n\\n**총평**: [프로젝트의 현재 상태를 2-3줄로 요약한 총평. 핵심 기능 구현 상태, 주요 미구현 기능, 전체적인 프로젝트 상태를 간결하게 설명]",
   "activityTrend": "increasing|stable|decreasing",
   "delayRisk": "Low|Medium|High",
   "estimatedCompletionDate": "YYYY-MM-DD 또는 null",
