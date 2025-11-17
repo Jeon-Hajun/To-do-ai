@@ -101,15 +101,41 @@ def create_progress_analysis_initial_prompt(context, user_message, read_files, a
 - 총 Task 수: {len(tasks)}개
 {files_section}
 
-## 1단계 작업: 프로젝트 분석
-읽은 파일(README, 설정 파일 등)과 프로젝트 설명을 바탕으로 다음을 작성하세요:
+## 1단계 작업: 프로젝트 분석 및 핵심 기능 정의
+읽은 파일(README, 설정 파일 등)과 프로젝트 설명을 바탕으로 **전체적인 코드나 문서를 점검**하여 다음을 작성하세요:
+
+**⚠️ 매우 중요: 판단 과정을 단계별로 명확히 수행하세요.**
+
+### 1단계: 전체 문서/코드 점검
+- README, package.json, 프로젝트 설명 등을 읽어서 프로젝트의 **핵심 기능**을 파악하세요.
+- 핵심 기능은 프로젝트의 목적을 달성하기 위해 반드시 필요한 주요 기능입니다.
+- 예: 사용자 인증, 프로젝트 관리, Task 관리, AI 기능, GitHub 연동 등
+
+### 2단계: 핵심 기능 정의
+- 파악한 핵심 기능들을 나열하세요.
+- 각 핵심 기능에 대해 간단한 설명과 중요도(weight)를 부여하세요.
+- 중요도는 1.0(매우 중요) ~ 0.5(보통) 사이의 값입니다.
 
 다음 JSON 형식으로만 응답하세요:
 {{
   "step": 1,
   "projectName": "실제 프로젝트 이름 (README나 package.json에서 확인한 실제 이름, [프로젝트의 실제 이름] 같은 형식이 아닌 실제 값)",
   "projectDescription": "실제 프로젝트 설명 (이 프로젝트는 어떤 프로젝트인지, 핵심 기능과 주요 기능들을 설명. 기술 스택은 생략하고 기능 중심으로 작성. [이 프로젝트는...] 같은 형식이 아닌 실제 설명)",
-  "nextStep": "다음 단계(2단계)에서는 이 프로젝트에 필요한 기능들을 분석하겠습니다."
+  "coreFeatures": [
+    {{
+      "id": "core_feature_1",
+      "name": "핵심 기능명 (예: 사용자 인증, 프로젝트 관리, Task 관리, AI 기능 등)",
+      "description": "이 핵심 기능에 대한 간단한 설명 (1-2문장)",
+      "weight": 1.0
+    }},
+    {{
+      "id": "core_feature_2",
+      "name": "다른 핵심 기능명",
+      "description": "설명",
+      "weight": 1.0
+    }}
+  ],
+  "nextStep": "다음 단계(2단계)에서는 각 핵심 기능에 필요한 세부 기능들을 분석하겠습니다."
 }}
 
 ⚠️ **매우 중요**: 
@@ -117,7 +143,9 @@ def create_progress_analysis_initial_prompt(context, user_message, read_files, a
 - 프로젝트 이름은 README나 package.json에서 확인한 **실제 이름**을 입력하세요. "[프로젝트의 실제 이름]" 같은 형식이 아닌 실제 값입니다.
 - 프로젝트 설명은 **기능 중심으로 작성**하세요. 기술 스택(React, Node.js 등)은 생략하고, 핵심 기능과 주요 기능들을 설명하세요.
 - 형식: "이 프로젝트는 [핵심 기능]이 핵심 기능이고, [주요 기능 1], [주요 기능 2], [주요 기능 3] 등의 기능이 있습니다."
-- 예시: projectName: "To-do-ai-agent" (실제 값), projectDescription: "이 프로젝트는 AI Agent가 핵심 기능이고, 진행도 분석, Task 제안, Task 완료 확인 등의 기능이 있습니다." (기능 중심 설명)"""
+- **핵심 기능은 3-8개 정도로 정의하세요.** 너무 많거나 적지 않게, 프로젝트의 목적을 달성하기 위해 반드시 필요한 기능만 포함하세요.
+- 예시: projectName: "To-do-ai-agent" (실제 값), projectDescription: "이 프로젝트는 AI Agent가 핵심 기능이고, 진행도 분석, Task 제안, Task 완료 확인 등의 기능이 있습니다." (기능 중심 설명)
+- coreFeatures 예시: [{{id: "auth", name: "사용자 인증", description: "로그인, 회원가입, 로그아웃 등 사용자 인증 기능", weight: 1.0}}, {{id: "project", name: "프로젝트 관리", description: "프로젝트 생성, 수정, 삭제, 조회 등 프로젝트 관리 기능", weight: 1.0}}]"""
     
     return prompt
 
@@ -144,16 +172,32 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
                 files_section += f"### 파일: {path}\n```\n{content_preview}\n```\n\n"
     
     if step_number == 2:
-        # 2단계: 기능 분석 (필요한 기능들 파악)
-        prompt = f"""진행도 분석 **2단계: 기능 분석**입니다.
+        # 2단계: 기능 분석 (각 핵심 기능에 필요한 세부 기능들 파악)
+        core_features = step1_result.get('coreFeatures', [])
+        core_features_text = "\n".join([f"- {f.get('name', '')} ({f.get('description', '')})" for f in core_features])
+        
+        prompt = f"""진행도 분석 **2단계: 세부 기능 분석**입니다.
 
 ## 이전 단계(1단계) 결과:
-{json.dumps(step1_result, ensure_ascii=False, indent=2)}
+프로젝트 이름: {step1_result.get('projectName', 'N/A')}
+프로젝트 설명: {step1_result.get('projectDescription', 'N/A')[:200]}...
+
+### 핵심 기능 목록:
+{core_features_text}
 
 {files_section}
 
-## 2단계 작업: 필요한 기능 분석
-이전 단계에서 파악한 프로젝트 정보를 바탕으로, 이 프로젝트에 있어야 할 주요 기능을 **포괄적으로** 나열하세요.
+## 2단계 작업: 각 핵심 기능별 세부 기능 분석
+이전 단계에서 정의한 **각 핵심 기능**에 대해, 그 기능을 구현하기 위해 필요한 **세부 기능들**을 나열하세요.
+
+**⚠️ 매우 중요: 판단 과정을 단계별로 명확히 수행하세요.**
+
+### 1단계: 핵심 기능별 세부 기능 파악
+- 각 핵심 기능에 대해, 그 기능을 완전히 구현하기 위해 필요한 세부 기능들을 생각해보세요.
+- 예: "사용자 인증" 핵심 기능의 경우 → 로그인 페이지, 회원가입 페이지, 로그인 API, 회원가입 API, 로그아웃 API, JWT 인증 미들웨어 등
+
+### 2단계: 세부 기능 분류
+- 각 세부 기능을 **페이지, API, 컴포넌트, 인프라** 4가지로 분류하세요.
 
 **기능 분류 (반드시 다음 4가지로 분류):**
 - **페이지**: 각 페이지 경로 (예: 로그인 페이지, 프로젝트 목록 페이지, AI 어드바이저 페이지 등)
@@ -166,8 +210,10 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
   "step": 2,
   "requiredFeatures": [
     {{
-      "name": "기능명 (예: 로그인 페이지, 사용자 인증 API, 프로젝트 관리 API 등)",
-      "type": "page|api|other",
+      "coreFeatureId": "core_feature_1",
+      "coreFeatureName": "핵심 기능명",
+      "name": "세부 기능명 (예: 로그인 페이지, 사용자 인증 API, 프로젝트 관리 API 등)",
+      "type": "page|api|component|infrastructure",
       "description": "간단한 설명 (1-2문장)",
       "expectedLocation": "예상 위치 (페이지: 경로, API: 엔드포인트 그룹)"
     }}
@@ -176,15 +222,14 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 }}
 
 ⚠️ **매우 중요**: 
-- 기능을 **포괄적으로** 나열하세요 (세부 기능이 아닌 주요 기능 그룹).
+- **각 핵심 기능별로** 필요한 세부 기능들을 나열하세요.
+- 각 세부 기능은 반드시 **coreFeatureId**와 **coreFeatureName**을 포함해야 합니다.
 - 반드시 **페이지, API, 컴포넌트, 인프라** 4가지 분류로 나누어 나열하세요.
-- **핵심 기능 위주로 분석하세요**: 사용자 인증, 프로젝트 관리, Task 관리, AI 기능, GitHub 연동 등은 핵심 기능입니다.
-- **사소한 기능은 가중치를 낮게**: 프로필 변경, 설정 페이지, UI 개선 등은 사소한 기능으로 분류하세요.
 - 페이지는 경로만, API는 엔드포인트 그룹으로 나열하세요.
 - 컴포넌트는 재사용 가능한 UI 컴포넌트만 나열하세요.
 - 인프라 기능은 데이터베이스, 인증, 파일 업로드 등 백엔드 인프라 기능을 나열하세요.
-- 최소 20개 이상의 기능을 나열하세요 (페이지 10개 이상, API 5개 이상, 컴포넌트 3개 이상, 인프라 2개 이상).
-- 핵심 기능과 사소한 기능을 구분하여 나열하세요."""
+- 각 핵심 기능당 최소 3-5개의 세부 기능을 나열하세요.
+- 핵심 기능에 속하지 않는 사소한 기능(프로필 변경, 설정 페이지 등)은 별도로 나열하되, 가중치는 낮게 설정하세요."""
     
     elif step_number == 3:
         # 3단계: 정보 추출 (소스코드에서 구현된 기능 확인)
@@ -204,8 +249,8 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 
 {files_section}
 
-## 3단계 작업: 구현된 기능 확인
-위에서 읽은 파일 내용을 **반드시 활용하여** 실제 소스코드에서 확인된 기능을 찾으세요.
+## 3단계 작업: 구현된 기능 확인 및 핵심 기능별 진행도 계산
+위에서 읽은 파일 내용을 **반드시 활용하여** 실제 소스코드에서 확인된 기능을 찾고, **각 핵심 기능별로 진행도를 계산**하세요.
 
 **⚠️ 매우 중요: 판단 과정을 단계별로 명확히 수행하세요.**
 
@@ -214,15 +259,21 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 - 각 파일에서 어떤 기능이 구현되어 있는지 **구체적으로 파악**하세요.
 - 예: routes/user.js 파일을 읽었다면, 그 안의 모든 엔드포인트(/api/user/login, /api/user/register 등)를 찾아서 나열하세요.
 
-### 2단계: 기능 분류
+### 2단계: 기능 분류 및 핵심 기능 매핑
 - 찾은 기능을 **페이지, API, 컴포넌트, 인프라** 4가지로 분류하세요.
+- 각 기능이 **어떤 핵심 기능에 속하는지** 매핑하세요 (coreFeatureId 사용).
 - API의 경우, 비슷한 엔드포인트끼리 묶어서 그룹화하세요.
-- 예: /api/user/login, /api/user/register, /api/user/logout → "사용자 인증 API" 그룹
+- 예: /api/user/login, /api/user/register, /api/user/logout → "사용자 인증 API" 그룹 → coreFeatureId: "auth"
 
-### 3단계: 카운트 확인
-- 각 분류별로 몇 개의 기능이 있는지 **정확히 세세요**.
-- 중복되지 않도록 주의하세요.
-- 예: "사용자 인증 API" 그룹은 1개로 카운트하되, 개별 엔드포인트는 location에 모두 나열하세요.
+### 3단계: 핵심 기능별 진행도 계산
+- 각 핵심 기능에 대해:
+  - 필요한 세부 기능 수 (2단계에서 정의한 것)
+  - 구현된 세부 기능 수 (실제로 확인된 것)
+  - 진행도 = (구현된 세부 기능 수 / 필요한 세부 기능 수) × 100
+- 예: "사용자 인증" 핵심 기능의 경우
+  - 필요한 세부 기능: 5개 (로그인 페이지, 회원가입 페이지, 로그인 API, 회원가입 API, JWT 미들웨어)
+  - 구현된 세부 기능: 4개 (로그인 페이지, 회원가입 페이지, 로그인 API, 회원가입 API)
+  - 진행도: (4 / 5) × 100 = 80%
 
 **중요**: 읽은 파일에서 **가능한 대부분의 기능을 확인**하세요. 일부만 확인하지 말고 모든 기능을 찾아보세요.
 
@@ -263,10 +314,21 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
   "step": 3,
   "implementedFeatures": [
     {{
+      "coreFeatureId": "core_feature_1",
+      "coreFeatureName": "핵심 기능명",
       "name": "기능명 (API는 그룹명, 예: 사용자 인증 API, 프로젝트 관리 API 등)",
       "type": "page|api|component|infrastructure",
       "location": "페이지: /경로/경로/.jsx 또는 API: /엔드포인트, /엔드포인트, /엔드포인트 (모든 관련 엔드포인트 나열) 또는 컴포넌트: /경로/경로/.jsx 또는 인프라: /위치",
       "filePath": "주요 파일 경로 (1-2개)"
+    }}
+  ],
+  "coreFeatureProgress": [
+    {{
+      "coreFeatureId": "core_feature_1",
+      "coreFeatureName": "핵심 기능명",
+      "requiredCount": 5,
+      "implementedCount": 4,
+      "progress": 80.0
     }}
   ],
   "nextStep": "다음 단계(4단계)에서는 미구현 기능을 분석하겠습니다."

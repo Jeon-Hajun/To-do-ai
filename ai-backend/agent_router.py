@@ -305,12 +305,33 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             required_features = step2_result.get('requiredFeatures', [])
             implemented_features = step3_result.get('implementedFeatures', [])
             missing_features = step4_result.get('missingFeatures', []) if step4_result else []
+            core_features = step1_result.get('coreFeatures', [])
+            core_feature_progress = step3_result.get('coreFeatureProgress', [])
             
-            # 진행도 계산
-            total_required = len(required_features)
-            total_implemented = len(implemented_features)
-            total_missing = len(missing_features)
-            progress = round((total_implemented / total_required * 100) if total_required > 0 else 0, 1)
+            # 진행도 계산: 핵심 기능별 진행도를 가중 평균으로 계산
+            if core_feature_progress and core_features:
+                # 각 핵심 기능의 weight를 가져와서 가중 평균 계산
+                total_weighted_progress = 0
+                total_weight = 0
+                for cf_progress in core_feature_progress:
+                    cf_id = cf_progress.get('coreFeatureId', '')
+                    # 해당 핵심 기능의 weight 찾기
+                    cf_weight = 1.0
+                    for cf in core_features:
+                        if cf.get('id', '') == cf_id:
+                            cf_weight = cf.get('weight', 1.0)
+                            break
+                    progress_value = cf_progress.get('progress', 0)
+                    total_weighted_progress += progress_value * cf_weight
+                    total_weight += cf_weight
+                
+                progress = round((total_weighted_progress / total_weight) if total_weight > 0 else 0, 1)
+            else:
+                # 기존 방식: 전체 기능 수로 계산
+                total_required = len(required_features)
+                total_implemented = len(implemented_features)
+                total_missing = len(missing_features)
+                progress = round((total_implemented / total_required * 100) if total_required > 0 else 0, 1)
             
             # 구현된 기능 목록 생성 (페이지, API, 컴포넌트, 인프라로 분류)
             # 프로젝트 특성에 따라 유동적으로 소제목 생성
