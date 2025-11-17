@@ -298,6 +298,7 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
         # README 파일 읽기 (GitHub 연결 시)
         read_files_step1 = []
         if has_github:
+            step1_readme_start = time.time()
             readme_files = ["README.md", "README.txt", "readme.md", "README", "readme"]
             for readme_file in readme_files:
                 try:
@@ -313,6 +314,8 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
                     continue
             step1_readme_elapsed = time.time() - step1_readme_start
             print(f"[Agent Router] Task 제안 - 1단계 README 읽기 소요 시간: {step1_readme_elapsed:.2f}초")
+        else:
+            print(f"[Agent Router] Task 제안 - 1단계 README 읽기 건너뜀 (GitHub 미연결)")
         
         # 1단계 프롬프트 생성 및 LLM 호출
         step1_llm_start = time.time()
