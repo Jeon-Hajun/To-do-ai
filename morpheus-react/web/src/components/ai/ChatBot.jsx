@@ -511,68 +511,13 @@ export default function ChatBot({ projectId, onError }) {
                   p: 3,
                 }}
               >
-<<<<<<< HEAD
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: "bold", fontSize: { xs: "1rem", md: "1.25rem" } }}>
+                <Typography variant="h6" sx={{ mb: 3, fontWeight: "bold", fontSize: { xs: "1rem", md: "1.25rem" } }}>
                   안녕하세요! 프로젝트 관리 AI 어시스턴트입니다.
                 </Typography>
                 <Typography variant="body2" sx={{ mb: 3, textAlign: "center", fontSize: { xs: "0.8rem", md: "0.875rem" } }}>
-                  다음과 같은 기능을 사용할 수 있습니다:
-                </Typography>
-                <Box sx={{ width: "100%", maxWidth: { xs: "100%", md: 500 } }}>
-                  <Stack spacing={1}>
-                    <Paper sx={{ p: { xs: 1, md: 1.5 }, bgcolor: "background.paper" }}>
-                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5, fontSize: { xs: "0.8rem", md: "0.875rem" } }}>
-                        📊 프로젝트 진행도 분석
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.7rem", md: "0.75rem" } }}>
-                        "진행도 알려줘", "프로젝트 상태 분석해줘"
-                      </Typography>
-                    </Paper>
-                    <Paper sx={{ p: { xs: 1, md: 1.5 }, bgcolor: "background.paper" }}>
-                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5, fontSize: { xs: "0.8rem", md: "0.875rem" } }}>
-                        💡 Task 제안
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.7rem", md: "0.75rem" } }}>
-                        "할 일 추천해줘", "새로운 작업 제안해줘"
-                      </Typography>
-                    </Paper>
-                    <Paper sx={{ p: { xs: 1, md: 1.5 }, bgcolor: "background.paper" }}>
-                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5, fontSize: { xs: "0.8rem", md: "0.875rem" } }}>
-                        ✅ Task 완료 확인
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.7rem", md: "0.75rem" } }}>
-                        "이 작업 완료됐어?", "Task 완료 확인해줘"
-                      </Typography>
-                    </Paper>
-                    <Paper sx={{ p: { xs: 1, md: 1.5 }, bgcolor: "background.paper" }}>
-                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5, fontSize: { xs: "0.8rem", md: "0.875rem" } }}>
-                        📝 프로젝트 정보 질문
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.7rem", md: "0.75rem" } }}>
-                        "커밋 몇 개야?", "프로젝트 설명해줘", "작업 몇 개 있어?"
-                      </Typography>
-                    </Paper>
-                    <Paper sx={{ p: { xs: 1, md: 1.5 }, bgcolor: "background.paper" }}>
-                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5, fontSize: { xs: "0.8rem", md: "0.875rem" } }}>
-                        👤 Task 할당 추천
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.7rem", md: "0.75rem" } }}>
-                        "이 Task를 누구에게 할당하면 좋을까?", "Task 할당 추천해줘"
-                      </Typography>
-                    </Paper>
-                  </Stack>
-                </Box>
-                <Typography variant="body2" sx={{ mt: 3, color: "text.secondary", fontSize: { xs: "0.8rem", md: "0.875rem" } }}>
-                  위의 예시처럼 질문을 입력해주세요!
-                </Typography>
-=======
-                <Typography variant="h6" sx={{ mb: 3, fontWeight: "bold" }}>
-                  안녕하세요! 프로젝트 관리 AI 어시스턴트입니다.
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 3, textAlign: "center" }}>
                   아래 버튼을 클릭하여 바로 질문하거나, 직접 입력할 수 있습니다:
                 </Typography>
-                <Box sx={{ width: "100%", maxWidth: 600 }}>
+                <Box sx={{ width: "100%", maxWidth: { xs: "100%", md: 600 } }}>
                   <Stack spacing={1.5} direction="row" flexWrap="wrap" justifyContent="center" useFlexGap>
                     {suggestionButtons.map((btn, index) => (
                       <Button
@@ -582,9 +527,10 @@ export default function ChatBot({ projectId, onError }) {
                         disabled={loading || !projectId || loadingHistory}
                         sx={{
                           borderRadius: 3,
-                          px: 2,
-                          py: 1,
+                          px: { xs: 1.5, md: 2 },
+                          py: { xs: 0.75, md: 1 },
                           textTransform: "none",
+                          fontSize: { xs: "0.75rem", md: "0.875rem" },
                           borderColor: "primary.main",
                           color: "primary.main",
                           "&:hover": {
@@ -600,7 +546,6 @@ export default function ChatBot({ projectId, onError }) {
                     ))}
                   </Stack>
                 </Box>
->>>>>>> 0f768b85d4e9a12fa0499d3f0708405ee28ab0a0
               </Box>
             )}
 
@@ -623,26 +568,21 @@ export default function ChatBot({ projectId, onError }) {
                   opacity: message.isProgress ? 0.8 : 1,
                 }}
               >
-<<<<<<< HEAD
-                <Typography variant="body1" sx={{ fontSize: { xs: "0.875rem", md: "1rem" } }}>{message.content}</Typography>
-                {message.agentType && (
-=======
                 {message.isProgress ? (
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <CircularProgress size={16} />
-                    <Typography variant="body2">{message.content}</Typography>
+                    <Typography variant="body2" sx={{ fontSize: { xs: "0.8rem", md: "0.875rem" } }}>{message.content}</Typography>
                   </Box>
                 ) : (message.agentType === "progress_analysis_agent" || 
                       message.agentType === "progress_analysis" ||
                       (message.response && message.response.type === "progress_analysis")) ? (
                   <MarkdownRenderer content={message.content} />
                 ) : (
-                  <Typography variant="body1" component="div">
+                  <Typography variant="body1" component="div" sx={{ fontSize: { xs: "0.875rem", md: "1rem" } }}>
                     {message.content}
                   </Typography>
                 )}
                 {message.agentType && !message.isProgress && (
->>>>>>> 0f768b85d4e9a12fa0499d3f0708405ee28ab0a0
                   <Chip
                     label={message.agentType.replace("_agent", "")}
                     size="small"
