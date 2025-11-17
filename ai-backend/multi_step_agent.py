@@ -460,6 +460,13 @@ def execute_multi_step_agent(
                     progress_messages.append("✅ 4단계 완료: 미구현 기능 분석 완료")
                 elif step_number == 5:
                     progress_messages.append("✅ 5단계 완료: 평가 및 진행도 계산 완료")
+            elif agent_type == "task_completion_agent":
+                if step_number == 1:
+                    progress_messages.append("✅ 1단계 완료: Task 요구사항 분석 완료")
+                elif step_number == 2:
+                    progress_messages.append("✅ 2단계 완료: 코드 변경사항 분석 완료")
+                elif step_number == 3:
+                    progress_messages.append("✅ 3단계 완료: Task 완료 여부 판단 완료")
             
             print(f"[Multi-Step Agent] {agent_type} - 단계 {step_number} 완료")
             
