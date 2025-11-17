@@ -317,6 +317,31 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 ## 4단계 작업: 미구현 기능 분석
 필요한 기능 목록과 구현된 기능 목록을 **정확히** 비교하여, 아직 구현되지 않은 기능을 찾으세요.
 
+**⚠️ 매우 중요: 판단 과정을 단계별로 명확히 수행하세요.**
+
+### 1단계: 필요한 기능 목록 확인
+- 2단계에서 나열한 "필요한 기능" 목록을 **하나씩 확인**하세요.
+- 각 기능이 무엇인지 명확히 이해하세요.
+
+### 2단계: 구현 여부 확인
+- 각 "필요한 기능"이 "구현된 기능" 목록에 있는지 **하나씩 확인**하세요.
+- API의 경우:
+  - API 그룹명을 확인하세요 (예: "프로젝트 관리 API")
+  - 해당 그룹의 location에 개별 엔드포인트가 나열되어 있습니다.
+  - 예: "프로젝트 관리 API"의 location에 /api/project/create가 있다면, "프로젝트 생성" 기능은 이미 구현된 것입니다.
+- 페이지/컴포넌트의 경우:
+  - 기능명과 파일 경로를 확인하세요.
+  - 읽은 파일 목록에 해당 파일이 있다면 구현된 것입니다.
+
+### 3단계: 미구현 기능 선별
+- 2단계에서 "구현되지 않음"으로 확인된 기능만 "미구현 기능" 목록에 추가하세요.
+- **이미 구현된 기능을 미구현으로 분류하지 마세요.**
+- 각 미구현 기능에 대해 왜 필요한지, 어디에 있어야 하는지 명시하세요.
+
+### 4단계: 카운트 검증
+- 필요한 기능 수 = 구현된 기능 수 + 미구현 기능 수
+- 이 공식이 맞는지 확인하세요. 불일치한다면 다시 확인하세요.
+
 **매우 중요:**
 - 구현된 기능 목록을 **자세히 확인**하세요. API 그룹에 포함된 개별 엔드포인트도 확인하세요.
 - 예를 들어, "프로젝트 관리 API"에 /api/project/create가 포함되어 있다면, "프로젝트 생성" 기능은 이미 구현된 것입니다.
@@ -378,39 +403,66 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
         
         prompt = f"""진행도 분석 **5단계: 평가 및 진행도 계산**입니다.
 
-## 이전 단계 결과:
+## 이전 단계 결과 요약:
 
 ### 1단계: 프로젝트 분석
 프로젝트 이름: {project_name}
 프로젝트 설명: {project_desc[:200]}...
 
 ### 2단계: 필요한 기능 분석
-필요한 기능 수: {total_required}개
+필요한 기능 목록:
+{json.dumps(required_features, ensure_ascii=False, indent=2)[:1500]}
+**총 필요한 기능 수: {total_required}개**
 
 ### 3단계: 구현된 기능 확인
-구현된 기능 수: {total_implemented}개
+구현된 기능 목록:
+{json.dumps(implemented_features, ensure_ascii=False, indent=2)[:2000]}
+**총 구현된 기능 수: {total_implemented}개**
 
 ### 4단계: 미구현 기능 분석
-미구현 기능 수: {total_missing}개
+미구현 기능 목록:
+{json.dumps(missing_features, ensure_ascii=False, indent=2)[:1000]}
+**총 미구현 기능 수: {total_missing}개**
 
-## 5단계 작업: 평가 및 진행도 계산
-위 분석 결과를 바탕으로 최종 평가를 작성하세요.
+## 5단계 작업: 정확한 평가 및 진행도 계산
+
+**⚠️ 매우 중요: 판단 과정을 단계별로 명확히 수행하세요.**
+
+### 1단계: 기능 카운트 검증
+- 필요한 기능 수: {total_required}개
+- 구현된 기능 수: {total_implemented}개
+- 미구현 기능 수: {total_missing}개
+- **검증**: 구현된 기능 수 + 미구현 기능 수 = 필요한 기능 수가 되어야 합니다.
+- 만약 불일치한다면, 2단계와 3단계 결과를 다시 확인하여 누락된 기능이 있는지 확인하세요.
+
+### 2단계: 구현 여부 재확인
+- 각 "필요한 기능"이 "구현된 기능" 목록에 있는지 **하나씩 확인**하세요.
+- API의 경우, API 그룹명뿐만 아니라 개별 엔드포인트도 확인하세요.
+- 예: "프로젝트 생성" 기능이 필요하다면, "프로젝트 관리 API"에 /api/project/create가 포함되어 있는지 확인하세요.
+- 읽은 파일 내용을 참고하여 실제로 구현되어 있는지 검증하세요.
+
+### 3단계: 진행도 계산
+- **정확한 계산식**: (구현된 기능 수 / 필요한 기능 수) × 100
+- 계산: ({total_implemented} / {total_required}) × 100 = {progress}%
+- **이 값이 최종 진행도입니다.**
+
+### 4단계: 가중치 적용 (선택사항)
+- 핵심 기능과 사소한 기능을 구분하여 가중치를 적용할 수 있습니다.
+- 하지만 기본 진행도는 위 계산식에 따릅니다.
 
 **중요 체크사항:**
 - 구현된 API가 필요한 모든 API를 포함하는지 확인하세요.
 - 읽은 파일에서 확인된 API 엔드포인트가 필요한 기능 목록과 일치하는지 검증하세요.
 - 누락된 API가 있는지 확인하세요.
 
-**진행도 계산 시 가중치 적용:**
-- **핵심 기능** (사용자 인증, 프로젝트 관리, Task 관리, AI 기능, GitHub 연동 등): 높은 가중치
-- **사소한 기능** (프로필 변경, 설정 페이지, UI 개선 등): 낮은 가중치
-- 진행도 계산 시 핵심 기능의 구현 여부를 더 중요하게 평가하세요.
-
 다음 JSON 형식으로만 응답하세요:
 {{
   "step": 5,
   "currentProgress": {progress},
-  "narrativeResponse": "{project_desc}\\n\\n### 구현된 기능\\n{chr(10).join(implemented_list) if implemented_list else '없음'}\\n\\n### 미구현 기능\\n{chr(10).join(missing_list) if missing_list else '없음'}\\n\\n### 평가\\n**진행도**: {progress}%\\n\\n**예상 완성일**: [현재 진행 속도를 고려한 예상 완성일 또는 '미정']\\n\\n**총평**: [프로젝트의 현재 상태를 2-3줄로 요약한 총평. 핵심 기능 구현 상태, 주요 미구현 기능, 전체적인 프로젝트 상태를 간결하게 설명]",
+  "completedFeaturesCount": {total_implemented},
+  "requiredFeaturesCount": {total_required},
+  "missingFeaturesCount": {total_missing},
+  "narrativeResponse": "{project_desc}\\n\\n### 구현된 기능\\n{chr(10).join(implemented_list) if implemented_list else '없음'}\\n\\n### 미구현 기능\\n{chr(10).join(missing_list) if missing_list else '없음'}\\n\\n### 평가\\n완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개로 진행도 {progress}%입니다.\\n\\n**예상 완성일**: [현재 진행 속도를 고려한 예상 완성일 또는 '미정']\\n\\n**총평**: [프로젝트의 현재 상태를 2-3줄로 요약한 총평. 핵심 기능 구현 상태, 주요 미구현 기능, 전체적인 프로젝트 상태를 간결하게 설명]",
   "activityTrend": "increasing|stable|decreasing",
   "delayRisk": "Low|Medium|High",
   "estimatedCompletionDate": "YYYY-MM-DD 또는 null",
@@ -419,8 +471,9 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 }}
 
 ⚠️ **매우 중요**: 
-- narrativeResponse는 위에서 지정한 정확한 형식으로 작성하세요.
+- narrativeResponse의 평가 섹션은 반드시 "완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개로 진행도 {progress}%입니다." 형식으로 작성하세요.
 - currentProgress는 반드시 {progress}와 일치해야 합니다 (계산: {total_implemented}/{total_required}×100).
+- completedFeaturesCount, requiredFeaturesCount, missingFeaturesCount를 정확히 입력하세요.
 - 총평은 2-3줄로 간결하게 작성하세요.
 - API 완전성을 체크하여 누락된 API가 있는지 확인하세요."""
     

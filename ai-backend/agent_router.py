@@ -382,6 +382,7 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             
             implemented_section = "\n\n".join(sections) if sections else "없음"
             
+            # 평가 섹션을 "완성된 기능 n개, 구현해야 할 기능 n개로 진행도 %입니다" 형식으로 변경
             narrative_response = f"""{project_desc}
 
 ### 구현된 기능
@@ -392,7 +393,7 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
 {chr(10).join(missing_list) if missing_list else "없음"}
 
 ### 평가
-**진행도**: {progress}%
+완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개로 진행도 {progress}%입니다.
 
 **예상 완성일**: {estimated_date}
 
