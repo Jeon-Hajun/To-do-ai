@@ -312,18 +312,28 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             total_missing = len(missing_features)
             progress = round((total_implemented / total_required * 100) if total_required > 0 else 0, 1)
             
-            # 구현된 기능 목록 생성 (간단하게)
-            implemented_list = []
+            # 구현된 기능 목록 생성 (페이지, API, 컴포넌트, 인프라로 분류)
+            pages_list = []
+            apis_list = []
+            components_list = []
+            infrastructure_list = []
+            
             for feat in implemented_features:
                 name = feat.get('name', '')
                 feat_type = feat.get('type', 'other')
                 location = feat.get('location', feat.get('filePath', ''))
+                
                 if feat_type == 'page':
-                    implemented_list.append(f"- **{name}** {location}")
+                    pages_list.append(f"- **{name}** {location}")
                 elif feat_type == 'api':
-                    implemented_list.append(f"- **{name}** {location}")
+                    apis_list.append(f"- **{name}** {location}")
+                elif feat_type == 'component':
+                    components_list.append(f"- **{name}** {location}")
+                elif feat_type == 'infrastructure':
+                    infrastructure_list.append(f"- **{name}** {location}")
                 else:
-                    implemented_list.append(f"- **{name}** {location}")
+                    # 기타는 인프라로 분류
+                    infrastructure_list.append(f"- **{name}** {location}")
             
             # 미구현 기능 목록 생성 (간단하게)
             missing_list = []
@@ -352,7 +362,7 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
                 total_evaluation += f"주요 미구현 기능으로는 {missing_names} 등이 있으며, "
             total_evaluation += f"{'안정적으로 진행 중' if progress >= 70 else '추가 개발이 필요' if progress >= 40 else '초기 단계'}입니다."
             
-            # narrativeResponse 생성
+            # narrativeResponse 생성 (페이지, API, 컴포넌트, 인프라로 구분)
             narrative_response = f"""# 프로젝트 이름
 {project_name}
 
@@ -360,7 +370,18 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
 {project_desc}
 
 ### 구현된 기능
-{chr(10).join(implemented_list) if implemented_list else "없음"}
+
+#### 페이지
+{chr(10).join(pages_list) if pages_list else "없음"}
+
+#### API
+{chr(10).join(apis_list) if apis_list else "없음"}
+
+#### 컴포넌트
+{chr(10).join(components_list) if components_list else "없음"}
+
+#### 인프라
+{chr(10).join(infrastructure_list) if infrastructure_list else "없음"}
 
 ### 미구현 기능
 {chr(10).join(missing_list) if missing_list else "없음"}

@@ -154,10 +154,11 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 ## 2단계 작업: 필요한 기능 분석
 이전 단계에서 파악한 프로젝트 정보를 바탕으로, 이 프로젝트에 있어야 할 주요 기능을 **포괄적으로** 나열하세요.
 
-**기능 분류:**
-- **페이지**: 각 페이지 경로 (예: 로그인 페이지, 프로젝트 목록 페이지 등)
-- **API**: 포괄적인 API 그룹 (예: 사용자 인증 API, 프로젝트 관리 API, Task 관리 API 등)
-- **기타**: 기타 주요 기능 (예: 데이터베이스 연결, 파일 업로드 등)
+**기능 분류 (반드시 다음 4가지로 분류):**
+- **페이지**: 각 페이지 경로 (예: 로그인 페이지, 프로젝트 목록 페이지, AI 어드바이저 페이지 등)
+- **API**: 포괄적인 API 그룹 (예: 사용자 인증 API, 프로젝트 관리 API, Task 관리 API, GitHub 연동 API, AI API 등)
+- **컴포넌트**: 재사용 가능한 UI 컴포넌트 (예: Task 카드 컴포넌트, 프로젝트 카드 컴포넌트, GitHub 커밋 리스트 컴포넌트 등)
+- **인프라**: 인프라 및 백엔드 기능 (예: 데이터베이스 연결, JWT 인증 미들웨어, 파일 업로드, CORS 설정 등)
 
 다음 JSON 형식으로만 응답하세요:
 {{
@@ -173,10 +174,13 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
   "nextStep": "다음 단계(3단계)에서는 소스코드를 확인하여 실제로 구현된 기능을 찾겠습니다."
 }}
 
-⚠️ **중요**: 
+⚠️ **매우 중요**: 
 - 기능을 **포괄적으로** 나열하세요 (세부 기능이 아닌 주요 기능 그룹).
+- 반드시 **페이지, API, 컴포넌트, 인프라** 4가지 분류로 나누어 나열하세요.
 - 페이지는 경로만, API는 엔드포인트 그룹으로 나열하세요.
-- 최소 8개 이상의 기능을 나열하세요."""
+- 컴포넌트는 재사용 가능한 UI 컴포넌트만 나열하세요.
+- 인프라 기능은 데이터베이스, 인증, 파일 업로드 등 백엔드 인프라 기능을 나열하세요.
+- 최소 20개 이상의 기능을 나열하세요 (페이지 10개 이상, API 5개 이상, 컴포넌트 3개 이상, 인프라 2개 이상)."""
     
     elif step_number == 3:
         # 3단계: 정보 추출 (소스코드에서 구현된 기능 확인)
@@ -199,10 +203,24 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 ## 3단계 작업: 구현된 기능 확인
 위에서 읽은 파일 내용을 **반드시 활용하여** 실제 소스코드에서 확인된 기능을 찾으세요.
 
-**표시 형식:**
+**중요**: 읽은 파일에서 **가능한 대부분의 기능을 확인**하세요. 일부만 확인하지 말고 모든 기능을 찾아보세요.
+
+**표시 형식 (4가지 분류로 나누어 표시):**
 - **페이지**: `페이지명 /경로/경로/.jsx` (예: 로그인 페이지 /src/pages/Login.jsx)
-- **API**: `API 그룹명 /포괄적 엔드포인트, 나열` (예: 사용자 인증 API /api/user/login, /api/user/logout, /api/user/register)
-- **기타**: `기능명 /위치` (예: 데이터베이스 연결 /database/db.js)
+  - 읽은 페이지 파일들에서 각 페이지의 역할과 경로를 확인하세요.
+- **API**: 비슷한 API끼리 묶어서 그룹화하여 표시
+  - 예: **사용자 인증 API** /api/user/login, /api/user/logout, /api/user/register, /api/user/signup, /api/user/me
+  - 예: **프로젝트 관리 API** /api/project/create, /api/project/update, /api/project/delete, /api/project/info, /api/project/list, /api/project/members
+  - 예: **Task 관리 API** /api/task/create, /api/task/update, /api/task/delete, /api/task/info, /api/task/assign, /api/task/status
+  - 예: **GitHub 연동 API** /api/github/sync/:projectId, /api/github/commits/:projectId, /api/github/issues/:projectId, /api/github/branches/:projectId
+  - 예: **AI API** /api/ai/chat, /api/ai/task-suggestion, /api/ai/progress-analysis, /api/ai/task-completion-check
+  - 예: **진행도 조회 API** /api/progress/project/:projectId
+  - 읽은 라우트 파일들에서 **모든 엔드포인트를 찾아서** 비슷한 것끼리 묶어서 그룹화하세요.
+- **컴포넌트**: `컴포넌트명 /경로/경로/.jsx` (예: Task 카드 컴포넌트 /src/components/tasks/TaskCard.jsx)
+  - 읽은 컴포넌트 파일들에서 재사용 가능한 UI 컴포넌트를 확인하세요.
+  - 예: ChatBot 컴포넌트, TaskView 컴포넌트, ProjectCard 컴포넌트, GitHub CommitList 컴포넌트 등
+- **인프라**: `기능명 /위치` (예: 데이터베이스 연결 /database/db.js, JWT 인증 미들웨어 /middleware/auth.js)
+  - 데이터베이스 연결, 인증 미들웨어, 파일 업로드, CORS 설정 등 백엔드 인프라 기능을 확인하세요.
 
 읽은 파일에서 실제로 확인된 것만 나열하세요. 추측하지 마세요.
 
@@ -211,18 +229,23 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
   "step": 3,
   "implementedFeatures": [
     {{
-      "name": "기능명",
-      "type": "page|api|other",
-      "location": "페이지: /경로/경로/.jsx 또는 API: /엔드포인트, /엔드포인트 나열",
+      "name": "기능명 (API는 그룹명, 예: 사용자 인증 API, 프로젝트 관리 API 등)",
+      "type": "page|api|component|infrastructure",
+      "location": "페이지: /경로/경로/.jsx 또는 API: /엔드포인트, /엔드포인트, /엔드포인트 (모든 관련 엔드포인트 나열) 또는 컴포넌트: /경로/경로/.jsx 또는 인프라: /위치",
       "filePath": "주요 파일 경로 (1-2개)"
     }}
   ],
   "nextStep": "다음 단계(4단계)에서는 미구현 기능을 분석하겠습니다."
 }}
 
-⚠️ **중요**: 
+⚠️ **매우 중요**: 
 - 읽은 파일 내용을 무시하지 말고, 실제로 파일에서 확인된 기능만 나열하세요.
+- **반드시 페이지, API, 컴포넌트, 인프라 4가지 분류로 나누어 나열하세요.**
+- **API는 가능한 대부분의 엔드포인트를 찾아서 비슷한 것끼리 묶어서 그룹화하세요.**
+- 예를 들어, routes/user.js 파일을 읽었다면 그 안의 모든 엔드포인트를 찾아서 "사용자 인증 API" 그룹으로 묶으세요.
 - 페이지는 경로만, API는 엔드포인트를 포괄적으로 나열하세요.
+- 컴포넌트는 재사용 가능한 UI 컴포넌트만 나열하세요.
+- 인프라는 데이터베이스, 인증, 파일 업로드 등 백엔드 인프라 기능만 나열하세요.
 - 세부 설명은 생략하고 위치만 명시하세요."""
     
     elif step_number == 4:

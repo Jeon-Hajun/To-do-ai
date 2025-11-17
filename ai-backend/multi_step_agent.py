@@ -456,18 +456,64 @@ def execute_multi_step_agent(
                     # 3단계: 페이지 파일들을 대량으로 읽기
                     progress_messages.append("🔍 페이지 구조를 파악하기 위해 페이지 파일들을 찾는 중...")
                     
-                    # 주요 페이지 파일들
+                    # 모든 페이지 파일들 (18개)
                     pages = [
-                        "morpheus-react/web/src/pages/LoginPage.jsx", "morpheus-react/web/src/pages/ProjectPage.jsx",
-                        "morpheus-react/web/src/pages/AIadvisorPage.jsx", "morpheus-react/web/src/pages/HomePage.jsx",
-                        "morpheus-react/web/src/pages/ProjectDetailPage.jsx"
+                        "morpheus-react/web/src/pages/About.jsx",
+                        "morpheus-react/web/src/pages/AdminPage.jsx",
+                        "morpheus-react/web/src/pages/AIadvisorPage.jsx",
+                        "morpheus-react/web/src/pages/AINextStepPage.jsx",
+                        "morpheus-react/web/src/pages/AllProjectsPage.jsx",
+                        "morpheus-react/web/src/pages/CommitDetailPage.jsx",
+                        "morpheus-react/web/src/pages/Dashboard.jsx",
+                        "morpheus-react/web/src/pages/Home.jsx",
+                        "morpheus-react/web/src/pages/Login.jsx",
+                        "morpheus-react/web/src/pages/ManagerPage.jsx",
+                        "morpheus-react/web/src/pages/NotFound.jsx",
+                        "morpheus-react/web/src/pages/ProjectDetailPage.jsx",
+                        "morpheus-react/web/src/pages/ProjectPage.jsx",
+                        "morpheus-react/web/src/pages/SettingsPage.jsx",
+                        "morpheus-react/web/src/pages/SignupPage.jsx",
+                        "morpheus-react/web/src/pages/TaskDetailPage.jsx",
+                        "morpheus-react/web/src/pages/TaskListPage.jsx",
+                        "morpheus-react/web/src/pages/Unauthorized.jsx"
                     ]
                     
-                    # 컴포넌트 파일들
+                    # 주요 컴포넌트 파일들
                     components = [
+                        # AI 컴포넌트
                         "morpheus-react/web/src/components/ai/ChatBot.jsx",
+                        # Task 컴포넌트
                         "morpheus-react/web/src/components/tasks/TaskView.jsx",
-                        "morpheus-react/web/src/components/tasks/List.jsx"
+                        "morpheus-react/web/src/components/tasks/List.jsx",
+                        "morpheus-react/web/src/components/tasks/TaskManagement.jsx",
+                        "morpheus-react/web/src/components/tasks/TaskAdd.jsx",
+                        "morpheus-react/web/src/components/tasks/TaskEdit.jsx",
+                        "morpheus-react/web/src/components/tasks/TaskCard.jsx",
+                        # Project 컴포넌트
+                        "morpheus-react/web/src/components/projects/CreateProject.jsx",
+                        "morpheus-react/web/src/components/projects/ProjectDetailTabs.jsx",
+                        "morpheus-react/web/src/components/projects/ProjectProgressCard.jsx",
+                        "morpheus-react/web/src/components/projects/ProjectManager.jsx",
+                        "morpheus-react/web/src/components/projects/ProjectDetailCard.jsx",
+                        "morpheus-react/web/src/components/projects/MainProjectCard.jsx",
+                        "morpheus-react/web/src/components/projects/ProjectCard.jsx",
+                        "morpheus-react/web/src/components/projects/UpdateProject.jsx",
+                        "morpheus-react/web/src/components/projects/JoinProject.jsx",
+                        # GitHub 컴포넌트
+                        "morpheus-react/web/src/components/GitHub/ProjectGitHubTab.jsx",
+                        "morpheus-react/web/src/components/GitHub/IssueList.jsx",
+                        "morpheus-react/web/src/components/GitHub/DiffViewer.jsx",
+                        "morpheus-react/web/src/components/GitHub/CommitList.jsx",
+                        "morpheus-react/web/src/components/GitHub/CommitDetailModal.jsx",
+                        "morpheus-react/web/src/components/GitHub/BranchList.jsx",
+                        # Layout 컴포넌트
+                        "morpheus-react/web/src/components/layout/Layout.jsx",
+                        "morpheus-react/web/src/components/layout/NavBar.jsx",
+                        "morpheus-react/web/src/components/layout/Header.jsx",
+                        "morpheus-react/web/src/components/layout/CategoryBar.jsx",
+                        # 공통 컴포넌트
+                        "morpheus-react/web/src/components/common/MarkdownRenderer.jsx",
+                        "morpheus-react/web/src/components/EditProfileModal.jsx"
                     ]
                     
                     all_files_to_read = pages + components
