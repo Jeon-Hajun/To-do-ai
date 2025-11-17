@@ -49,17 +49,21 @@ def create_task_suggestion_initial_prompt(context, user_message, read_files, ana
         
         # 정보가 충분하지 않으면 질문 요청
         if not has_project_desc and not has_user_request and not has_tasks:
-            # 정보가 매우 부족한 경우 - 질문을 요청하는 응답
-            return """프로젝트에 대한 정보가 부족하여 Task를 제안하기 어렵습니다.
+            # 정보가 매우 부족한 경우 - 질문을 요청하는 프롬프트
+            return f"""프로젝트에 대한 정보가 부족하여 Task를 제안하기 어렵습니다.
 
-다음 정보를 제공해주시면 더 정확한 Task를 제안할 수 있습니다:
+현재 상황:
+- 프로젝트 설명: {'있음' if projectDescription else '없음'}
+- 사용자 요구사항: {'있음' if user_request else '없음'}
+- 기존 Task: {len(currentTasks)}개
+- GitHub 저장소: {'연결됨' if has_github else '연결 안 됨'}
+- 커밋 정보: {len(commits)}개
+- 이슈 정보: {len(issues)}개
 
-1. **프로젝트 설명**: 이 프로젝트는 무엇을 하는 프로젝트인가요? 핵심 기능은 무엇인가요?
-2. **현재 진행 상황**: 지금까지 어떤 기능이 구현되었나요?
-3. **다음 단계**: 앞으로 어떤 기능을 구현하고 싶으신가요?
+위 정보만으로는 Task를 제안하기에 충분하지 않습니다.
 
-다음 형식으로 응답하세요:
-{
+다음 형식의 JSON으로 응답하세요:
+{{
   "needsMoreInfo": true,
   "questions": [
     "프로젝트의 핵심 기능은 무엇인가요?",
@@ -67,7 +71,9 @@ def create_task_suggestion_initial_prompt(context, user_message, read_files, ana
     "다음으로 구현하고 싶은 기능은 무엇인가요?"
   ],
   "message": "프로젝트에 대한 정보가 부족합니다. 위 질문에 답변해주시면 더 정확한 Task를 제안할 수 있습니다."
-}"""
+}}
+
+⚠️ 중요: 반드시 위 JSON 형식으로만 응답하세요."""
         else:
             additional_instruction = f"""
 
