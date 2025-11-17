@@ -358,6 +358,11 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 - 읽은 파일에서 확인된 API 엔드포인트가 필요한 기능 목록과 일치하는지 검증하세요.
 - 누락된 API가 있는지 확인하세요.
 
+**진행도 계산 시 가중치 적용:**
+- **핵심 기능** (사용자 인증, 프로젝트 관리, Task 관리, AI 기능, GitHub 연동 등): 높은 가중치
+- **사소한 기능** (프로필 변경, 설정 페이지, UI 개선 등): 낮은 가중치
+- 진행도 계산 시 핵심 기능의 구현 여부를 더 중요하게 평가하세요.
+
 다음 JSON 형식으로만 응답하세요:
 {{
   "step": 5,
