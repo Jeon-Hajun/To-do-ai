@@ -1,6 +1,7 @@
 """
 Agent 라우터 시스템
 사용자 질의를 분석하여 적절한 AI agent를 선택하고 실행합니다.
+모든 에이전트는 다단계 분석을 지원합니다 (최대 10단계).
 """
 
 import json
@@ -11,6 +12,19 @@ from prompt_optimizer import (
     create_initial_completion_prompt,
     create_followup_completion_prompt,
     create_task_assignment_prompt
+)
+from multi_step_agent import execute_multi_step_agent
+from prompt_functions import (
+    create_task_suggestion_initial_prompt,
+    create_task_suggestion_followup_prompt,
+    create_progress_analysis_initial_prompt,
+    create_progress_analysis_followup_prompt,
+    create_task_completion_initial_prompt,
+    create_task_completion_followup_prompt,
+    create_general_qa_initial_prompt,
+    create_general_qa_followup_prompt,
+    create_task_assignment_initial_prompt,
+    create_task_assignment_followup_prompt
 )
 
 def classify_intent(user_message, conversation_history, call_llm_func, project_context=None):
@@ -68,6 +82,20 @@ def classify_intent(user_message, conversation_history, call_llm_func, project_c
             "extracted_info": {}
         }
 
+def check_github_required(agent_type):
+    """
+    에이전트 타입에 따라 GitHub 연동이 필요한지 확인
+    
+    Returns:
+        bool: GitHub 연동이 필요하면 True
+    """
+    github_required_agents = [
+        "task_suggestion_agent",
+        "progress_analysis_agent",
+        "task_completion_agent"
+    ]
+    return agent_type in github_required_agents
+
 def route_to_agent(agent_type, context, call_llm_func, user_message=None):
     """
     선택된 agent에 따라 적절한 프롬프트를 생성하고 실행합니다.
@@ -82,12 +110,31 @@ def route_to_agent(agent_type, context, call_llm_func, user_message=None):
         dict: agent 실행 결과
     """
     
+    # GitHub 연동 필요 여부 확인
+    if check_github_required(agent_type):
+        github_repo = context.get('githubRepo', '')
+        if not github_repo or github_repo.strip() == '':
+            agent_name = {
+                "task_suggestion_agent": "Task 제안",
+                "progress_analysis_agent": "진행도 분석",
+                "task_completion_agent": "Task 완료 확인"
+            }.get(agent_type, "이 기능")
+            
+            return {
+                "agent_type": agent_type,
+                "error": "GITHUB_REQUIRED",
+                "response": {
+                    "type": "error",
+                    "message": f"{agent_name} 기능을 사용하려면 GitHub 저장소가 연결되어 있어야 합니다. 프로젝트 설정에서 GitHub 저장소를 연결해주세요."
+                }
+            }
+    
     if agent_type == "task_suggestion_agent":
-        return execute_task_suggestion_agent(context, call_llm_func)
+        return execute_task_suggestion_agent(context, call_llm_func, user_message)
     elif agent_type == "progress_analysis_agent":
-        return execute_progress_analysis_agent(context, call_llm_func)
+        return execute_progress_analysis_agent(context, call_llm_func, user_message)
     elif agent_type == "task_completion_agent":
-        return execute_task_completion_agent(context, call_llm_func)
+        return execute_task_completion_agent(context, call_llm_func, user_message)
     elif agent_type == "task_assignment_agent":
         return execute_task_assignment_agent(context, call_llm_func, user_message)
     elif agent_type == "general_qa_agent":
@@ -98,31 +145,41 @@ def route_to_agent(agent_type, context, call_llm_func, user_message=None):
             "agent_type": agent_type
         }
 
-def execute_task_suggestion_agent(context, call_llm_func):
-    """Task 제안 agent 실행"""
-    commits = context.get('commits', [])
-    issues = context.get('issues', [])
-    currentTasks = context.get('currentTasks', [])
-    projectDescription = context.get('projectDescription', '')
-    githubRepo = context.get('githubRepo', '')
-    
-    prompt = create_optimized_task_suggestion_prompt(
-        commits, issues, currentTasks, projectDescription, githubRepo
-    )
-    system_prompt = "소프트웨어 엔지니어링 전문가. 코드 분석 후 Task 제안. 반드시 한국어로 응답. JSON만 응답."
-    
+def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
+    """Task 제안 agent 실행 (다단계 분석)"""
     try:
-        content = call_llm_func(prompt, system_prompt)
+        result = execute_multi_step_agent(
+            agent_type="task_suggestion_agent",
+            context=context,
+            call_llm_func=call_llm_func,
+            user_message=user_message,
+            initial_prompt_func=create_task_suggestion_initial_prompt,
+            followup_prompt_func=create_task_suggestion_followup_prompt,
+            system_prompt="소프트웨어 엔지니어링 전문가. 코드 분석 후 Task 제안. 반드시 한국어로 응답. JSON만 응답."
+        )
         
-        # JSON 파싱
-        if '```json' in content:
-            content = content.split('```json')[1].split('```')[0].strip()
-        elif '```' in content:
-            content = content.split('```')[1].split('```')[0].strip()
+        # 결과 처리
+        final_result = result.get('response', {})
+        if isinstance(final_result, dict) and 'suggestions' in final_result:
+            suggestions = final_result['suggestions']
+        elif isinstance(final_result, list):
+            suggestions = final_result
+        else:
+            # 마지막 단계 결과에서 suggestions 추출 시도
+            all_steps = result.get('all_steps', [])
+            if all_steps:
+                last_step = all_steps[-1]
+                if isinstance(last_step, list):
+                    suggestions = last_step
+                elif isinstance(last_step, dict) and 'suggestions' in last_step:
+                    suggestions = last_step['suggestions']
+                else:
+                    suggestions = []
+            else:
+                suggestions = []
         
-        suggestions = json.loads(content)
         if not isinstance(suggestions, list):
-            suggestions = [suggestions]
+            suggestions = [suggestions] if suggestions else []
         
         # 카테고리별 정렬
         category_order = {'security': 0, 'refactor': 1, 'feature': 2, 'performance': 3, 'maintenance': 4}
@@ -131,16 +188,60 @@ def execute_task_suggestion_agent(context, call_llm_func):
             {'High': 0, 'Medium': 1, 'Low': 2}.get(x.get('priority', 'Low'), 2)
         ))
         
+        # 상세 메시지 생성
+        message_parts = [
+            f"💡 **{len(suggestions)}개의 Task를 제안했습니다**",
+            f""
+        ]
+        
+        if suggestions:
+            # 카테고리별 그룹화
+            by_category = {}
+            for suggestion in suggestions:
+                category = suggestion.get('category', 'maintenance')
+                if category not in by_category:
+                    by_category[category] = []
+                by_category[category].append(suggestion)
+            
+            category_kr = {
+                'feature': '기능 추가',
+                'refactor': '리팩토링',
+                'security': '보안',
+                'performance': '성능',
+                'maintenance': '유지보수'
+            }
+            
+            for category, items in by_category.items():
+                message_parts.append(f"**{category_kr.get(category, category)}** ({len(items)}개):")
+                for i, item in enumerate(items[:3], 1):  # 카테고리당 최대 3개
+                    title = item.get('title', '제목 없음')
+                    priority = item.get('priority', 'Low')
+                    estimated_hours = item.get('estimatedHours', 0)
+                    message_parts.append(f"{i}. {title} (우선순위: {priority}, 예상 시간: {estimated_hours}시간)")
+                message_parts.append("")
+            
+            message_parts.append(f"💡 **팁**: 각 Task를 클릭하여 상세 정보를 확인하고 프로젝트에 추가할 수 있습니다.")
+        else:
+            message_parts.append("현재 프로젝트 상태를 분석한 결과, 추가로 제안할 Task가 없습니다.")
+            message_parts.append("프로젝트가 잘 관리되고 있습니다! 🎉")
+        
+        message = "\n".join(message_parts)
+        
         return {
             "agent_type": "task_suggestion_agent",
             "response": {
                 "type": "task_suggestions",
                 "suggestions": suggestions,
-                "message": f"{len(suggestions)}개의 Task를 제안했습니다."
-            }
+                "message": message
+            },
+            "analysis_steps": result.get('analysis_steps', 1),
+            "confidence": result.get('confidence', 'medium'),
+            "progress_messages": result.get('progress_messages', [])  # 진행 상황 메시지 추가
         }
     except Exception as e:
         print(f"[Agent Router] Task 제안 agent 실행 실패: {e}")
+        import traceback
+        print(traceback.format_exc())
         return {
             "agent_type": "task_suggestion_agent",
             "error": f"Task 제안 생성 실패: {str(e)}",
@@ -150,46 +251,327 @@ def execute_task_suggestion_agent(context, call_llm_func):
             }
         }
 
-def execute_progress_analysis_agent(context, call_llm_func):
-    """진행도 분석 agent 실행"""
-    commits = context.get('commits', [])
-    tasks = context.get('tasks', [])
-    projectDescription = context.get('projectDescription', '')
-    projectStartDate = context.get('projectStartDate', None)
-    projectDueDate = context.get('projectDueDate', None)
-    
-    prompt = create_optimized_progress_prompt(
-        commits, tasks, projectDescription, projectStartDate, projectDueDate
-    )
-    system_prompt = "프로젝트 관리 전문가. 진행도 분석 및 예측. 반드시 한국어로 응답. JSON만 응답."
-    
+def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
+    """진행도 분석 agent 실행 (다단계 분석)"""
     try:
-        content = call_llm_func(prompt, system_prompt)
+        # 진행도 분석용 LLM 호출 함수 (더 긴 응답을 위해 토큰 제한 증가)
+        # app.py에서 전달된 call_llm_func를 래핑하여 토큰 제한 증가
+        import os
+        USE_OPENAI = os.getenv('USE_OPENAI', 'false').lower() == 'true'
         
-        # JSON 파싱
-        if '```json' in content:
-            content = content.split('```json')[1].split('```')[0].strip()
-        elif '```' in content:
-            content = content.split('```')[1].split('```')[0].strip()
+        def call_llm_with_more_tokens(prompt, system_prompt):
+            # app.py의 함수를 직접 호출하기 위해 import
+            from app import call_openai, call_ollama
+            if USE_OPENAI:
+                return call_openai(prompt, system_prompt, max_tokens=3000)
+            else:
+                return call_ollama(prompt, system_prompt, max_tokens=3000)
         
-        content = content.strip()
-        if '{' in content:
-            content = content[content.find('{'):]
-        if '}' in content:
-            content = content[:content.rfind('}')+1]
+        result = execute_multi_step_agent(
+            agent_type="progress_analysis_agent",
+            context=context,
+            call_llm_func=call_llm_with_more_tokens,
+            user_message=user_message,
+            initial_prompt_func=create_progress_analysis_initial_prompt,
+            followup_prompt_func=create_progress_analysis_followup_prompt,
+            system_prompt="프로젝트 관리 전문가. 진행도 분석 및 예측. 반드시 한국어로 응답. JSON 형식으로 응답하되, narrativeResponse 필드에는 긴 문장 형태의 상세한 설명을 포함하세요."
+        )
         
-        analysis = json.loads(content)
+        # 결과 처리 - 단계별 결과를 합쳐서 최종 응답 생성
+        all_steps = result.get('all_steps', [])
         
-        # 사용자 친화적인 메시지 생성
-        progress = analysis.get('currentProgress', 0)
-        trend = analysis.get('activityTrend', 'stable')
-        trend_kr = {
-            'increasing': '증가 중',
-            'stable': '안정적',
-            'decreasing': '감소 중'
-        }.get(trend, trend)
+        # 각 단계의 결과 수집
+        step1_result = all_steps[0] if len(all_steps) > 0 else {}
+        step2_result = all_steps[1] if len(all_steps) > 1 else {}
+        step3_result = all_steps[2] if len(all_steps) > 2 else {}
+        step4_result = all_steps[3] if len(all_steps) > 3 else {}
+        step5_result = all_steps[4] if len(all_steps) > 4 else {}
         
-        message = f"현재 진행도는 {progress}%이며, 활동 추세는 {trend_kr}입니다."
+        # 최종 분석 결과 구성
+        analysis = step5_result if step5_result else (all_steps[-1] if all_steps else {})
+        
+        # 단계별 결과가 있으면 최종 narrativeResponse 생성
+        if step1_result and step2_result and step3_result:
+            # 프로젝트 이름과 설명을 실제 값으로 채우기
+            project_name = step1_result.get('projectName', '')
+            if not project_name or project_name == '프로젝트' or project_name.startswith('['):
+                # context에서 프로젝트 이름 가져오기
+                project_name = context.get('projectName', '프로젝트')
+            
+            project_desc = step1_result.get('projectDescription', '')
+            if not project_desc or project_desc.startswith('['):
+                # context에서 프로젝트 설명 가져오기
+                project_desc = context.get('projectDescription', '')
+            required_features = step2_result.get('requiredFeatures', [])
+            implemented_features = step3_result.get('implementedFeatures', [])
+            missing_features = step4_result.get('missingFeatures', []) if step4_result else []
+            core_features = step1_result.get('coreFeatures', [])
+            core_feature_progress = step3_result.get('coreFeatureProgress', [])
+            
+            # 진행도 계산: 핵심 기능별 진행도를 가중 평균으로 계산
+            if core_feature_progress and core_features:
+                # 각 핵심 기능의 weight를 가져와서 가중 평균 계산
+                total_weighted_progress = 0
+                total_weight = 0
+                for cf_progress in core_feature_progress:
+                    cf_id = cf_progress.get('coreFeatureId', '')
+                    # 해당 핵심 기능의 weight 찾기
+                    cf_weight = 1.0
+                    for cf in core_features:
+                        if cf.get('id', '') == cf_id:
+                            cf_weight = cf.get('weight', 1.0)
+                            break
+                    progress_value = cf_progress.get('progress', 0)
+                    total_weighted_progress += progress_value * cf_weight
+                    total_weight += cf_weight
+                
+                progress = round((total_weighted_progress / total_weight) if total_weight > 0 else 0, 1)
+            else:
+                # 기존 방식: 전체 기능 수로 계산
+                total_required = len(required_features)
+                total_implemented = len(implemented_features)
+                total_missing = len(missing_features)
+                progress = round((total_implemented / total_required * 100) if total_required > 0 else 0, 1)
+            
+            # 구현된 기능 목록 생성 (페이지, API, 컴포넌트, 인프라로 분류)
+            # 프로젝트 특성에 따라 유동적으로 소제목 생성
+            pages_list = []
+            apis_list = []
+            components_list = []
+            infrastructure_list = []
+            
+            for feat in implemented_features:
+                name = feat.get('name', '')
+                feat_type = feat.get('type', 'other')
+                location = feat.get('location', feat.get('filePath', ''))
+                
+                if feat_type == 'page':
+                    pages_list.append(f"- **{name}** {location}")
+                elif feat_type == 'api':
+                    apis_list.append(f"- **{name}** {location}")
+                elif feat_type == 'component':
+                    components_list.append(f"- **{name}** {location}")
+                elif feat_type == 'infrastructure':
+                    infrastructure_list.append(f"- **{name}** {location}")
+                else:
+                    # 기타는 인프라로 분류
+                    infrastructure_list.append(f"- **{name}** {location}")
+            
+            # 미구현 기능 목록 생성 (간단하게)
+            missing_list = []
+            for feat in missing_features:
+                name = feat.get('name', '')
+                expected_loc = feat.get('expectedLocation', '')
+                missing_list.append(f"- **{name}**: {expected_loc}")
+            
+            # 예상 완성일 계산 (간단하게)
+            estimated_date = step5_result.get('estimatedCompletionDate') if step5_result else None
+            if not estimated_date:
+                # 진행도에 따라 간단한 예상일 계산
+                if progress >= 80:
+                    estimated_date = "곧 완성 예상"
+                elif progress >= 50:
+                    estimated_date = "2-3주 내 완성 예상"
+                elif progress >= 30:
+                    estimated_date = "1-2개월 내 완성 예상"
+                else:
+                    estimated_date = "완성 시기 미정"
+            
+            # 총평 생성 (2-3줄)
+            total_evaluation = f"현재 프로젝트는 {progress}% 진행되었으며, 핵심 기능 {total_implemented}개가 구현되어 있습니다. "
+            if total_missing > 0:
+                missing_names = ', '.join([f.get('name', '') for f in missing_features[:3]])
+                total_evaluation += f"주요 미구현 기능으로는 {missing_names} 등이 있으며, "
+            total_evaluation += f"{'안정적으로 진행 중' if progress >= 70 else '추가 개발이 필요' if progress >= 40 else '초기 단계'}입니다."
+            
+            # narrativeResponse 생성 (프로젝트 특성에 따라 유동적으로 소제목 생성)
+            # 프로젝트 설명은 타이틀 없이 내용만 포함
+            # 페이지나 컴포넌트가 없으면 해당 소제목 생략
+            sections = []
+            
+            if pages_list:
+                sections.append(f"#### 페이지\n{chr(10).join(pages_list)}")
+            
+            if apis_list:
+                sections.append(f"#### API\n{chr(10).join(apis_list)}")
+            
+            if components_list:
+                sections.append(f"#### 컴포넌트\n{chr(10).join(components_list)}")
+            
+            if infrastructure_list:
+                sections.append(f"#### 인프라\n{chr(10).join(infrastructure_list)}")
+            
+            implemented_section = "\n\n".join(sections) if sections else "없음"
+            
+            # 평가 섹션: 핵심 기능별 진행도 표시
+            core_progress_section = ""
+            if core_feature_progress:
+                core_progress_lines = []
+                for cf_progress in core_feature_progress:
+                    cf_name = cf_progress.get('coreFeatureName', '')
+                    cf_progress_value = cf_progress.get('progress', 0)
+                    cf_implemented = cf_progress.get('implementedCount', 0)
+                    cf_required = cf_progress.get('requiredCount', 0)
+                    cf_missing = cf_required - cf_implemented
+                    core_progress_lines.append(f"- **{cf_name}**: {cf_progress_value}% (완성된 기능 {cf_implemented}개, 구현해야 할 기능 {cf_missing}개)")
+                core_progress_section = "\n".join(core_progress_lines)
+            
+            # 평가 섹션을 "완성된 기능 n개, 구현해야 할 기능 n개로 진행도 %입니다" 형식으로 변경
+            narrative_response = f"""{project_desc}
+
+### 구현된 기능
+
+{implemented_section}
+
+### 미구현 기능
+{chr(10).join(missing_list) if missing_list else "없음"}
+
+### 평가
+{core_progress_section if core_progress_section else f"완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개로 진행도 {progress}%입니다."}
+
+전체 진행도: {progress}% (완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개)
+
+**예상 완성일**: {estimated_date}
+
+**총평**: {total_evaluation}"""
+            
+            analysis['narrativeResponse'] = narrative_response
+            analysis['currentProgress'] = progress
+        
+        # narrativeResponse에서 진행도 계산값 추출하여 currentProgress와 일치시키기 (백업)
+        narrative_response = analysis.get('narrativeResponse', '')
+        if narrative_response:
+            import re
+            # "진행도: [숫자]%" 패턴 찾기
+            progress_match = re.search(r'진행도:\s*(\d+(?:\.\d+)?)\s*%', narrative_response)
+            if progress_match:
+                calculated_progress = float(progress_match.group(1))
+                # currentProgress와 일치시키기
+                if abs(analysis.get('currentProgress', 0) - calculated_progress) > 5:
+                    print(f"[Agent Router] 진행도 불일치 감지: currentProgress={analysis.get('currentProgress')}, 계산값={calculated_progress}, 일치시킴")
+                    analysis['currentProgress'] = round(calculated_progress)
+        
+        # 사용자 친화적인 상세 메시지 생성
+        # narrativeResponse가 있으면 우선 사용 (마크다운 형식)
+        narrative_response = analysis.get('narrativeResponse', '')
+        
+        # 프로젝트 이름 가져오기 (context에서)
+        project_name = context.get('projectName', '프로젝트')
+        
+        if narrative_response and len(narrative_response) > 100:
+            # 프로젝트 이름을 맨 위에 추가하고 narrativeResponse를 메인 메시지로 사용
+            # 불필요한 타이틀은 제거하고 내용만 표시
+            message = f"# {project_name}\n\n{narrative_response}"
+            
+            # 추가 정보는 요약하여 포함
+            progress = analysis.get('currentProgress', 0)
+            trend = analysis.get('activityTrend', 'stable')
+            trend_kr = {
+                'increasing': '증가 중',
+                'stable': '안정적',
+                'decreasing': '감소 중'
+            }.get(trend, trend)
+            
+            delay_risk = analysis.get('delayRisk', 'Low')
+            delay_risk_kr = {
+                'Low': '낮음',
+                'Medium': '보통',
+                'High': '높음'
+            }.get(delay_risk, delay_risk)
+            
+            estimated_date = analysis.get('estimatedCompletionDate')
+            
+            # 메시지 끝에 핵심 지표 추가 (마크다운 형식)
+            message += f"\n\n---\n\n## 📊 핵심 지표\n\n"
+            message += f"- **진행도**: {progress}%\n"
+            message += f"- **활동 추세**: {trend_kr}\n"
+            message += f"- **지연 위험도**: {delay_risk_kr}\n"
+            if estimated_date:
+                message += f"- **예상 완료일**: {estimated_date}\n"
+        else:
+            # narrativeResponse가 없거나 짧으면 더 상세한 메시지 생성
+            progress = analysis.get('currentProgress', 0)
+            trend = analysis.get('activityTrend', 'stable')
+            trend_kr = {
+                'increasing': '증가 중',
+                'stable': '안정적',
+                'decreasing': '감소 중'
+            }.get(trend, trend)
+            
+            delay_risk = analysis.get('delayRisk', 'Low')
+            delay_risk_kr = {
+                'Low': '낮음',
+                'Medium': '보통',
+                'High': '높음'
+            }.get(delay_risk, delay_risk)
+            
+            estimated_date = analysis.get('estimatedCompletionDate')
+            insights = analysis.get('insights', [])
+            recommendations = analysis.get('recommendations', [])
+            recent_activity = analysis.get('recentActivity', {})
+            key_metrics = analysis.get('keyMetrics', {})
+            
+            # 마크다운 형식의 상세 메시지 구성
+            message_parts = [
+                f"# 📊 프로젝트 진행도 분석",
+                f"",
+                f"## 현재 진행 상황",
+                f"",
+                f"- **진행도**: {progress}%",
+                f"- **활동 추세**: {trend_kr}",
+                f"- **지연 위험도**: {delay_risk_kr}"
+            ]
+            
+            if estimated_date:
+                message_parts.append(f"- **예상 완료일**: {estimated_date}")
+            
+            if recent_activity:
+                message_parts.append(f"")
+                message_parts.append(f"## 최근 활동")
+                if recent_activity.get('last7Days'):
+                    message_parts.append(f"- **최근 7일**: {recent_activity.get('last7Days')}")
+                if recent_activity.get('last30Days'):
+                    message_parts.append(f"- **최근 30일**: {recent_activity.get('last30Days')}")
+            
+            if insights:
+                message_parts.append(f"")
+                message_parts.append(f"## 주요 인사이트")
+                for i, insight in enumerate(insights[:5], 1):  # 최대 5개
+                    message_parts.append(f"{i}. {insight}")
+            
+            if recommendations:
+                message_parts.append(f"")
+                message_parts.append(f"## 개선 제안")
+                for i, rec in enumerate(recommendations[:5], 1):  # 최대 5개
+                    message_parts.append(f"{i}. {rec}")
+            
+            if key_metrics:
+                message_parts.append(f"")
+                message_parts.append(f"## 주요 지표")
+                if key_metrics.get('averageCommitsPerDay'):
+                    message_parts.append(f"- **평균 일일 커밋**: {key_metrics.get('averageCommitsPerDay', 0):.1f}개")
+                if key_metrics.get('taskCompletionRate'):
+                    message_parts.append(f"- **Task 완료율**: {key_metrics.get('taskCompletionRate', 0):.1f}%")
+                if key_metrics.get('codeGrowthRate'):
+                    message_parts.append(f"- **코드 성장률**: {key_metrics.get('codeGrowthRate', 'N/A')}")
+            
+            # narrativeResponse가 없으면 기본 상세 설명 추가
+            if not narrative_response or len(narrative_response) <= 100:
+                message_parts.append(f"")
+                message_parts.append(f"## 프로젝트 상태 요약")
+                message_parts.append(f"")
+                message_parts.append(f"현재 프로젝트는 {progress}% 진행되었으며, 활동 추세는 {trend_kr}입니다. ")
+                if delay_risk_kr == '높음':
+                    message_parts.append(f"지연 위험이 높으므로 주의가 필요합니다. ")
+                elif delay_risk_kr == '보통':
+                    message_parts.append(f"지연 위험이 보통 수준이므로 계획된 일정을 지키는 것이 중요합니다. ")
+                else:
+                    message_parts.append(f"지연 위험이 낮아 안정적으로 진행되고 있습니다. ")
+                
+                if insights:
+                    message_parts.append(f"주요 인사이트를 바탕으로 프로젝트를 관리하시기 바랍니다.")
+            
+            message = "\n".join(message_parts)
         
         return {
             "agent_type": "progress_analysis_agent",
@@ -197,10 +579,15 @@ def execute_progress_analysis_agent(context, call_llm_func):
                 "type": "progress_analysis",
                 "analysis": analysis,
                 "message": message
-            }
+            },
+            "analysis_steps": result.get('analysis_steps', 1),
+            "confidence": result.get('confidence', 'medium'),
+            "progress_messages": result.get('progress_messages', [])  # 진행 상황 메시지 추가
         }
     except Exception as e:
         print(f"[Agent Router] 진행도 분석 agent 실행 실패: {e}")
+        import traceback
+        print(traceback.format_exc())
         return {
             "agent_type": "progress_analysis_agent",
             "error": f"진행도 분석 실패: {str(e)}",
@@ -210,11 +597,9 @@ def execute_progress_analysis_agent(context, call_llm_func):
             }
         }
 
-def execute_task_completion_agent(context, call_llm_func):
-    """Task 완료 확인 agent 실행"""
+def execute_task_completion_agent(context, call_llm_func, user_message=None):
+    """Task 완료 확인 agent 실행 (다단계 분석)"""
     task = context.get('task')
-    commits = context.get('commits', [])
-    projectDescription = context.get('projectDescription', '')
     
     if not task:
         return {
@@ -234,70 +619,95 @@ def execute_task_completion_agent(context, call_llm_func):
 3. 사용자가 지정한 Task만 분석하세요. 다른 Task는 무시하세요."""
     
     try:
-        # 1차 분석
-        initial_prompt = create_initial_completion_prompt(task, commits, projectDescription)
-        initial_content = call_llm_func(initial_prompt, system_prompt)
+        result = execute_multi_step_agent(
+            agent_type="task_completion_agent",
+            context=context,
+            call_llm_func=call_llm_func,
+            user_message=user_message,
+            initial_prompt_func=create_task_completion_initial_prompt,
+            followup_prompt_func=create_task_completion_followup_prompt,
+            system_prompt=system_prompt
+        )
         
-        # JSON 파싱
-        if '```json' in initial_content:
-            initial_content = initial_content.split('```json')[1].split('```')[0].strip()
-        elif '```' in initial_content:
-            initial_content = initial_content.split('```')[1].split('```')[0].strip()
+        # 결과 처리
+        final_result = result.get('response', {})
+        if not isinstance(final_result, dict):
+            # 마지막 단계 결과 사용
+            all_steps = result.get('all_steps', [])
+            if all_steps:
+                final_result = all_steps[-1]
+            else:
+                final_result = {}
         
-        initial_content = initial_content.strip()
-        if '{' in initial_content:
-            initial_content = initial_content[initial_content.find('{'):]
-        if '}' in initial_content:
-            initial_content = initial_content[:initial_content.rfind('}')+1]
+        # 사용자 친화적인 상세 메시지 생성
+        is_completed = final_result.get('isCompleted', False)
+        completion_pct = final_result.get('completionPercentage', 0)
+        confidence = final_result.get('confidence', 'low')
+        evidence = final_result.get('evidence', [])
+        related_commits = final_result.get('relatedCommits', [])
+        missing_requirements = final_result.get('missingRequirements', [])
+        recommendations = final_result.get('recommendations', [])
         
-        initial_result = json.loads(initial_content)
+        confidence_kr = {
+            'high': '높음',
+            'medium': '보통',
+            'low': '낮음'
+        }.get(confidence, confidence)
         
-        # 추가 정보가 필요한 경우 2차 분석
-        if initial_result.get("needsMoreInfo", False):
-            followup_prompt = create_followup_completion_prompt(task, initial_result, commits, projectDescription)
-            followup_content = call_llm_func(followup_prompt, system_prompt)
-            
-            # JSON 파싱
-            if '```json' in followup_content:
-                followup_content = followup_content.split('```json')[1].split('```')[0].strip()
-            elif '```' in followup_content:
-                followup_content = followup_content.split('```')[1].split('```')[0].strip()
-            
-            followup_content = followup_content.strip()
-            if '{' in followup_content:
-                followup_content = followup_content[followup_content.find('{'):]
-            if '}' in followup_content:
-                followup_content = followup_content[:followup_content.rfind('}')+1]
-            
-            final_result = json.loads(followup_content)
-            final_result['initialAnalysis'] = initial_result
-            final_result['analysisSteps'] = 2
-            
-            result = final_result
-        else:
-            initial_result['analysisSteps'] = 1
-            result = initial_result
-        
-        # 사용자 친화적인 메시지 생성
-        is_completed = result.get('isCompleted', False)
-        completion_pct = result.get('completionPercentage', 0)
-        confidence = result.get('confidence', 'low')
+        # 상세 메시지 구성
+        message_parts = []
         
         if is_completed:
-            message = f"Task가 완료되었습니다. 완성도: {completion_pct}% (신뢰도: {confidence})"
+            message_parts.append(f"✅ **Task 완료 상태: 완료됨**")
         else:
-            message = f"Task가 아직 완료되지 않았습니다. 완성도: {completion_pct}% (신뢰도: {confidence})"
+            message_parts.append(f"⏳ **Task 완료 상태: 진행 중**")
+        
+        message_parts.append(f"")
+        message_parts.append(f"**완성도**: {completion_pct}%")
+        message_parts.append(f"**신뢰도**: {confidence_kr}")
+        
+        if evidence:
+            message_parts.append(f"")
+            message_parts.append(f"**완료 근거**:")
+            for i, ev in enumerate(evidence[:5], 1):  # 최대 5개
+                message_parts.append(f"{i}. {ev}")
+        
+        if related_commits:
+            message_parts.append(f"")
+            message_parts.append(f"**관련 커밋**: {len(related_commits)}개 발견")
+            for commit in related_commits[:3]:  # 최대 3개
+                commit_msg = commit.get('message', '')[:80]
+                message_parts.append(f"- {commit_msg}")
+        
+        if missing_requirements:
+            message_parts.append(f"")
+            message_parts.append(f"**부족한 요구사항**:")
+            for i, req in enumerate(missing_requirements[:5], 1):  # 최대 5개
+                message_parts.append(f"{i}. {req}")
+        
+        if recommendations:
+            message_parts.append(f"")
+            message_parts.append(f"**개선 제안**:")
+            for i, rec in enumerate(recommendations[:5], 1):  # 최대 5개
+                message_parts.append(f"{i}. {rec}")
+        
+        message = "\n".join(message_parts)
         
         return {
             "agent_type": "task_completion_agent",
             "response": {
                 "type": "task_completion",
-                "result": result,
+                "result": final_result,
                 "message": message
-            }
+            },
+            "analysis_steps": result.get('analysis_steps', 1),
+            "confidence": result.get('confidence', 'low'),
+            "progress_messages": result.get('progress_messages', [])  # 진행 상황 메시지 추가
         }
     except Exception as e:
         print(f"[Agent Router] Task 완료 확인 agent 실행 실패: {e}")
+        import traceback
+        print(traceback.format_exc())
         return {
             "agent_type": "task_completion_agent",
             "error": f"Task 완료 확인 실패: {str(e)}",
@@ -307,8 +717,8 @@ def execute_task_completion_agent(context, call_llm_func):
             }
         }
 
-def execute_general_qa_agent(context, call_llm_func, user_message):
-    """일반적인 질문 답변 agent 실행"""
+def execute_general_qa_agent(context, call_llm_func, user_message=None):
+    """일반적인 질문 답변 agent 실행 (다단계 분석)"""
     if not user_message:
         return {
             "agent_type": "general_qa_agent",
@@ -319,144 +729,91 @@ def execute_general_qa_agent(context, call_llm_func, user_message):
             }
         }
     
-    commits = context.get('commits', [])
-    issues = context.get('issues', [])
-    tasks = context.get('tasks', [])
-    projectDescription = context.get('projectDescription', '')
-    githubRepo = context.get('githubRepo', '')
-    
-    # 프로젝트 통계 계산
-    task_stats = {
-        'total': len(tasks),
-        'todo': sum(1 for t in tasks if t.get('status') == 'todo'),
-        'in_progress': sum(1 for t in tasks if t.get('status') == 'in_progress'),
-        'done': sum(1 for t in tasks if t.get('status') == 'done')
-    }
-    
-    commit_stats = {
-        'total': len(commits),
-        'total_lines_added': sum(c.get('linesAdded', 0) or 0 for c in commits),
-        'total_lines_deleted': sum(c.get('linesDeleted', 0) or 0 for c in commits),
-        'total_files_changed': sum(c.get('filesChanged', 0) or 0 for c in commits)
-    }
-    
-    issue_stats = {
-        'total': len(issues),
-        'open': sum(1 for i in issues if i.get('state') == 'open'),
-        'closed': sum(1 for i in issues if i.get('state') == 'closed')
-    }
-    
-    # 최근 활동 분석
-    from datetime import datetime, timedelta, timezone
-    now = datetime.now(timezone.utc)
-    week_ago = now - timedelta(days=7)
-    recent_commits = sum(1 for c in commits if c.get('date') and 
-                        datetime.fromisoformat(c.get('date').replace('Z', '+00:00')) >= week_ago)
-    
-    prompt = f"""당신은 프로젝트 관리 AI 어시스턴트입니다. 사용자의 질문에 대해 프로젝트 정보를 바탕으로 친절하고 정확하게 답변하세요.
-
-⚠️ 중요: 반드시 한국어로만 응답하세요.
-
-## 사용자 질문
-"{user_message}"
-
-## 프로젝트 정보
-프로젝트 설명: {projectDescription[:500] if projectDescription else '설명 없음'}
-GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
-
-## 프로젝트 통계
-**Task (작업)**
-- 전체: {task_stats['total']}개
-- 대기 중: {task_stats['todo']}개
-- 진행 중: {task_stats['in_progress']}개
-- 완료: {task_stats['done']}개
-
-**커밋**
-- 전체: {commit_stats['total']}개
-- 추가된 라인: {commit_stats['total_lines_added']:,}줄
-- 삭제된 라인: {commit_stats['total_lines_deleted']:,}줄
-- 변경된 파일: {commit_stats['total_files_changed']}개
-- 최근 7일 커밋: {recent_commits}개
-
-**이슈**
-- 전체: {issue_stats['total']}개
-- 열림: {issue_stats['open']}개
-- 닫힘: {issue_stats['closed']}개
-
-## 최근 커밋 (최대 5개)
-{chr(10).join([f"- {c.get('message', '')[:80]} ({c.get('date', '')[:10] if c.get('date') else '날짜 없음'})" for c in commits[:5]]) if commits else "커밋 없음"}
-
-## 최근 Task (최대 5개)
-{chr(10).join([f"- {t.get('title', '')} ({t.get('status', 'unknown')})" for t in tasks[:5]]) if tasks else "Task 없음"}
-
-## 답변 규칙
-1. 제공된 프로젝트 정보와 통계를 활용하여 사용자 질문에 정확하게 답변하세요.
-2. 질문이 프로젝트와 관련이 있고 위 정보로 답변할 수 있다면, 친절하고 상세하게 답변하세요.
-3. 질문에 대한 답변을 할 수 없는 경우 (예: 프로젝트와 무관한 질문, 개인정보, 외부 정보 등), 정중하게 "죄송하지만 그 정보는 제공할 수 없습니다. 프로젝트 진행도, Task 제안, Task 완료 확인 등의 기능을 사용해주세요."라고 답변하세요.
-4. 프로젝트에 대한 일반적인 질문(설명, 통계, 상태, 커밋 수, 작업 수 등)은 위 정보를 바탕으로 답변하세요.
-5. 답변은 친절하고 자연스러운 한국어로 작성하세요.
-6. 숫자는 쉼표를 사용하여 읽기 쉽게 표시하세요.
-7. 가능한 한 구체적이고 유용한 정보를 제공하세요.
-
-## 응답 형식
-다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
-{{
-  "can_answer": true 또는 false,
-  "message": "사용자 질문에 대한 답변을 한국어로 작성 (친절하고 자연스럽게)",
-  "details": {{
-    "used_statistics": ["사용한 통계 정보"],
-    "source": "정보 출처 (예: '프로젝트 통계', '커밋 데이터')"
-  }}
-}}
-
-만약 답변할 수 없는 질문인 경우:
-{{
-  "can_answer": false,
-  "message": "정중한 거부 메시지를 한국어로 작성",
-  "suggestion": "대신 사용할 수 있는 기능 제안"
-}}"""
-    
-    system_prompt = "프로젝트 관리 전문가. 프로젝트 정보를 바탕으로 사용자 질문에 친절하게 답변합니다. 반드시 한국어로만 응답. JSON만 응답."
-    
     try:
-        content = call_llm_func(prompt, system_prompt)
+        result = execute_multi_step_agent(
+            agent_type="general_qa_agent",
+            context=context,
+            call_llm_func=call_llm_func,
+            user_message=user_message,
+            initial_prompt_func=create_general_qa_initial_prompt,
+            followup_prompt_func=create_general_qa_followup_prompt,
+            system_prompt="프로젝트 관리 전문가. 프로젝트 정보를 바탕으로 사용자 질문에 친절하게 답변합니다. 반드시 한국어로만 응답. JSON만 응답."
+        )
         
-        # JSON 파싱
-        if '```json' in content:
-            content = content.split('```json')[1].split('```')[0].strip()
-        elif '```' in content:
-            content = content.split('```')[1].split('```')[0].strip()
+        # 결과 처리
+        final_result = result.get('response', {})
+        if not isinstance(final_result, dict):
+            # 마지막 단계 결과 사용
+            all_steps = result.get('all_steps', [])
+            if all_steps:
+                final_result = all_steps[-1]
+            else:
+                final_result = {}
         
-        content = content.strip()
-        if '{' in content:
-            content = content[content.find('{'):]
-        if '}' in content:
-            content = content[:content.rfind('}')+1]
+        can_answer = final_result.get('can_answer', True)
+        message_text = final_result.get('message', '')
+        details = final_result.get('details', {})
+        sources = final_result.get('sources', [])
+        related_info = final_result.get('relatedInfo', {})
         
-        result = json.loads(content)
+        # 상세 메시지 구성
+        message_parts = [message_text]
         
-        can_answer = result.get('can_answer', True)
+        if details:
+            message_parts.append(f"")
+            message_parts.append(f"**상세 정보**:")
+            for key, value in list(details.items())[:5]:  # 최대 5개
+                if isinstance(value, (str, int, float)):
+                    message_parts.append(f"- {key}: {value}")
+                elif isinstance(value, list):
+                    message_parts.append(f"- {key}: {', '.join(map(str, value[:3]))}")
+        
+        if sources:
+            message_parts.append(f"")
+            message_parts.append(f"**참고 자료**:")
+            for i, source in enumerate(sources[:5], 1):  # 최대 5개
+                message_parts.append(f"{i}. {source}")
+        
+        if related_info:
+            message_parts.append(f"")
+            message_parts.append(f"**관련 정보**:")
+            for key, value in list(related_info.items())[:5]:  # 최대 5개
+                if isinstance(value, (str, int, float)):
+                    message_parts.append(f"- {key}: {value}")
+        
+        enhanced_message = "\n".join(message_parts)
         
         if can_answer:
             return {
                 "agent_type": "general_qa_agent",
                 "response": {
                     "type": "general_qa",
-                    "message": result.get('message', ''),
-                    "details": result.get('details', {})
-                }
+                    "message": enhanced_message,
+                    "details": details
+                },
+                "analysis_steps": result.get('analysis_steps', 1),
+                "confidence": result.get('confidence', 'medium'),
+                "progress_messages": result.get('progress_messages', [])  # 진행 상황 메시지 추가
             }
         else:
+            suggestion = final_result.get('suggestion', '프로젝트 진행도, Task 제안, Task 완료 확인 등의 기능을 사용해주세요.')
+            enhanced_message = f"{message_text}\n\n**추천 기능**: {suggestion}"
+            
             return {
                 "agent_type": "general_qa_agent",
                 "response": {
                     "type": "general_qa",
-                    "message": result.get('message', '죄송하지만 그 정보는 제공할 수 없습니다.'),
-                    "suggestion": result.get('suggestion', '프로젝트 진행도, Task 제안, Task 완료 확인 등의 기능을 사용해주세요.')
-                }
+                    "message": enhanced_message,
+                    "suggestion": suggestion
+                },
+                "analysis_steps": result.get('analysis_steps', 1),
+                "confidence": result.get('confidence', 'medium'),
+                "progress_messages": result.get('progress_messages', [])  # 진행 상황 메시지 추가
             }
     except Exception as e:
         print(f"[Agent Router] 일반 질문 답변 agent 실행 실패: {e}")
+        import traceback
+        print(traceback.format_exc())
         return {
             "agent_type": "general_qa_agent",
             "error": f"일반 질문 답변 실패: {str(e)}",
@@ -466,8 +823,8 @@ GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
             }
         }
 
-def execute_task_assignment_agent(context, call_llm_func, user_message):
-    """Task 할당 추천 agent 실행"""
+def execute_task_assignment_agent(context, call_llm_func, user_message=None):
+    """Task 할당 추천 agent 실행 (다단계 분석)"""
     if not user_message:
         return {
             "agent_type": "task_assignment_agent",
@@ -486,18 +843,14 @@ def execute_task_assignment_agent(context, call_llm_func, user_message):
     
     # user_message에서 Task 정보 추출 시도
     if not task_title and user_message and tasks:
-        # 사용자 메시지에서 Task 제목을 찾기 시도
-        # 예: "이 Task를 누구에게 할당하면 좋을까?" -> 최근 Task 사용
-        # 또는 "로그인 기능을 누구에게 할당하면 좋을까?" -> 제목에 "로그인"이 포함된 Task 찾기
         user_message_lower = user_message.lower()
-        for task in tasks[:10]:  # 최근 10개 Task만 확인
+        for task in tasks[:10]:
             task_title_lower = task.get('title', '').lower()
             if task_title_lower and task_title_lower in user_message_lower:
                 task_title = task.get('title', '')
                 task_description = task.get('description', '')
                 break
         
-        # 매칭되는 Task가 없으면 최근 Task 사용
         if not task_title and tasks:
             recent_task = tasks[0]
             task_title = recent_task.get('title', '')
@@ -513,29 +866,42 @@ def execute_task_assignment_agent(context, call_llm_func, user_message):
             }
         }
     
-    prompt = create_task_assignment_prompt(task_title, task_description, project_members_with_tags)
-    system_prompt = "프로젝트 관리 전문가. Task 내용을 분석하여 적합한 담당자를 추천합니다. 반드시 한국어로만 응답. JSON만 응답."
-    
     try:
-        content = call_llm_func(prompt, system_prompt)
+        result = execute_multi_step_agent(
+            agent_type="task_assignment_agent",
+            context=context,
+            call_llm_func=call_llm_func,
+            user_message=user_message,
+            initial_prompt_func=create_task_assignment_initial_prompt,
+            followup_prompt_func=create_task_assignment_followup_prompt,
+            system_prompt="프로젝트 관리 전문가. Task 내용을 분석하여 적합한 담당자를 추천합니다. 반드시 한국어로만 응답. JSON만 응답."
+        )
         
-        # JSON 파싱
-        if '```json' in content:
-            content = content.split('```json')[1].split('```')[0].strip()
-        elif '```' in content:
-            content = content.split('```')[1].split('```')[0].strip()
+        # 결과 처리
+        final_result = result.get('response', {})
+        if not isinstance(final_result, dict):
+            # 마지막 단계 결과 사용
+            all_steps = result.get('all_steps', [])
+            if all_steps:
+                final_result = all_steps[-1]
+            else:
+                final_result = {}
         
-        content = content.strip()
-        if '{' in content:
-            content = content[content.find('{'):]
-        if '}' in content:
-            content = content[:content.rfind('}')+1]
+        recommended_user_id = final_result.get('recommendedUserId')
+        reason = final_result.get('reason', '')
+        confidence = final_result.get('confidence', 'medium')
+        alternative_users = final_result.get('alternativeUsers', [])
+        required_skills = final_result.get('requiredSkills', [])
+        user_match_score = final_result.get('matchScore', 0)
         
-        result = json.loads(content)
+        confidence_kr = {
+            'high': '높음',
+            'medium': '보통',
+            'low': '낮음'
+        }.get(confidence, confidence)
         
-        recommended_user_id = result.get('recommendedUserId')
-        reason = result.get('reason', '')
-        confidence = result.get('confidence', 'medium')
+        # 상세 메시지 구성
+        message_parts = []
         
         if recommended_user_id:
             # 추천된 사용자 정보 찾기
@@ -544,10 +910,60 @@ def execute_task_assignment_agent(context, call_llm_func, user_message):
                 None
             )
             user_name = recommended_user.get('nickname', 'Unknown') if recommended_user else 'Unknown'
+            user_tags = recommended_user.get('tags', []) if recommended_user else []
             
-            message = f"'{task_title}' Task는 {user_name}님에게 할당하는 것을 추천합니다. 이유: {reason}"
+            message_parts.append(f"👤 **추천 담당자: {user_name}님**")
+            message_parts.append(f"")
+            message_parts.append(f"**Task**: {task_title}")
+            if task_description:
+                message_parts.append(f"**설명**: {task_description[:200]}")
+            message_parts.append(f"")
+            message_parts.append(f"**추천 이유**:")
+            message_parts.append(f"{reason}")
+            
+            if user_match_score > 0:
+                message_parts.append(f"")
+                message_parts.append(f"**적합도 점수**: {user_match_score}/100")
+            
+            if user_tags:
+                message_parts.append(f"")
+                message_parts.append(f"**담당자 보유 기술**: {', '.join(user_tags)}")
+            
+            if required_skills:
+                message_parts.append(f"")
+                message_parts.append(f"**Task 필요 기술**: {', '.join(required_skills)}")
+            
+            message_parts.append(f"")
+            message_parts.append(f"**신뢰도**: {confidence_kr}")
+            
+            if alternative_users:
+                message_parts.append(f"")
+                message_parts.append(f"**대안 담당자**:")
+                for i, alt_user in enumerate(alternative_users[:3], 1):  # 최대 3개
+                    alt_user_info = next(
+                        (m for m in project_members_with_tags if m.get('userId') == alt_user.get('userId')),
+                        None
+                    )
+                    if alt_user_info:
+                        alt_name = alt_user_info.get('nickname', 'Unknown')
+                        alt_reason = alt_user.get('reason', '')
+                        message_parts.append(f"{i}. {alt_name}님 - {alt_reason}")
         else:
-            message = f"적합한 담당자를 찾을 수 없습니다. {reason}"
+            message_parts.append(f"⚠️ **적합한 담당자를 찾을 수 없습니다**")
+            message_parts.append(f"")
+            message_parts.append(f"**Task**: {task_title}")
+            if task_description:
+                message_parts.append(f"**설명**: {task_description[:200]}")
+            message_parts.append(f"")
+            message_parts.append(f"**이유**: {reason}")
+            
+            if required_skills:
+                message_parts.append(f"")
+                message_parts.append(f"**Task 필요 기술**: {', '.join(required_skills)}")
+                message_parts.append(f"")
+                message_parts.append(f"**제안**: 프로젝트 멤버에게 필요한 기술을 추가하거나, 외부 인력을 고려해보세요.")
+        
+        message = "\n".join(message_parts)
         
         return {
             "agent_type": "task_assignment_agent",
@@ -557,10 +973,15 @@ def execute_task_assignment_agent(context, call_llm_func, user_message):
                 "reason": reason,
                 "confidence": confidence,
                 "message": message
-            }
+            },
+            "analysis_steps": result.get('analysis_steps', 1),
+            "confidence": result.get('confidence', 'medium'),
+            "progress_messages": result.get('progress_messages', [])  # 진행 상황 메시지 추가
         }
     except Exception as e:
         print(f"[Agent Router] Task 할당 추천 agent 실행 실패: {e}")
+        import traceback
+        print(traceback.format_exc())
         return {
             "agent_type": "task_assignment_agent",
             "error": f"Task 할당 추천 실패: {str(e)}",

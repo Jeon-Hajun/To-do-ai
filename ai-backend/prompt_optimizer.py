@@ -3,6 +3,8 @@
 프롬프트 길이를 줄이고 핵심 정보만 추출하여 리소스 소모를 감소시킵니다.
 """
 
+import json
+
 def summarize_commit_message(msg, max_length=80):
     """커밋 메시지를 요약합니다."""
     if len(msg) <= max_length:
@@ -71,20 +73,73 @@ def create_optimized_task_suggestion_prompt(commits, issues, currentTasks, proje
     # Task 요약
     task_summary = f"총 {len(currentTasks)}개 (todo: {sum(1 for t in currentTasks if t.get('status') == 'todo')}, 진행중: {sum(1 for t in currentTasks if t.get('status') == 'in_progress')}, 완료: {sum(1 for t in currentTasks if t.get('status') == 'done')})"
 
-    prompt = f"""프로젝트 분석 및 Task 제안:
+    # 최근 커밋 상세 정보
+    recent_commits_detail = []
+    for commit in commits[:15]:
+        recent_commits_detail.append({
+            "message": commit.get('message', '')[:150],
+            "date": commit.get('date', ''),
+            "files": [f.get('path', '') for f in commit.get('files', [])[:5]]
+        })
+    
+    # 열린 이슈 상세 정보
+    open_issues_detail = []
+    for issue in openIssues[:10]:
+        open_issues_detail.append({
+            "title": issue.get('title', ''),
+            "body": issue.get('body', '')[:200],
+            "labels": issue.get('labels', [])
+        })
+    
+    prompt = f"""프로젝트를 종합적으로 분석하여 **구체적이고 실용적인 Task**를 제안하세요.
 
-프로젝트: {projectDescription[:100]}
-커밋: {len(commits)}개, +{totalLinesAdded}/-{totalLinesDeleted}줄, 주요파일: {topFileTypes}
-이슈: {issue_summary}
-작업: {task_summary}
+## 프로젝트 정보:
+- 프로젝트 설명: {projectDescription[:200]}
+- GitHub 저장소: {githubRepo if githubRepo else '연결되지 않음'}
 
-최근 커밋:
-{commit_summary}
+## 프로젝트 현황:
+**커밋 활동**
+- 총 커밋: {len(commits)}개
+- 추가된 코드: {totalLinesAdded:,}줄
+- 삭제된 코드: {totalLinesDeleted:,}줄
+- 주요 파일 유형: {topFileTypes}
+
+**이슈 현황**
+- 열린 이슈: {len(openIssues)}개
+
+**현재 작업(Task)**
+- {task_summary}
+
+## 최근 커밋 상세 (최근 {len(recent_commits_detail)}개):
+{json.dumps(recent_commits_detail, ensure_ascii=False, indent=2)[:2000]}
+
+## 열린 이슈 상세 (최근 {len(open_issues_detail)}개):
+{json.dumps(open_issues_detail, ensure_ascii=False, indent=2)[:1500]}
+
+## Task 제안 요청사항:
+위 정보를 종합적으로 분석하여 **구체적이고 실용적인 Task**를 제안하세요.
+
+각 Task는 다음을 포함해야 합니다:
+1. **title**: 명확하고 구체적인 Task 제목 (예: "사용자 인증 시스템 구현" ❌, "JWT 기반 사용자 로그인 API 구현" ✅)
+2. **description**: Task의 목적, 범위, 구현 방법 등을 **상세하게** 설명 (최소 3-5문장)
+3. **category**: "feature" (기능 추가), "refactor" (리팩토링), "security" (보안), "performance" (성능), "maintenance" (유지보수)
+4. **priority**: "High" (보안/심각한 기술부채만), "Medium" (중요한 개선), "Low" (선택적 개선)
+5. **estimatedHours**: 예상 소요 시간 (숫자)
+6. **reason**: 이 Task가 필요한 이유를 **구체적으로** 설명 (최소 2-3문장)
+
+⚠️ 중요: 반드시 한국어로만 응답하고, JSON 배열 형식으로만 응답하세요.
 
 다음 형식의 JSON 배열로 최대 5개 Task 제안:
-[{{"title": "...", "description": "...", "category": "feature|refactor|security|performance|maintenance", "priority": "High|Medium|Low", "estimatedHours": 숫자, "reason": "..."}}]
-
-규칙: 실제 필요한 작업만, High는 보안/심각한 기술부채만, 반드시 한국어로 응답, JSON만 응답."""
+[
+  {{
+    "title": "구체적인 Task 제목",
+    "description": "상세한 설명 (최소 3-5문장)",
+    "category": "feature|refactor|security|performance|maintenance",
+    "priority": "High|Medium|Low",
+    "estimatedHours": 숫자,
+    "reason": "구체적인 이유 설명 (최소 2-3문장)"
+  }}
+]"""
 
     return prompt
 
@@ -113,20 +168,212 @@ def create_optimized_progress_prompt(commits, tasks, projectDescription, project
     recent_week = sum(1 for c in commits if c.get('date') and
                      datetime.fromisoformat(c.get('date').replace('Z', '+00:00')) >= week_ago)
     
-    prompt = f"""진행도 분석:
+    # 커밋 상세 정보 추출
+    commit_details = []
+    for commit in commits[:20]:  # 최근 20개 커밋만
+        commit_details.append({
+            "message": commit.get('message', '')[:100],
+            "date": commit.get('date', ''),
+            "author": commit.get('author', ''),
+            "linesAdded": commit.get('linesAdded', 0),
+            "linesDeleted": commit.get('linesDeleted', 0)
+        })
+    
+    # Task 상세 정보 추출
+    task_details = []
+    for task in tasks[:20]:  # 최근 20개 Task만
+        task_details.append({
+            "title": task.get('title', ''),
+            "status": task.get('status', 'todo'),
+            "dueDate": task.get('dueDate', ''),
+            "assignedUserId": task.get('assignedUserId', '')
+        })
+    
+    prompt = f"""프로젝트 진행도 분석을 수행하세요. 다음 데이터를 종합적으로 분석하여 상세하고 구체적인 분석 결과를 제공하세요.
 
-프로젝트: {projectDescription[:80]}
-작업: 총{taskStats['total']}개 (완료:{taskStats['done']}, 진행중:{taskStats['inProgress']}, 대기:{taskStats['todo']})
-커밋: 총{commitStats['total']}개, +{commitStats['totalLinesAdded']}/-{commitStats['totalLinesDeleted']}줄, 최근7일:{recent_week}개
+## 프로젝트 정보:
+- 프로젝트 설명: {projectDescription[:200]}
+- 프로젝트 시작일: {projectStartDate or '미정'}
+- 프로젝트 마감일: {projectDueDate or '미정'}
 
-다음 JSON 형식으로만 응답 (반드시 한국어로, JSON만 응답):
+## 작업(Task) 현황:
+- 총 작업 수: {taskStats['total']}개
+- 완료: {taskStats['done']}개 ({taskStats['done']/taskStats['total']*100 if taskStats['total'] > 0 else 0:.1f}%)
+- 진행 중: {taskStats['inProgress']}개 ({taskStats['inProgress']/taskStats['total']*100 if taskStats['total'] > 0 else 0:.1f}%)
+- 대기 중: {taskStats['todo']}개 ({taskStats['todo']/taskStats['total']*100 if taskStats['total'] > 0 else 0:.1f}%)
+
+## 커밋 활동 현황:
+- 총 커밋 수: {commitStats['total']}개
+- 추가된 코드 라인: {commitStats['totalLinesAdded']:,}줄
+- 삭제된 코드 라인: {commitStats['totalLinesDeleted']:,}줄
+- 최근 7일 커밋: {recent_week}개
+
+## 최근 커밋 상세 (최근 {len(commit_details)}개):
+{json.dumps(commit_details, ensure_ascii=False, indent=2)[:1500]}
+
+## Task 상세 (최근 {len(task_details)}개):
+{json.dumps(task_details, ensure_ascii=False, indent=2)[:1000]}
+
+## 분석 요청사항:
+다음 항목들을 **구체적이고 상세하게** 분석하여 JSON 형식으로 응답하세요. 
+
+⚠️ **중요**: **currentProgress**는 **narrativeResponse의 "5. 진행도 계산" 섹션에서 계산한 값과 정확히 일치**해야 합니다. narrativeResponse에서 계산한 진행도가 70%라면 currentProgress도 70이어야 합니다.
+
+1. **currentProgress (0-100)**: **narrativeResponse의 "5. 진행도 계산"에서 계산한 값과 정확히 일치해야 함**
+   - narrativeResponse에서 "필요한 요소: 총 [N]개, 개발된 요소: [M]개, 진행도: [M/N * 100]%"로 계산했다면
+   - currentProgress = [M/N * 100] (소수점 반올림)
+   - Task 완료율, 커밋 활동 등은 참고용이며, 최종 진행도는 소스코드 분석 결과를 우선시
+   
+2. **activityTrend**: 최근 활동 패턴을 분석하여 "increasing" (증가 중), "stable" (안정적), "decreasing" (감소 중) 중 하나 선택
+3. **estimatedCompletionDate**: 현재 진행 속도를 바탕으로 예상 완료일 계산 (YYYY-MM-DD 형식 또는 null)
+4. **delayRisk**: 마감일 대비 현재 진행 속도를 분석하여 "Low", "Medium", "High" 중 하나 선택
+5. **insights**: 최소 3개 이상의 구체적인 인사이트 제공
+6. **recommendations**: 최소 3개 이상의 구체적인 개선 제안 제공
+7. **recentActivity**: 최근 활동 요약 (최근 7일, 30일 활동 패턴)
+8. **keyMetrics**: 주요 지표 (평균 커밋 빈도, Task 완료 속도 등)
+9. **narrativeResponse**: **매우 중요** - 다음 **정확한 형식**으로 **마크다운 형식**의 상세한 설명 작성 (최소 2000자 이상):
+   
+   **반드시 다음 형식으로 작성하세요:**
+   
+   ## 프로젝트 이름
+   [프로젝트의 실제 이름 또는 README에서 확인한 이름]
+   
+   ### 프로젝트 설명
+   읽은 파일(README, 설정 파일 등)과 프로젝트 설명을 바탕으로:
+   - 이 프로젝트는 **[구체적인 프로젝트 유형/목적]** 프로젝트입니다.
+   - 프로젝트의 목적, 기술 스택, 주요 특징을 구체적으로 설명 (3-5문장)
+   
+   ### 구현된 기능
+   읽은 파일 내용을 바탕으로 실제 소스코드에서 확인된 기능/모듈을 **구체적으로** 나열:
+   - **기능명 1** (`파일경로`에 구현)
+     - 함수/클래스: [구체적인 함수명/클래스명]
+     - 구현 내용: [어떻게 구현되어 있는지 구체적 설명]
+   - **기능명 2** (`파일경로`에 구현)
+     - 함수/클래스: [구체적인 함수명/클래스명]
+     - 구현 내용: [구체적 설명]
+   - ... (읽은 파일에서 실제로 확인된 것만 나열, 최소 5개 이상)
+   
+   ⚠️ 읽은 파일 내용을 무시하지 말고, 실제로 파일에서 확인된 기능만 나열하세요.
+   
+   ### 미구현 기능
+   읽은 파일을 확인했지만 구현되지 않은 기능/모듈을 나열:
+   - **기능명 1**: [왜 필요한지, 어떤 역할을 하는지]
+     - 예상 파일 위치: `파일경로` 또는 `파일경로`의 `함수명`
+   - **기능명 2**: [구체적 설명]
+     - 예상 파일 위치: `파일경로`
+   - ... (필요한 요소 목록과 대조하여 누락된 기능 나열)
+   
+   ### 평가
+   위 분석을 바탕으로 **논리적으로** 평가:
+   
+   **진행도 계산:**
+   - 필요한 요소 수: 총 **[N]**개
+   - 개발된 요소 수: **[M]**개 (읽은 파일에서 실제로 확인된 것만)
+   - 개발되지 않은 요소 수: **[K]**개
+   - 진행도: **[M] / [N] × 100 = [계산값]%**
+   - 검증: [M] + [K] = [N] (일치 확인)
+   
+   **프로젝트 상태 평가:**
+   - 현재 구현 상태: [구체적인 평가 내용, 2-3문장]
+   - 안정성: [안정적/불안정/부분적 안정 등] - [이유]
+   - 앞으로 구현할 내용: [주요 미구현 기능 요약, 2-3문장]
+   - 예상 소요 기간: [예상 기간 및 근거]
+   - 위험 요소: [주요 위험 요소 및 대응 방안]
+   - 성공 가능성: [높음/보통/낮음] - [이유]
+   
+   ⚠️ **매우 중요**: 
+   - 이 섹션에서 계산한 진행도 값이 JSON의 **currentProgress** 필드와 **정확히 일치**해야 합니다.
+   - 진행도 계산은 반드시 (개발된 요소 수 / 필요한 요소 수) × 100으로 수행하세요.
+   
+   **출력 예시:**
+   ```
+   ## 프로젝트 이름
+   To-do-ai-agent
+   
+   ### 프로젝트 설명
+   이 프로젝트는 To-do 앱과 AI Agent를 통합한 웹 애플리케이션 개발 템플릿입니다. 프론트엔드는 React 19와 Morpheus React를 사용하며, 백엔드는 Node.js + Express로 REST API를 제공합니다. SQLite 데이터베이스와 JWT 인증을 사용하여 사용자 인증 및 프로젝트 관리를 구현합니다.
+   
+   ### 구현된 기능
+   - **사용자 인증 Hook** (`hooks/useAuth.js`에 구현)
+     - 함수: `useAuth()`
+     - 구현 내용: JWT 토큰 관리 및 로그인 상태 확인 기능이 구현되어 있습니다. 토큰 저장, 검증, 로그아웃 기능이 포함되어 있습니다.
+   
+   - **프로젝트 CRUD API** (`controllers/projectController.js`에 구현)
+     - 함수: `createProject()`, `getProjects()`, `updateProject()`, `deleteProject()`
+     - 구현 내용: 프로젝트 생성, 조회, 수정, 삭제 기능이 REST API로 구현되어 있습니다. SQLite 데이터베이스와 연동되어 있습니다.
+   
+   - **AI 챗봇 인터페이스** (`components/ai/ChatBot.jsx`에 구현)
+     - 컴포넌트: `ChatBot`
+     - 구현 내용: Material-UI를 사용한 채팅 인터페이스가 구현되어 있습니다. 메시지 전송, 히스토리 로드, Task 제안 모달 등이 포함되어 있습니다.
+   
+   - **서버 상태 확인 API** (`app.js`에 구현)
+     - 엔드포인트: `GET /api/health`
+     - 구현 내용: 서버 상태를 확인하는 헬스체크 엔드포인트가 구현되어 있습니다.
+   
+   - **데이터베이스 연결** (`database/db.js`에 구현)
+     - 함수: `run()`, `get()`, `all()`
+     - 구현 내용: SQLite 데이터베이스 연결 및 쿼리 실행 기능이 구현되어 있습니다.
+   
+   ### 미구현 기능
+   - **사용자 프로필 수정 기능**: 사용자가 자신의 정보를 수정할 수 있어야 합니다.
+     - 예상 파일 위치: `components/user/ProfileEdit.jsx` 또는 `controllers/userController.js`의 `updateProfile` 함수
+   
+   - **프로젝트 공유 기능**: 프로젝트를 다른 사용자와 공유하는 기능이 필요합니다.
+     - 예상 파일 위치: `controllers/projectController.js`의 `shareProject` 함수
+   
+   - **Task 자동 할당 기능**: AI가 Task를 자동으로 사용자에게 할당하는 기능이 필요합니다.
+     - 예상 파일 위치: `controllers/aiController.js`의 `autoAssignTask` 함수
+   
+   ### 평가
+   **진행도 계산:**
+   - 필요한 요소 수: 총 **8**개
+   - 개발된 요소 수: **5**개 (읽은 파일에서 실제로 확인됨)
+   - 개발되지 않은 요소 수: **3**개
+   - 진행도: **5 / 8 × 100 = 62.5%**
+   - 검증: 5 + 3 = 8 (일치)
+   
+   **프로젝트 상태 평가:**
+   - 현재 구현 상태: 핵심 기능인 사용자 인증, 프로젝트 CRUD, AI 챗봇 인터페이스가 구현되어 있어 기본적인 기능은 작동 가능한 상태입니다. 하지만 사용자 프로필 수정, 프로젝트 공유 등 부가 기능은 아직 구현되지 않았습니다.
+   - 안정성: 부분적 안정 - 핵심 기능은 구현되어 있으나, 에러 처리 및 예외 상황 처리가 부족할 수 있습니다.
+   - 앞으로 구현할 내용: 사용자 프로필 수정, 프로젝트 공유, Task 자동 할당 기능을 구현해야 합니다. 또한 에러 처리 및 보안 강화가 필요합니다.
+   - 예상 소요 기간: 현재 진행 속도를 고려할 때 약 2-3주 정도 소요될 것으로 예상됩니다.
+   - 위험 요소: 미구현 기능들이 사용자 경험에 영향을 줄 수 있으며, 보안 취약점이 있을 수 있습니다. 정기적인 코드 리뷰와 테스트가 필요합니다.
+   - 성공 가능성: 높음 - 핵심 기능이 이미 구현되어 있어 나머지 기능 구현이 완료되면 성공적으로 프로젝트를 완료할 수 있을 것으로 예상됩니다.
+   ```
+
+⚠️ **매우 중요**: 
+- 반드시 한국어로만 응답하고, JSON 형식으로만 응답하세요.
+- **읽은 파일 내용(README, 소스코드 등)을 반드시 활용하여 분석하세요. 파일 내용을 무시하면 안 됩니다.**
+- **읽은 파일에서 실제로 확인된 기능만 "개발된 부분"에 나열하세요. 추측하지 마세요.**
+- **narrativeResponse 필드는 반드시 포함해야 하며, 없으면 분석이 완료되지 않은 것으로 간주합니다.**
+- **narrativeResponse** 필드는 위에서 지정한 **정확한 형식(1. 근거 → 2. 필요한 요소들 → 3. 개발된 부분 → 4. 개발되지 않은 부분 → 5. 진행도 계산 → 6. 종합 평가)**으로 작성하세요.
+- **최소 2000자 이상의 상세한 설명을 작성하세요.**
+- 소스코드를 직접 확인하여 구체적인 파일명, 함수명, 클래스명을 반드시 언급하세요.
+- **진행도 계산은 논리적으로 수행하세요:**
+  1. 필요한 요소 수(N)를 섹션 2에서 정확히 세기
+  2. 개발된 요소 수(M)를 섹션 3에서 정확히 세기 (읽은 파일에서 확인된 것만)
+  3. 진행도 = (M / N) × 100
+  4. **이 계산값이 JSON의 currentProgress와 정확히 일치해야 함**
+- 각 섹션을 모두 포함하여 작성하세요.
+
+다음 JSON 형식으로만 응답:
 {{
   "currentProgress": 0-100,
   "activityTrend": "increasing|stable|decreasing",
   "estimatedCompletionDate": "YYYY-MM-DD 또는 null",
   "delayRisk": "Low|Medium|High",
-  "insights": ["한국어 인사이트 1", "한국어 인사이트 2"],
-  "recommendations": ["한국어 제안 1", "한국어 제안 2"]
+  "insights": ["구체적인 인사이트 1", "구체적인 인사이트 2", "구체적인 인사이트 3"],
+  "recommendations": ["구체적인 제안 1", "구체적인 제안 2", "구체적인 제안 3"],
+  "recentActivity": {{
+    "last7Days": "최근 7일 활동 요약",
+    "last30Days": "최근 30일 활동 요약"
+  }},
+  "keyMetrics": {{
+    "averageCommitsPerDay": 0.0,
+    "taskCompletionRate": 0.0,
+    "codeGrowthRate": "증가율 설명"
+  }},
+  "narrativeResponse": "프로젝트 목표, 현재 구현된 내용, 앞으로 구현할 내용, 예상 소요 기간 등을 포함한 긴 문장 형태의 상세한 설명 (최소 500자 이상)"
 }}"""
     
     return prompt

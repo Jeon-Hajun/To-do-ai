@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 import json
 import httpx
+import requests
 from prompt_optimizer import (
     create_optimized_task_suggestion_prompt,
     create_optimized_progress_prompt,
@@ -54,7 +55,7 @@ def check_ollama_model():
         print(f"Ollama 모델 확인 실패: {e}")
         return False
 
-def call_ollama(prompt, system_prompt="당신은 도움이 되는 AI 어시스턴트입니다."):
+def call_ollama(prompt, system_prompt="당신은 도움이 되는 AI 어시스턴트입니다.", max_tokens=2000):
     """Ollama API 호출"""
     try:
         # 모델 확인
@@ -62,18 +63,23 @@ def call_ollama(prompt, system_prompt="당신은 도움이 되는 AI 어시스�
             raise Exception(f"Ollama 모델 '{OLLAMA_MODEL}'이 설치되지 않았습니다. 다음 명령어로 설치하세요: ollama pull {OLLAMA_MODEL}")
         
         print(f'[AI Backend] call_ollama - 프롬프트 길이: {len(prompt)} 문자, 시스템 프롬프트: {len(system_prompt)} 문자')
-        print(f'[AI Backend] call_ollama - Ollama URL: {OLLAMA_BASE_URL}, 모델: {OLLAMA_MODEL}')
+        print(f'[AI Backend] call_ollama - Ollama URL: {OLLAMA_BASE_URL}, 모델: {OLLAMA_MODEL}, max_tokens: {max_tokens}')
+        
+        request_data = {
+            "model": OLLAMA_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ],
+            "stream": False,
+            "options": {
+                "num_predict": max_tokens  # Ollama에서 토큰 제한 설정
+            }
+        }
         
         response = httpx.post(
             f"{OLLAMA_BASE_URL}/api/chat",
-            json={
-                "model": OLLAMA_MODEL,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
-                ],
-                "stream": False
-            },
+            json=request_data,
             timeout=300.0  # 5분으로 증가 (큰 모델의 경우 더 오래 걸릴 수 있음)
         )
         response.raise_for_status()
@@ -88,7 +94,7 @@ def call_ollama(prompt, system_prompt="당신은 도움이 되는 AI 어시스�
         print(f"Ollama API 호출 오류: {str(e)}")
         raise
 
-def call_openai(prompt, system_prompt="당신은 도움이 되는 AI 어시스턴트입니다."):
+def call_openai(prompt, system_prompt="당신은 도움이 되는 AI 어시스턴트입니다.", max_tokens=2000):
     """OpenAI API 호출"""
     if not openai_client:
         raise Exception("OpenAI 클라이언트가 초기화되지 않았습니다.")
@@ -101,7 +107,7 @@ def call_openai(prompt, system_prompt="당신은 도움이 되는 AI 어시스�
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
-            max_tokens=1000
+            max_tokens=max_tokens
         )
         return response.choices[0].message.content
     except Exception as e:
@@ -645,9 +651,9 @@ def chat():
         # LLM 호출 함수 정의
         def call_llm(prompt, system_prompt):
             if USE_OPENAI:
-                return call_openai(prompt, system_prompt)
+                return call_openai(prompt, system_prompt, max_tokens=2000)
             else:
-                return call_ollama(prompt, system_prompt)
+                return call_ollama(prompt, system_prompt, max_tokens=2000)
         
         # 1. 의도 분류
         print('[AI Backend] chat - 의도 분류 시작')
@@ -668,7 +674,32 @@ def chat():
         print(f'[AI Backend] chat - {agent_type} 실행 시작')
         agent_result = route_to_agent(agent_type, context, call_llm, user_message)
         
-        # 3. 응답 구성
+        # 3. 에러 처리 (GITHUB_REQUIRED 등)
+        if 'error' in agent_result:
+            error_code = agent_result.get('error')
+            error_response = agent_result.get('response', {})
+            error_message = error_response.get('message', '알 수 없는 오류가 발생했습니다.')
+            
+            print(f'[AI Backend] chat - 에러 발생: {error_code}')
+            
+            # GITHUB_REQUIRED 에러는 400 상태 코드로 반환
+            if error_code == 'GITHUB_REQUIRED':
+                return jsonify({
+                    'error': error_code,
+                    'message': error_message,
+                    'agent_type': agent_type,
+                    'response': error_response
+                }), 400
+            
+            # 기타 에러는 500 상태 코드로 반환
+            return jsonify({
+                'error': error_code,
+                'message': error_message,
+                'agent_type': agent_type,
+                'response': error_response
+            }), 500
+        
+        # 4. 정상 응답 구성
         response = {
             'agent_type': agent_type,
             'intent_classification': {
@@ -677,13 +708,12 @@ def chat():
                 'extracted_info': intent_result.get('extracted_info', {})
             },
             'response': agent_result.get('response', {}),
-            'message': agent_result.get('response', {}).get('message', '응답을 생성했습니다.')
+            'message': agent_result.get('response', {}).get('message', '응답을 생성했습니다.'),
+            'progress_messages': agent_result.get('progress_messages', []),  # 진행 상황 메시지 추가
+            'analysis_steps': agent_result.get('analysis_steps', 1)  # 분석 단계 수 추가
         }
         
-        if 'error' in agent_result:
-            response['error'] = agent_result['error']
-        
-        print(f'[AI Backend] chat - 응답 생성 완료')
+        print(f'[AI Backend] chat - 응답 생성 완료 (진행 메시지: {len(response.get("progress_messages", []))}개)')
         return jsonify(response)
         
     except Exception as e:
@@ -765,6 +795,99 @@ def create_project():
         print(f"[AI Backend] create-project - 트레이스백:\n{traceback.format_exc()}")
         return jsonify({
             'error': f'프로젝트 정보 추출 실패: {str(e)}'
+        }), 500
+
+@app.route('/api/ai/get-file-content', methods=['POST'])
+def get_file_content():
+    """
+    GitHub 파일 내용을 가져오는 API (AI 백엔드에서 Node.js 백엔드로 프록시)
+    Request Body:
+    {
+        "repoUrl": "https://github.com/owner/repo",
+        "filePath": "src/index.js",
+        "ref": "main",
+        "maxLines": 500,
+        "githubToken": "..."  # 선택사항
+    }
+    """
+    print('[AI Backend] get-file-content 요청 수신')
+    try:
+        data = request.json
+        repo_url = data.get('repoUrl', '').strip()
+        file_path = data.get('filePath', '').strip()
+        ref = data.get('ref', 'main')
+        max_lines = data.get('maxLines', 500)
+        github_token = data.get('githubToken')
+        
+        if not repo_url or not file_path:
+            return jsonify({
+                'error': 'repoUrl과 filePath가 필요합니다.'
+            }), 400
+        
+        # Node.js 백엔드로 프록시 요청
+        # 실제로는 직접 GitHub API를 호출하는 것이 더 효율적일 수 있지만,
+        # 현재 구조를 유지하기 위해 Node.js 백엔드의 GitHubService를 사용
+        # 여기서는 간단하게 requests로 Node.js 백엔드 API 호출
+        # (또는 직접 GitHub API 호출)
+        
+        # 직접 GitHub API 호출
+        try:
+            headers = {}
+            if github_token:
+                headers['Authorization'] = f'token {github_token}'
+            
+            # repoUrl에서 owner/repo 추출
+            import re
+            match = re.search(r'github\.com[/:]([^/]+)/([^/]+?)(?:\.git)?/?$', repo_url)
+            if not match:
+                return jsonify({'error': '유효하지 않은 GitHub URL입니다.'}), 400
+            
+            owner = match.group(1)
+            repo = match.group(2).replace('.git', '')
+            
+            url = f'https://api.github.com/repos/{owner}/{repo}/contents/{file_path}'
+            if ref != 'main':
+                url += f'?ref={ref}'
+            
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            file_data = response.json()
+            
+            if file_data.get('type') != 'file':
+                return jsonify({'error': '파일이 아닙니다.'}), 400
+            
+            import base64
+            content = base64.b64decode(file_data['content']).decode('utf-8')
+            
+            # 라인 수 제한
+            lines = content.split('\n')
+            truncated = False
+            if max_lines > 0 and len(lines) > max_lines:
+                content = '\n'.join(lines[:max_lines])
+                truncated = True
+            
+            return jsonify({
+                'success': True,
+                'content': content,
+                'size': file_data.get('size', 0),
+                'sha': file_data.get('sha'),
+                'path': file_data.get('path'),
+                'truncated': truncated,
+                'totalLines': len(lines)
+            })
+        except requests.exceptions.RequestException as e:
+            print(f'[AI Backend] GitHub API 호출 실패: {e}')
+            return jsonify({
+                'error': f'파일 읽기 실패: {str(e)}'
+            }), 500
+        
+    except Exception as e:
+        print(f"[AI Backend] get-file-content - 예외 발생: {str(e)}")
+        import traceback
+        print(f"[AI Backend] get-file-content - 트레이스백:\n{traceback.format_exc()}")
+        return jsonify({
+            'error': f'파일 읽기 실패: {str(e)}'
         }), 500
 
 @app.route('/api/ai/assign-task', methods=['POST'])

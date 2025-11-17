@@ -1098,8 +1098,10 @@ exports.chat = async function(req, res, next) {
               issues: issues,
               tasks: tasks,
               currentTasks: tasks,
+              projectName: project.title || '프로젝트',
               projectDescription: project.description || project.title,
               githubRepo: project.github_repo || null,
+              githubToken: project.github_token || null,
               projectStartDate: project.created_at || null,
               projectDueDate: null,
               projectMembersWithTags: projectMembersWithTags
@@ -1113,11 +1115,34 @@ exports.chat = async function(req, res, next) {
         console.log('[AI Controller] chat - AI 백엔드 응답 수신:', {
           status: aiResponse.status,
           hasError: !!aiResponse.data.error,
-          agentType: aiResponse.data.agent_type
+          agentType: aiResponse.data.agent_type,
+          errorCode: aiResponse.data.error
         });
         
+        // GITHUB_REQUIRED 등 에러 처리
         if (aiResponse.data.error) {
-          throw new Error(aiResponse.data.error);
+          const errorCode = aiResponse.data.error;
+          const errorMessage = aiResponse.data.message || '알 수 없는 오류가 발생했습니다.';
+          
+          // GITHUB_REQUIRED 에러는 특별 처리
+          if (errorCode === 'GITHUB_REQUIRED') {
+            return res.status(400).json({
+              success: false,
+              error: {
+                code: 'GITHUB_REQUIRED',
+                message: errorMessage
+              }
+            });
+          }
+          
+          // 기타 에러는 500으로 반환
+          return res.status(500).json({
+            success: false,
+            error: {
+              code: errorCode,
+              message: errorMessage
+            }
+          });
         }
         
         // AI 응답 메시지 저장
@@ -1153,9 +1178,11 @@ exports.chat = async function(req, res, next) {
           data: {
             conversationId: conversationId,
             agentType: agentType,
+            agent_type: agentType, // 프론트엔드 호환성을 위해 둘 다 포함
             message: assistantMessage,
             response: aiResponse.data.response,
-            intentClassification: aiResponse.data.intent_classification
+            intentClassification: aiResponse.data.intent_classification,
+            progress_messages: aiResponse.data.progress_messages || [] // 진행 메시지도 전달
           },
           message: '챗봇 응답이 생성되었습니다.'
         });
