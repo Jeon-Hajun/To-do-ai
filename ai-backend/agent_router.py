@@ -359,7 +359,19 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             core_features = step1_result.get('coreFeatures', [])
             core_feature_progress = step3_result.get('coreFeatureProgress', [])
             
-            # 기본 변수 정의 (항상 사용되므로 먼저 정의)
+            # 인프라 기능 필터링 (진행도 분석에서 제외)
+            infrastructure_keywords = ['인프라', 'infrastructure', '데이터베이스', 'database', '미들웨어', 'middleware', 'db', '연결', 'jwt', 'cors', '인증']
+            
+            # required_features에서 인프라 제외
+            required_features = [rf for rf in required_features if rf.get('type', '') != 'infrastructure' and not any(kw in rf.get('name', '').lower() for kw in infrastructure_keywords)]
+            
+            # implemented_features에서 인프라 제외
+            implemented_features = [imf for imf in implemented_features if imf.get('type', '') != 'infrastructure' and not any(kw in imf.get('name', '').lower() for kw in infrastructure_keywords)]
+            
+            # missing_features에서 인프라 제외
+            missing_features = [mf for mf in missing_features if not any(kw in mf.get('name', '').lower() for kw in infrastructure_keywords)]
+            
+            # 기본 변수 정의 (항상 사용되므로 먼저 정의, 인프라 제외 후)
             total_required = len(required_features)
             total_implemented = len(implemented_features)
             total_missing = len(missing_features)
@@ -398,12 +410,12 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
                 # 테스트/배포 비율이 0이거나 없으면 기본 진행도 사용
                 progress = base_progress
             
-            # 구현된 기능 목록 생성 (페이지, API, 컴포넌트, 인프라, 테스트/배포로 분류)
+            # 구현된 기능 목록 생성 (페이지, API, 컴포넌트, 테스트/배포로 분류)
+            # 인프라는 제외
             # 프로젝트 특성에 따라 유동적으로 소제목 생성
             pages_list = []
             apis_list = []
             components_list = []
-            infrastructure_list = []
             test_deployment_list = []
             
             for feat in implemented_features:
@@ -411,19 +423,18 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
                 feat_type = feat.get('type', 'other')
                 location = feat.get('location', feat.get('filePath', ''))
                 
+                # 인프라 기능은 건너뛰기
+                if feat_type == 'infrastructure' or any(kw in name.lower() for kw in infrastructure_keywords):
+                    continue
+                
                 if feat_type == 'page':
                     pages_list.append(f"- **{name}** {location}")
                 elif feat_type == 'api':
                     apis_list.append(f"- **{name}** {location}")
                 elif feat_type == 'component':
                     components_list.append(f"- **{name}** {location}")
-                elif feat_type == 'infrastructure':
-                    infrastructure_list.append(f"- **{name}** {location}")
                 elif feat_type == 'test_deployment':
                     test_deployment_list.append(f"- **{name}** {location}")
-                else:
-                    # 기타는 인프라로 분류
-                    infrastructure_list.append(f"- **{name}** {location}")
             
             # 미구현 기능 목록 생성 (간단하게)
             missing_list = []
@@ -466,8 +477,7 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             if components_list:
                 sections.append(f"#### 컴포넌트\n{chr(10).join(components_list)}")
             
-            if infrastructure_list:
-                sections.append(f"#### 인프라\n{chr(10).join(infrastructure_list)}")
+            # 인프라는 제외 (진행도 분석에서 제외)
             
             if test_deployment_list:
                 sections.append(f"#### 테스트/배포\n{chr(10).join(test_deployment_list)}")
