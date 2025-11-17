@@ -164,14 +164,32 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
         issues = context.get('issues', [])
         currentTasks = context.get('currentTasks', [])
         projectDescription = context.get('projectDescription', '')
+        projectName = context.get('projectName', '')
         githubRepo = context.get('githubRepo', '')
         user_message = user_message or ""
         
-        has_project_desc = projectDescription and len(projectDescription.strip()) > 20
+        # 프로젝트 설명이 실제로 있는지 확인 (제목만 있는 경우 제외)
+        # 백엔드에서 project.description || project.title로 보내므로,
+        # projectName과 같으면 실제 설명이 없는 것으로 간주
+        actual_description = projectDescription
+        if projectName and projectDescription == projectName:
+            actual_description = ""  # 제목만 있는 경우 설명이 없는 것으로 간주
+        
+        has_project_desc = actual_description and len(actual_description.strip()) > 20
         has_user_request = user_message and len(user_message.strip()) > 10
         has_tasks = len(currentTasks) > 0
         has_commits = len(commits) > 0
         has_issues = len(issues) > 0
+        
+        # 디버깅 로그
+        print(f"[Agent Router] Task 제안 - 정보 충분성 체크:")
+        print(f"  - 프로젝트 설명: {len(actual_description)}자 (실제: {actual_description[:50]}...)")
+        print(f"  - 프로젝트 제목: {projectName}")
+        print(f"  - 사용자 요구사항: {len(user_message)}자")
+        print(f"  - 커밋: {len(commits)}개")
+        print(f"  - 이슈: {len(issues)}개")
+        print(f"  - Task: {len(currentTasks)}개")
+        print(f"  - 정보 충분: desc={has_project_desc}, request={has_user_request}, tasks={has_tasks}, commits={has_commits}, issues={has_issues}")
         
         # 정보 부족으로 질문이 필요한 경우 처리 (먼저 체크)
         if not has_project_desc and not has_user_request and not has_tasks and not has_commits and not has_issues:
