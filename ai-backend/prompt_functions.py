@@ -541,7 +541,7 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
   "completedFeaturesCount": {total_implemented},
   "requiredFeaturesCount": {total_required},
   "missingFeaturesCount": {total_missing},
-  "narrativeResponse": "{project_desc}\\n\\n### 구현된 기능\\n{chr(10).join(implemented_list) if implemented_list else '없음'}\\n\\n### 미구현 기능\\n{chr(10).join(missing_list) if missing_list else '없음'}\\n\\n### 평가\\n{chr(10).join([f'- **{cf.get(\"coreFeatureName\", \"\")}**: {cf.get(\"progress\", 0)}% (완성된 기능 {cf.get(\"implementedCount\", 0)}개, 구현해야 할 기능 {cf.get(\"requiredCount\", 0) - cf.get(\"implementedCount\", 0)}개)' for cf in core_feature_progress]) if core_feature_progress else f'완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개로 진행도 {progress}%입니다.'}\\n\\n전체 진행도: {progress}% (완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개)\\n\\n**예상 완성일**: [현재 진행 속도를 고려한 예상 완성일 또는 '미정']\\n\\n**총평**: [프로젝트의 현재 상태를 2-3줄로 요약한 총평. 핵심 기능 구현 상태, 주요 미구현 기능, 전체적인 프로젝트 상태를 간결하게 설명]",
+  "narrativeResponse": "[프로젝트 설명]\\n\\n### 구현된 기능\\n[구현된 기능 목록]\\n\\n### 미구현 기능\\n[미구현 기능 목록]\\n\\n### 평가\\n[핵심 기능별 진행도 표시 또는 전체 진행도]\\n\\n전체 진행도: {progress}% (완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개)\\n\\n**예상 완성일**: [현재 진행 속도를 고려한 예상 완성일 또는 '미정']\\n\\n**총평**: [프로젝트의 현재 상태를 2-3줄로 요약한 총평. 핵심 기능 구현 상태, 주요 미구현 기능, 전체적인 프로젝트 상태를 간결하게 설명]",
   "activityTrend": "increasing|stable|decreasing",
   "delayRisk": "Low|Medium|High",
   "estimatedCompletionDate": "YYYY-MM-DD 또는 null",
