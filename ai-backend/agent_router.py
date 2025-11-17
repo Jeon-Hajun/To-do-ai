@@ -267,10 +267,21 @@ def generate_task_suggestion_questions(context, missing_info):
 def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
     """Task 제안 agent 실행 (5단계 프로세스 재설계)"""
     try:
+        import time
+        agent_start_time = time.time()
+        
         project_name = context.get('projectName', '프로젝트')
         github_repo = context.get('githubRepo', '')
         github_token = context.get('githubToken')
         has_github = github_repo and github_repo.strip() != ''
+        
+        # GitHub 토큰 확인 로그
+        print(f"[Agent Router] Task 제안 - GitHub 저장소: {github_repo if has_github else '없음'}")
+        print(f"[Agent Router] Task 제안 - GitHub 토큰: {'있음' if github_token else '없음'}")
+        if github_token:
+            print(f"[Agent Router] Task 제안 - GitHub 토큰 길이: {len(github_token)}, 시작: {github_token[:10]}...")
+        else:
+            print(f"[Agent Router] Task 제안 - ⚠️ GitHub 토큰 없음 - rate limit 제한 가능성 (시간당 60회)")
         
         progress_messages = []
         all_steps = []
@@ -300,11 +311,16 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
                         break
                 except:
                     continue
+            step1_readme_elapsed = time.time() - step1_readme_start
+            print(f"[Agent Router] Task 제안 - 1단계 README 읽기 소요 시간: {step1_readme_elapsed:.2f}초")
         
         # 1단계 프롬프트 생성 및 LLM 호출
+        step1_llm_start = time.time()
         prompt_step1 = create_task_suggestion_step1_prompt(context, user_message, read_files_step1, [], 1)
         system_prompt = "소프트웨어 프로젝트 분석 전문가. 반드시 한국어로 응답. JSON만 응답."
         response_step1 = call_llm_func(prompt_step1, system_prompt)
+        step1_llm_elapsed = time.time() - step1_llm_start
+        print(f"[Agent Router] Task 제안 - 1단계 LLM 호출 소요 시간: {step1_llm_elapsed:.2f}초")
         
         # JSON 파싱
         try:
@@ -322,6 +338,7 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
         # ===== 2단계: 현재 Task 및 소스코드 구현 파악 =====
         print(f"[Agent Router] Task 제안 - 2단계: 현재 Task 및 소스코드 구현 파악")
         progress_messages.append("📋 2단계: 현재 Task 및 소스코드 구현 파악 중...")
+        step2_start_time = time.time()
         
         # 소스코드 파일 읽기 (GitHub 연결 시) - 논리적 읽기 방식
         read_files_step2 = []
@@ -354,11 +371,14 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
             # LLM에게 파일 목록 제공하여 필요한 파일만 선택 요청
             if all_files_list:
                 progress_messages.append("🤔 필요한 파일 선택 중...")
+                file_selection_start = time.time()
                 from prompt_functions import create_task_suggestion_file_selection_prompt
                 file_selection_prompt = create_task_suggestion_file_selection_prompt(
                     context, user_message, all_files_list, step1_result
                 )
                 file_selection_response = call_llm_func(file_selection_prompt, system_prompt)
+                file_selection_elapsed = time.time() - file_selection_start
+                print(f"[Agent Router] Task 제안 - 파일 선택 LLM 호출 소요 시간: {file_selection_elapsed:.2f}초")
                 
                 # JSON 파싱
                 try:
@@ -424,9 +444,15 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
                         ]
                         print(f"[Agent Router] Task 제안 - 2단계에서 폴백으로 {len(read_files_step2)}개 파일 읽음")
         
+        step2_file_read_elapsed = time.time() - step2_start_time
+        print(f"[Agent Router] Task 제안 - 2단계 파일 읽기 소요 시간: {step2_file_read_elapsed:.2f}초")
+        
         # 2단계 프롬프트 생성 및 LLM 호출
+        step2_llm_start = time.time()
         prompt_step2 = create_task_suggestion_step2_prompt(context, user_message, read_files_step2, [], 2, step1_result)
         response_step2 = call_llm_func(prompt_step2, system_prompt)
+        step2_llm_elapsed = time.time() - step2_llm_start
+        print(f"[Agent Router] Task 제안 - 2단계 LLM 호출 소요 시간: {step2_llm_elapsed:.2f}초")
         
         # JSON 파싱
         try:
@@ -585,7 +611,8 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
         message = "\n".join(message_parts)
         progress_messages.append("✅ 5단계 완료: Task 형식으로 통합 및 출력")
         
-        print(f"[Agent Router] Task 제안 - {len(suggestions)}개 제안 생성 완료")
+        agent_total_elapsed = time.time() - agent_start_time
+        print(f"[Agent Router] Task 제안 - {len(suggestions)}개 제안 생성 완료, 총 소요 시간: {agent_total_elapsed:.2f}초")
         
         return {
             "agent_type": "task_suggestion_agent",

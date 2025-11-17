@@ -240,17 +240,32 @@ def get_file_contents(
         headers = {}
         if github_token:
             headers['Authorization'] = f'token {github_token}'
-            print(f"[Multi-Step Agent] 파일 읽기 시작: {len(file_paths)}개 파일, 토큰 사용 중")
+            print(f"[Multi-Step Agent] 파일 읽기 시작: {len(file_paths)}개 파일, 토큰 사용 중 (길이: {len(github_token)})")
         else:
             print(f"[Multi-Step Agent] ⚠️ 파일 읽기: {len(file_paths)}개 파일, 토큰 없음 - rate limit 제한 가능성 (시간당 60회)")
         
         # repoUrl에서 owner/repo 추출
         match = re.search(r'github\.com[/:]([^/]+)/([^/]+?)(?:\.git)?/?$', github_repo)
         if not match:
+            print(f"[Multi-Step Agent] ⚠️ GitHub URL 파싱 실패: {github_repo}")
             return []
         
         owner = match.group(1)
         repo = match.group(2).replace('.git', '')
+        print(f"[Multi-Step Agent] GitHub 저장소: {owner}/{repo}")
+        
+        # 첫 번째 요청으로 토큰 검증 및 rate limit 확인
+        if github_token:
+            try:
+                test_url = f'https://api.github.com/repos/{owner}/{repo}'
+                test_response = requests.get(test_url, headers=headers, timeout=5)
+                rate_limit_remaining = test_response.headers.get('X-RateLimit-Remaining', 'unknown')
+                rate_limit_total = test_response.headers.get('X-RateLimit-Limit', 'unknown')
+                print(f"[Multi-Step Agent] GitHub API 연결 확인: rate limit {rate_limit_remaining}/{rate_limit_total} 남음")
+                if rate_limit_remaining != 'unknown' and int(rate_limit_remaining) < 10:
+                    print(f"[Multi-Step Agent] ⚠️ GitHub API rate limit 경고: {rate_limit_remaining}개만 남음!")
+            except Exception as e:
+                print(f"[Multi-Step Agent] ⚠️ GitHub API 연결 테스트 실패: {e}")
         
         file_read_start = time.time()
         
