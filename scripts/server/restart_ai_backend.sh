@@ -36,8 +36,8 @@ expect "$ "
 send "cd $PROJECT_DIR/ai-backend\r"
 expect "$ "
 
-# AI 백엔드 시작
-send "source venv/bin/activate && nohup python app.py > ai-backend.log 2>&1 &\r"
+# AI 백엔드 시작 (버퍼링 비활성화)
+send "source venv/bin/activate && PYTHONUNBUFFERED=1 nohup python -u app.py > ai-backend.log 2>&1 &\r"
 expect "$ "
 
 send "sleep 5\r"

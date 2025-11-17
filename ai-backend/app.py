@@ -3,9 +3,14 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from datetime import datetime
 import os
+import sys
 import json
 import httpx
 import requests
+
+# 출력 버퍼링 비활성화 (로그 즉시 출력)
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 from prompt_optimizer import (
     create_optimized_task_suggestion_prompt,
     create_optimized_progress_prompt,
