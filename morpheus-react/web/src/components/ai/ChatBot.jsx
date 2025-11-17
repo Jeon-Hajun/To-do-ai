@@ -172,7 +172,6 @@ export default function ChatBot({ projectId, onError }) {
             const filtered = prev.filter((msg) => msg.id !== progressMessageId);
             return [...filtered, errorMessage];
           });
-          setError(res.data.response?.message || "GitHub 저장소가 연결되어 있지 않습니다.");
           return;
         }
 
@@ -341,7 +340,6 @@ export default function ChatBot({ projectId, onError }) {
             const filtered = prev.filter((msg) => msg.id !== progressMessageId);
             return [...filtered, errorMessage];
           });
-          setError(res.data.response?.message || "GitHub 저장소가 연결되어 있지 않습니다.");
           return;
         }
 
