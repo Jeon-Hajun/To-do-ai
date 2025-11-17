@@ -12,7 +12,7 @@ from prompt_optimizer import (
     create_task_assignment_prompt
 )
 
-def create_task_suggestion_initial_prompt(context, user_message, read_files, analyzed_commits):
+def create_task_suggestion_initial_prompt(context, user_message, read_files, analyzed_commits, step_number=1):
     """Task 제안 에이전트 초기 프롬프트"""
     commits = context.get('commits', [])
     issues = context.get('issues', [])
@@ -34,7 +34,7 @@ def create_task_suggestion_initial_prompt(context, user_message, read_files, ana
     
     return base_prompt + files_context + "\n\n위 정보를 바탕으로 Task를 제안하세요. JSON 배열 형식으로 응답하세요."
 
-def create_task_suggestion_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits):
+def create_task_suggestion_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits, step_number=2):
     """Task 제안 에이전트 후속 프롬프트"""
     commits = context.get('commits', [])
     issues = context.get('issues', [])
@@ -677,7 +677,7 @@ def create_task_completion_initial_prompt(context, user_message, read_files, ana
     
     return create_initial_completion_prompt(task, commits, projectDescription)
 
-def create_task_completion_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits):
+def create_task_completion_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits, step_number=2, all_steps=None):
     """Task 완료 확인 에이전트 후속 프롬프트"""
     task = context.get('task')
     commits = context.get('commits', [])
@@ -698,7 +698,7 @@ def create_task_completion_followup_prompt(context, previous_result, user_messag
     
     return base_prompt + files_context + "\n\n위 파일 내용을 참고하여 최종 판단하세요."
 
-def create_general_qa_initial_prompt(context, user_message, read_files, analyzed_commits):
+def create_general_qa_initial_prompt(context, user_message, read_files, analyzed_commits, step_number=1):
     """일반 QA 에이전트 초기 프롬프트"""
     commits = context.get('commits', [])
     issues = context.get('issues', [])
@@ -827,7 +827,7 @@ def create_general_qa_initial_prompt(context, user_message, read_files, analyzed
     
     return prompt
 
-def create_general_qa_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits):
+def create_general_qa_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits, step_number=2, all_steps=None):
     """일반 QA 에이전트 후속 프롬프트"""
     prompt = f"""이전 답변을 보완하여 더 정확하고 상세한 답변을 제공하세요.
 
@@ -843,7 +843,7 @@ def create_general_qa_followup_prompt(context, previous_result, user_message, re
 위 파일 내용을 참고하여 더 정확하고 구체적인 답변을 제공하세요. JSON 형식으로만 응답하세요."""
     return prompt
 
-def create_task_assignment_initial_prompt(context, user_message, read_files, analyzed_commits):
+def create_task_assignment_initial_prompt(context, user_message, read_files, analyzed_commits, step_number=1):
     """Task 할당 추천 에이전트 초기 프롬프트"""
     task_title = context.get('taskTitle', '')
     task_description = context.get('taskDescription', '')
@@ -851,7 +851,7 @@ def create_task_assignment_initial_prompt(context, user_message, read_files, ana
     
     return create_task_assignment_prompt(task_title, task_description, project_members_with_tags)
 
-def create_task_assignment_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits):
+def create_task_assignment_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits, step_number=2, all_steps=None):
     """Task 할당 추천 에이전트 후속 프롬프트"""
     task_title = context.get('taskTitle', '')
     task_description = context.get('taskDescription', '')
