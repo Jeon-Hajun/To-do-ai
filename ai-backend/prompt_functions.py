@@ -295,7 +295,27 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
         required_features = step2_result.get('requiredFeatures', [])
         required_features_text = "\n".join([f"- {f.get('name', '')} ({f.get('type', 'unknown')})" for f in required_features[:15]])
         
+        # 읽은 파일 목록 생성 (검증을 위해)
+        read_files_list = []
+        if read_files:
+            read_files_list = [f.get('path', '') for f in read_files]
+        read_files_summary = "\n".join([f"- {path}" for path in read_files_list[:30]]) if read_files_list else "없음"
+        
+        # 사용자 요청 분석 (특정 영역에 집중하라는 요청이 있는지 확인)
+        user_focus = ""
+        if user_message:
+            user_msg_lower = user_message.lower()
+            if any(keyword in user_msg_lower for keyword in ['프론트', 'frontend', '프론트엔드', 'ui', '화면', '페이지']):
+                user_focus = "⚠️ **사용자 요청**: 프론트엔드 파일(페이지, 컴포넌트)을 우선적으로 확인하세요."
+            elif any(keyword in user_msg_lower for keyword in ['백엔드', 'backend', '서버', 'api', '엔드포인트']):
+                user_focus = "⚠️ **사용자 요청**: 백엔드 파일(라우트, 컨트롤러)을 우선적으로 확인하세요."
+            elif any(keyword in user_msg_lower for keyword in ['연동', '연결', '통합', 'integration', '연계']):
+                user_focus = "⚠️ **사용자 요청**: 프론트엔드 API 호출 파일과 백엔드 라우트 파일을 함께 확인하여 연동 상태를 분석하세요."
+        
+        focus_section = f"\n\n{user_focus}\n" if user_focus else ""
+        
         prompt = f"""진행도 분석 **3단계: 구현된 기능 확인**입니다.
+{focus_section}
 
 ## 이전 단계 결과:
 
