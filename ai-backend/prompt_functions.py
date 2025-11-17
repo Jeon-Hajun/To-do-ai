@@ -112,10 +112,11 @@ def create_progress_analysis_initial_prompt(context, user_message, read_files, a
   "nextStep": "다음 단계(2단계)에서는 이 프로젝트에 필요한 기능들을 분석하겠습니다."
 }}
 
-⚠️ **중요**: 
+⚠️ **매우 중요**: 
 - 읽은 파일 내용을 바탕으로 프로젝트가 무엇인지 정확히 파악하세요.
-- 프로젝트 이름은 README나 package.json에서 확인하세요.
-- 프로젝트 설명은 구체적이고 명확하게 작성하세요."""
+- 프로젝트 이름은 README나 package.json에서 확인한 **실제 이름**을 입력하세요. "[프로젝트의 실제 이름]" 같은 형식이 아닌 실제 값입니다.
+- 프로젝트 설명은 **실제 설명**을 작성하세요. "[이 프로젝트는...]" 같은 형식이 아닌 실제 내용입니다.
+- 예시: projectName: "To-do-ai-agent" (실제 값), projectDescription: "To-do 앱과 AI Agent를 통합한 웹 애플리케이션입니다. React와 Node.js를 사용합니다." (실제 설명)"""
     
     return prompt
 
@@ -333,7 +334,7 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 {{
   "step": 5,
   "currentProgress": {progress},
-  "narrativeResponse": "## 프로젝트 이름\\n{project_name}\\n\\n### 프로젝트 설명\\n{project_desc}\\n\\n### 구현된 기능\\n{chr(10).join(implemented_list) if implemented_list else '없음'}\\n\\n### 미구현 기능\\n{chr(10).join(missing_list) if missing_list else '없음'}\\n\\n### 평가\\n**진행도**: {progress}%\\n\\n**예상 완성일**: [현재 진행 속도를 고려한 예상 완성일 또는 '미정']\\n\\n**총평**: [프로젝트의 현재 상태를 2-3줄로 요약한 총평. 핵심 기능 구현 상태, 주요 미구현 기능, 전체적인 프로젝트 상태를 간결하게 설명]",
+  "narrativeResponse": "# 프로젝트 이름\\n{project_name}\\n\\n## 프로젝트 설명\\n{project_desc}\\n\\n### 구현된 기능\\n{chr(10).join(implemented_list) if implemented_list else '없음'}\\n\\n### 미구현 기능\\n{chr(10).join(missing_list) if missing_list else '없음'}\\n\\n### 평가\\n**진행도**: {progress}%\\n\\n**예상 완성일**: [현재 진행 속도를 고려한 예상 완성일 또는 '미정']\\n\\n**총평**: [프로젝트의 현재 상태를 2-3줄로 요약한 총평. 핵심 기능 구현 상태, 주요 미구현 기능, 전체적인 프로젝트 상태를 간결하게 설명]",
   "activityTrend": "increasing|stable|decreasing",
   "delayRisk": "Low|Medium|High",
   "estimatedCompletionDate": "YYYY-MM-DD 또는 null",
