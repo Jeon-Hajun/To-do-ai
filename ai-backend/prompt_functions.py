@@ -42,7 +42,34 @@ def create_task_suggestion_initial_prompt(context, user_message, read_files, ana
     
     # GitHub가 없을 때 추가 지시사항
     if not has_github or (not has_commits and not has_issues):
-        additional_instruction = f"""
+        # 정보 충분성 확인
+        has_project_desc = projectDescription and len(projectDescription.strip()) > 20
+        has_user_request = user_request and len(user_request.strip()) > 10
+        has_tasks = len(currentTasks) > 0
+        
+        # 정보가 충분하지 않으면 질문 요청
+        if not has_project_desc and not has_user_request and not has_tasks:
+            # 정보가 매우 부족한 경우 - 질문을 요청하는 응답
+            return """프로젝트에 대한 정보가 부족하여 Task를 제안하기 어렵습니다.
+
+다음 정보를 제공해주시면 더 정확한 Task를 제안할 수 있습니다:
+
+1. **프로젝트 설명**: 이 프로젝트는 무엇을 하는 프로젝트인가요? 핵심 기능은 무엇인가요?
+2. **현재 진행 상황**: 지금까지 어떤 기능이 구현되었나요?
+3. **다음 단계**: 앞으로 어떤 기능을 구현하고 싶으신가요?
+
+다음 형식으로 응답하세요:
+{
+  "needsMoreInfo": true,
+  "questions": [
+    "프로젝트의 핵심 기능은 무엇인가요?",
+    "현재 어떤 기능이 구현되어 있나요?",
+    "다음으로 구현하고 싶은 기능은 무엇인가요?"
+  ],
+  "message": "프로젝트에 대한 정보가 부족합니다. 위 질문에 답변해주시면 더 정확한 Task를 제안할 수 있습니다."
+}"""
+        else:
+            additional_instruction = f"""
 
 ⚠️ **중요**: GitHub 저장소가 연결되지 않았거나 커밋/이슈 정보가 없습니다.
 다음 정보를 우선적으로 활용하여 Task를 제안하세요:
