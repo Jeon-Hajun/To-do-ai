@@ -6,6 +6,7 @@
 import json
 import re
 from typing import Dict, List, Any, Callable, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 MAX_ANALYSIS_STEPS = 10
 
@@ -149,10 +150,15 @@ def list_directory_contents(
     
     try:
         import requests
+        import time
+        
+        start_time = time.time()
         
         headers = {}
         if github_token:
             headers['Authorization'] = f'token {github_token}'
+        else:
+            print(f"[Multi-Step Agent] ⚠️ GitHub 토큰 없음 - rate limit 제한 가능성")
         
         # repoUrl에서 owner/repo 추출
         match = re.search(r'github\.com[/:]([^/]+)/([^/]+?)(?:\.git)?/?$', github_repo)
@@ -169,16 +175,27 @@ def list_directory_contents(
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         
+        # Rate limit 확인
+        remaining = response.headers.get('X-RateLimit-Remaining', 'unknown')
+        if remaining != 'unknown':
+            remaining_int = int(remaining)
+            if remaining_int < 10:
+                print(f"[Multi-Step Agent] ⚠️ GitHub API rate limit 경고: {remaining_int}개 남음")
+        
         contents = response.json()
         if not isinstance(contents, list):
             return []
         
+        elapsed = time.time() - start_time
+        if elapsed > 2:
+            print(f"[Multi-Step Agent] 디렉토리 탐색 느림: {directory_path} ({elapsed:.2f}초)")
+        
         files = []
         for item in contents:
             if item.get('type') == 'file':
-                # JavaScript/TypeScript/JSX 파일만
+                # JavaScript/TypeScript/JSX/Python 파일만
                 file_name = item.get('name', '')
-                if file_name.endswith(('.js', '.jsx', '.ts', '.tsx')):
+                if file_name.endswith(('.js', '.jsx', '.ts', '.tsx', '.py')):
                     files.append(item.get('path', ''))
             elif item.get('type') == 'dir':
                 # 하위 디렉토리는 재귀적으로 탐색 (최대 2단계 깊이)
@@ -189,7 +206,7 @@ def list_directory_contents(
         
         return files
     except Exception as e:
-        print(f"[Multi-Step Agent] 디렉토리 목록 조회 실패: {e}")
+        print(f"[Multi-Step Agent] 디렉토리 목록 조회 실패 ({directory_path}): {e}")
         return []
 
 def get_file_contents(
@@ -218,10 +235,14 @@ def get_file_contents(
     
     try:
         import requests
+        import time
         
         headers = {}
         if github_token:
             headers['Authorization'] = f'token {github_token}'
+            print(f"[Multi-Step Agent] 파일 읽기 시작: {len(file_paths)}개 파일, 토큰 사용 중")
+        else:
+            print(f"[Multi-Step Agent] ⚠️ 파일 읽기: {len(file_paths)}개 파일, 토큰 없음 - rate limit 제한 가능성 (시간당 60회)")
         
         # repoUrl에서 owner/repo 추출
         match = re.search(r'github\.com[/:]([^/]+)/([^/]+?)(?:\.git)?/?$', github_repo)
@@ -231,9 +252,15 @@ def get_file_contents(
         owner = match.group(1)
         repo = match.group(2).replace('.git', '')
         
-        results = []
-        for file_path in file_paths[:50]:  # 최대 50개 파일로 증가
+        file_read_start = time.time()
+        
+        # 병렬 처리로 파일 읽기
+        def fetch_single_file(file_path):
+            """단일 파일 읽기 함수"""
             try:
+                import time
+                start_time = time.time()
+                
                 url = f'https://api.github.com/repos/{owner}/{repo}/contents/{file_path}'
                 if ref != 'main':
                     url += f'?ref={ref}'
@@ -241,15 +268,25 @@ def get_file_contents(
                 response = requests.get(url, headers=headers, timeout=10)
                 response.raise_for_status()
                 
+                # Rate limit 확인
+                remaining = response.headers.get('X-RateLimit-Remaining', 'unknown')
+                if remaining != 'unknown':
+                    remaining_int = int(remaining)
+                    if remaining_int < 10:
+                        print(f"[Multi-Step Agent] ⚠️ GitHub API rate limit 경고: {remaining_int}개 남음")
+                
+                elapsed = time.time() - start_time
+                if elapsed > 1:
+                    print(f"[Multi-Step Agent] 파일 읽기 느림: {file_path} ({elapsed:.2f}초)")
+                
                 file_data = response.json()
                 
                 if file_data.get('type') != 'file':
-                    results.append({
+                    return {
                         "filePath": file_path,
                         "content": None,
                         "error": "파일이 아닙니다."
-                    })
-                    continue
+                    }
                 
                 import base64
                 content = base64.b64decode(file_data['content']).decode('utf-8')
@@ -261,19 +298,41 @@ def get_file_contents(
                     content = '\n'.join(lines[:max_lines_per_file])
                     truncated = True
                 
-                results.append({
+                return {
                     "filePath": file_path,
                     "content": content,
                     "truncated": truncated,
                     "totalLines": len(lines),
                     "error": None
-                })
+                }
             except Exception as e:
-                results.append({
+                return {
                     "filePath": file_path,
                     "content": None,
                     "error": str(e)
-                })
+                }
+        
+        # 병렬 처리 (최대 10개 동시 요청)
+        results = []
+        files_to_fetch = file_paths[:50]  # 최대 50개 파일
+        
+        if len(files_to_fetch) > 1:
+            # 병렬 처리
+            print(f"[Multi-Step Agent] 병렬 파일 읽기 시작: {len(files_to_fetch)}개 파일")
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                future_to_file = {executor.submit(fetch_single_file, file_path): file_path 
+                                 for file_path in files_to_fetch}
+                for future in as_completed(future_to_file):
+                    result = future.result()
+                    results.append(result)
+        else:
+            # 파일이 1개 이하면 순차 처리
+            for file_path in files_to_fetch:
+                results.append(fetch_single_file(file_path))
+        
+        file_read_elapsed = time.time() - file_read_start
+        successful_reads = len([r for r in results if r.get('content')])
+        print(f"[Multi-Step Agent] 파일 읽기 완료: {successful_reads}/{len(files_to_fetch)}개 성공, 소요 시간: {file_read_elapsed:.2f}초")
         
         return results
     except Exception as e:
