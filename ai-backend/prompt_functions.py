@@ -107,8 +107,8 @@ def create_progress_analysis_initial_prompt(context, user_message, read_files, a
 다음 JSON 형식으로만 응답하세요:
 {{
   "step": 1,
-  "projectName": "[프로젝트의 실제 이름 또는 README에서 확인한 이름]",
-  "projectDescription": "[이 프로젝트는 어떤 프로젝트인지, 목적, 기술 스택, 주요 특징을 3-5문장으로 설명]",
+  "projectName": "실제 프로젝트 이름 (README나 package.json에서 확인한 실제 이름, [프로젝트의 실제 이름] 같은 형식이 아닌 실제 값)",
+  "projectDescription": "실제 프로젝트 설명 (이 프로젝트는 어떤 프로젝트인지, 목적, 기술 스택, 주요 특징을 3-5문장으로 설명. [이 프로젝트는...] 같은 형식이 아닌 실제 설명)",
   "nextStep": "다음 단계(2단계)에서는 이 프로젝트에 필요한 기능들을 분석하겠습니다."
 }}
 
