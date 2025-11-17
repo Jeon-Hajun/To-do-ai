@@ -108,15 +108,16 @@ def create_progress_analysis_initial_prompt(context, user_message, read_files, a
 {{
   "step": 1,
   "projectName": "실제 프로젝트 이름 (README나 package.json에서 확인한 실제 이름, [프로젝트의 실제 이름] 같은 형식이 아닌 실제 값)",
-  "projectDescription": "실제 프로젝트 설명 (이 프로젝트는 어떤 프로젝트인지, 목적, 기술 스택, 주요 특징을 3-5문장으로 설명. [이 프로젝트는...] 같은 형식이 아닌 실제 설명)",
+  "projectDescription": "실제 프로젝트 설명 (이 프로젝트는 어떤 프로젝트인지, 핵심 기능과 주요 기능들을 설명. 기술 스택은 생략하고 기능 중심으로 작성. [이 프로젝트는...] 같은 형식이 아닌 실제 설명)",
   "nextStep": "다음 단계(2단계)에서는 이 프로젝트에 필요한 기능들을 분석하겠습니다."
 }}
 
 ⚠️ **매우 중요**: 
 - 읽은 파일 내용을 바탕으로 프로젝트가 무엇인지 정확히 파악하세요.
 - 프로젝트 이름은 README나 package.json에서 확인한 **실제 이름**을 입력하세요. "[프로젝트의 실제 이름]" 같은 형식이 아닌 실제 값입니다.
-- 프로젝트 설명은 **실제 설명**을 작성하세요. "[이 프로젝트는...]" 같은 형식이 아닌 실제 내용입니다.
-- 예시: projectName: "To-do-ai-agent" (실제 값), projectDescription: "To-do 앱과 AI Agent를 통합한 웹 애플리케이션입니다. React와 Node.js를 사용합니다." (실제 설명)"""
+- 프로젝트 설명은 **기능 중심으로 작성**하세요. 기술 스택(React, Node.js 등)은 생략하고, 핵심 기능과 주요 기능들을 설명하세요.
+- 형식: "이 프로젝트는 [핵심 기능]이 핵심 기능이고, [주요 기능 1], [주요 기능 2], [주요 기능 3] 등의 기능이 있습니다."
+- 예시: projectName: "To-do-ai-agent" (실제 값), projectDescription: "이 프로젝트는 AI Agent가 핵심 기능이고, 진행도 분석, Task 제안, Task 완료 확인 등의 기능이 있습니다." (기능 중심 설명)"""
     
     return prompt
 
