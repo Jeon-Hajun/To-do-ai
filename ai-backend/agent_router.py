@@ -300,8 +300,17 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
         if not isinstance(suggestions, list):
             suggestions = [suggestions] if suggestions else []
         
-        # suggestions가 비어있고 정보가 부족한 경우 질문 요청 (추가 체크)
-        if len(suggestions) == 0 and not has_project_desc and not has_user_request and not has_tasks and not has_commits and not has_issues:
+        # suggestions가 비어있는 경우 - 정보 충분성 재평가
+        if len(suggestions) == 0:
+            print(f"[Agent Router] Task 제안 - suggestions가 빈 배열입니다. 정보 충분성 재평가:")
+            print(f"  - 프로젝트 설명 있음: {has_project_desc} (실제 설명: {actual_description[:50] if actual_description else '없음'}...)")
+            print(f"  - 사용자 요구사항 있음: {has_user_request} (요구사항: {user_message[:50] if user_message else '없음'}...)")
+            print(f"  - Task 있음: {has_tasks} ({len(currentTasks)}개)")
+            print(f"  - 커밋 있음: {has_commits} ({len(commits)}개)")
+            print(f"  - 이슈 있음: {has_issues} ({len(issues)}개)")
+            
+            # 정보가 부족하면 질문 요청
+            if not has_project_desc and not has_user_request and not has_tasks and not has_commits and not has_issues:
             questions = [
                 "프로젝트의 핵심 기능은 무엇인가요?",
                 "현재 어떤 기능이 구현되어 있나요?",
