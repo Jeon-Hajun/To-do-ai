@@ -411,9 +411,12 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
         # narrativeResponse가 있으면 우선 사용 (마크다운 형식)
         narrative_response = analysis.get('narrativeResponse', '')
         
+        # 프로젝트 이름 가져오기 (context에서)
+        project_name = context.get('projectName', '프로젝트')
+        
         if narrative_response and len(narrative_response) > 100:
-            # 마크다운 형식의 응답이 있으면 이를 메인 메시지로 사용
-            message = narrative_response
+            # 프로젝트 이름을 맨 위에 추가하고 narrativeResponse를 메인 메시지로 사용
+            message = f"# {project_name}\n\n{narrative_response}"
             
             # 추가 정보는 요약하여 포함
             progress = analysis.get('currentProgress', 0)
