@@ -287,6 +287,57 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
         step4_result = all_steps[3] if len(all_steps) > 3 else {}
         step5_result = all_steps[4] if len(all_steps) > 4 else {}
         
+        # 각 단계 결과 검증
+        validation_errors = []
+        
+        # 1단계 검증: 핵심 기능이 3-6개이고, 인프라가 포함되지 않았는지 확인
+        core_features = step1_result.get('coreFeatures', [])
+        if len(core_features) < 3 or len(core_features) > 6:
+            validation_errors.append(f"1단계 검증 실패: 핵심 기능이 {len(core_features)}개입니다. (3-6개여야 함)")
+        
+        # 인프라가 핵심 기능에 포함되지 않았는지 확인
+        infrastructure_keywords = ['인프라', 'infrastructure', '데이터베이스', 'database', '미들웨어', 'middleware', 'db', '연결']
+        for cf in core_features:
+            cf_name = cf.get('name', '').lower()
+            if any(keyword in cf_name for keyword in infrastructure_keywords):
+                validation_errors.append(f"1단계 검증 실패: 인프라 기능 '{cf.get('name')}'이 핵심 기능에 포함되어 있습니다.")
+        
+        # 2단계 검증: 각 핵심 기능당 세부 기능이 있는지 확인
+        required_features = step2_result.get('requiredFeatures', [])
+        if required_features:
+            core_feature_ids = {cf.get('id', '') for cf in core_features}
+            required_feature_ids = {rf.get('coreFeatureId', '') for rf in required_features if rf.get('coreFeatureId')}
+            
+            for cf_id in core_feature_ids:
+                cf_features = [rf for rf in required_features if rf.get('coreFeatureId') == cf_id]
+                if len(cf_features) < 3:
+                    cf_name = next((cf.get('name', '') for cf in core_features if cf.get('id') == cf_id), '알 수 없음')
+                    validation_errors.append(f"2단계 검증 실패: 핵심 기능 '{cf_name}'에 세부 기능이 {len(cf_features)}개만 있습니다. (최소 3개 필요)")
+        
+        # 3단계 검증: 핵심 기능별 진행도가 계산되었는지 확인
+        core_feature_progress = step3_result.get('coreFeatureProgress', [])
+        if core_features and not core_feature_progress:
+            validation_errors.append("3단계 검증 실패: 핵심 기능별 진행도가 계산되지 않았습니다.")
+        
+        # 4단계 검증: 카운트가 일치하는지 확인
+        implemented_features = step3_result.get('implementedFeatures', [])
+        missing_features = step4_result.get('missingFeatures', []) if step4_result else []
+        
+        total_required = len(required_features)
+        total_implemented = len(implemented_features)
+        total_missing = len(missing_features)
+        
+        if total_required != total_implemented + total_missing:
+            validation_errors.append(f"4단계 검증 실패: 필요한 기능 수({total_required}) ≠ 구현된 기능 수({total_implemented}) + 미구현 기능 수({total_missing})")
+        
+        # 검증 오류가 있으면 로그에 기록
+        if validation_errors:
+            print(f"[Agent Router] 검증 오류 발견:")
+            for error in validation_errors:
+                print(f"  - {error}")
+        else:
+            print(f"[Agent Router] 모든 단계 검증 통과")
+        
         # 최종 분석 결과 구성
         analysis = step5_result if step5_result else (all_steps[-1] if all_steps else {})
         
@@ -477,18 +528,34 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             analysis['narrativeResponse'] = narrative_response
             analysis['currentProgress'] = progress
         
+        # 진행도 계산 검증
+        calculated_progress = analysis.get('currentProgress', 0)
+        base_progress_calc = analysis.get('baseProgress', 0)
+        test_deployment_ratio = analysis.get('testDeploymentRatio', 0)
+        test_deployment_progress = analysis.get('testDeploymentProgress', 0)
+        
+        # 테스트/배포 비율 적용 검증
+        if test_deployment_ratio > 0 and test_deployment_progress >= 0:
+            expected_progress = round(base_progress_calc * (1 - test_deployment_ratio / 100.0) + test_deployment_progress * (test_deployment_ratio / 100.0), 1)
+            if abs(calculated_progress - expected_progress) > 1.0:
+                print(f"[Agent Router] 진행도 계산 검증 실패: 계산된 진행도({calculated_progress})와 예상 진행도({expected_progress})가 불일치합니다.")
+                # 자동으로 수정
+                calculated_progress = expected_progress
+                analysis['currentProgress'] = calculated_progress
+        
         # narrativeResponse에서 진행도 계산값 추출하여 currentProgress와 일치시키기 (백업)
         narrative_response = analysis.get('narrativeResponse', '')
         if narrative_response:
             import re
-            # "진행도: [숫자]%" 패턴 찾기
-            progress_match = re.search(r'진행도:\s*(\d+(?:\.\d+)?)\s*%', narrative_response)
+            # "전체 진행도: [숫자]%" 패턴 찾기
+            progress_match = re.search(r'전체 진행도:\s*(\d+(?:\.\d+)?)\s*%', narrative_response)
             if progress_match:
-                calculated_progress = float(progress_match.group(1))
-                # currentProgress와 일치시키기
-                if abs(analysis.get('currentProgress', 0) - calculated_progress) > 5:
-                    print(f"[Agent Router] 진행도 불일치 감지: currentProgress={analysis.get('currentProgress')}, 계산값={calculated_progress}, 일치시킴")
+                narrative_progress = float(progress_match.group(1))
+                # currentProgress와 일치시키기 (±5% 이내)
+                if abs(calculated_progress - narrative_progress) > 5:
+                    print(f"[Agent Router] 진행도 불일치 감지: currentProgress={calculated_progress}, narrativeResponse={narrative_progress}, 일치시킴")
                     analysis['currentProgress'] = round(calculated_progress)
+                    # narrativeResponse도 업데이트 필요 시 여기서 처리
         
         # 사용자 친화적인 상세 메시지 생성
         # narrativeResponse가 있으면 우선 사용 (마크다운 형식)

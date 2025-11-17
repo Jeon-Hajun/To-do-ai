@@ -361,7 +361,7 @@ def execute_multi_step_agent(
             else:
                 progress_messages.append(f"📊 추가 정보를 분석 중입니다... (단계 {step_number}/{MAX_ANALYSIS_STEPS})")
         
-        # 진행도 분석 에이전트의 경우 첫 단계에서 README 파일 자동 읽기
+            # 진행도 분석 에이전트의 경우 첫 단계에서 README 파일 자동 읽기
         if step_number == 1 and agent_type == "progress_analysis_agent" and github_repo:
             # README 파일 찾기 시도
             readme_files = ["README.md", "README.txt", "readme.md", "README", "readme"]
@@ -402,6 +402,96 @@ def execute_multi_step_agent(
                             break
                     except:
                         continue
+        
+        # 2단계 완료 후 필요한 파일 목록 생성 (논리적 파일 탐색)
+        if step_number == 2 and agent_type == "progress_analysis_agent" and github_repo:
+            # 2단계 결과에서 expectedLocation 추출하여 파일 경로 추론
+            step2_result = all_steps[1] if len(all_steps) > 1 else {}
+            required_features = step2_result.get('requiredFeatures', [])
+            
+            if required_features:
+                progress_messages.append("🔍 2단계 결과를 바탕으로 필요한 파일을 찾는 중...")
+                
+                # expectedLocation에서 파일 경로 추출
+                files_to_read_from_step2 = []
+                
+                for feat in required_features:
+                    expected_loc = feat.get('expectedLocation', '')
+                    feat_type = feat.get('type', '')
+                    feat_name = feat.get('name', '')
+                    
+                    # API의 경우 라우트 파일 경로 추론
+                    if feat_type == 'api':
+                        # API 이름에서 리소스 추출 (예: "사용자 인증 API" → "user")
+                        api_name_lower = feat_name.lower()
+                        resource_map = {
+                            '사용자': 'user',
+                            'user': 'user',
+                            '프로젝트': 'project',
+                            'project': 'project',
+                            'task': 'task',
+                            '태스크': 'task',
+                            'github': 'github',
+                            'git': 'github',
+                            'ai': 'ai',
+                            '진행도': 'progress',
+                            'progress': 'progress'
+                        }
+                        
+                        resource = None
+                        for key, value in resource_map.items():
+                            if key in api_name_lower:
+                                resource = value
+                                break
+                        
+                        if resource:
+                            # 백엔드 라우트 파일 경로 추론
+                            backend_route = f"backend/routes/{resource}.js"
+                            if backend_route not in files_to_read_from_step2:
+                                files_to_read_from_step2.append(backend_route)
+                            
+                            # 컨트롤러 파일 경로 추론
+                            controller = f"backend/controllers/{resource}Controller.js"
+                            if controller not in files_to_read_from_step2:
+                                files_to_read_from_step2.append(controller)
+                            
+                            # 프론트엔드 API 파일 경로 추론
+                            frontend_api = f"morpheus-react/web/src/api/{resource}.js"
+                            if frontend_api not in files_to_read_from_step2:
+                                files_to_read_from_step2.append(frontend_api)
+                    
+                    # 페이지의 경우 경로에서 파일 추출
+                    elif feat_type == 'page':
+                        if expected_loc and '/' in expected_loc:
+                            # 경로에서 파일명 추출 (예: "/src/pages/Login.jsx" → "src/pages/Login.jsx")
+                            path = expected_loc.lstrip('/')
+                            if path.endswith(('.jsx', '.js', '.tsx', '.ts')):
+                                if path not in files_to_read_from_step2:
+                                    files_to_read_from_step2.append(path)
+                    
+                    # 컴포넌트의 경우 경로에서 파일 추출
+                    elif feat_type == 'component':
+                        if expected_loc and '/' in expected_loc:
+                            path = expected_loc.lstrip('/')
+                            if path.endswith(('.jsx', '.js', '.tsx', '.ts')):
+                                if path not in files_to_read_from_step2:
+                                    files_to_read_from_step2.append(path)
+                
+                # 추론한 파일들을 읽기
+                for file_path in files_to_read_from_step2:
+                    if file_path not in [f.get('path', '') for f in accumulated_files]:
+                        try:
+                            file_contents = get_file_contents(github_repo, github_token, [file_path])
+                            if file_contents and file_contents[0].get('content'):
+                                accumulated_files.append({
+                                    "path": file_path,
+                                    "content": file_contents[0]['content'],
+                                    "truncated": file_contents[0].get('truncated', False)
+                                })
+                                progress_messages.append(f"✅ {file_path} 파일을 읽었습니다. (2단계 결과 기반)")
+                                context['readFiles'] = accumulated_files
+                        except:
+                            continue
         
         # 프롬프트 생성 (단계별로 다른 작업 수행)
         if step_number == 1:
@@ -508,10 +598,11 @@ def execute_multi_step_agent(
                     # 1단계: README와 설정 파일 읽기 (이미 위에서 처리됨)
                     pass
                 elif step_number == 2:
-                    # 2단계: API 라우트 파일들을 대량으로 읽기
+                    # 2단계: 2단계 결과 기반 파일 읽기 + 일반적인 API 라우트 파일들 읽기
                     progress_messages.append("🔍 API 엔드포인트를 파악하기 위해 라우트 파일들을 찾는 중...")
                     
-                    # 백엔드 API 라우트 파일들
+                    # 2단계에서 추론한 파일들은 이미 위에서 읽었으므로, 추가로 일반적인 파일들도 읽기
+                    # 백엔드 API 라우트 파일들 (2단계에서 읽지 못한 경우를 대비)
                     backend_routes = [
                         "backend/routes/user.js", "backend/routes/project.js", "backend/routes/task.js",
                         "backend/routes/ai.js", "backend/routes/github.js", "backend/routes/progress.js",
@@ -550,10 +641,43 @@ def execute_multi_step_agent(
                                 continue
                 
                 elif step_number == 3:
-                    # 3단계: 페이지와 컴포넌트 파일들을 동적으로 찾아 읽기
+                    # 3단계: 2단계 결과 기반 페이지/컴포넌트 파일 읽기 + 동적 탐색
                     progress_messages.append("🔍 프로젝트 구조를 파악하여 페이지와 컴포넌트 파일들을 찾는 중...")
                     
-                    # GitHub API를 사용하여 디렉토리 내용 확인
+                    # 2단계 결과에서 페이지/컴포넌트 파일 경로 추출
+                    step2_result = all_steps[1] if len(all_steps) > 1 else {}
+                    required_features = step2_result.get('requiredFeatures', [])
+                    
+                    files_from_step2 = []
+                    for feat in required_features:
+                        expected_loc = feat.get('expectedLocation', '')
+                        feat_type = feat.get('type', '')
+                        
+                        if feat_type in ['page', 'component'] and expected_loc:
+                            path = expected_loc.lstrip('/')
+                            if path.endswith(('.jsx', '.js', '.tsx', '.ts')):
+                                if path not in files_from_step2:
+                                    files_from_step2.append(path)
+                    
+                    # 2단계에서 예상한 파일들을 우선적으로 읽기
+                    read_count = 0
+                    for file_path in files_from_step2:
+                        if file_path not in [f.get('path', '') for f in accumulated_files] and read_count < 30:
+                            try:
+                                file_contents = get_file_contents(github_repo, github_token, [file_path])
+                                if file_contents and file_contents[0].get('content'):
+                                    accumulated_files.append({
+                                        "path": file_path,
+                                        "content": file_contents[0]['content'],
+                                        "truncated": file_contents[0].get('truncated', False)
+                                    })
+                                    progress_messages.append(f"✅ {file_path} 파일을 읽었습니다. (2단계 결과 기반)")
+                                    context['readFiles'] = accumulated_files
+                                    read_count += 1
+                            except:
+                                continue
+                    
+                    # 추가로 동적 탐색 (2단계에서 찾지 못한 경우)
                     directories_to_explore = [
                         "morpheus-react/web/src/pages",
                         "morpheus-react/web/src/components",
@@ -601,7 +725,6 @@ def execute_multi_step_agent(
                     
                     all_files_to_read = list(set(known_files + discovered_files))  # 중복 제거
                     
-                    read_count = 0
                     max_files_to_read = 50  # 최대 50개로 증가
                     for file_path in all_files_to_read:
                         if file_path not in [f.get('path', '') for f in accumulated_files] and read_count < max_files_to_read:
