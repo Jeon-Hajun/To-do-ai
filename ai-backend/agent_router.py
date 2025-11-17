@@ -222,7 +222,11 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
                 message = "프로젝트에 대한 정보가 부족합니다. 위 질문에 답변해주시면 더 정확한 Task를 제안할 수 있습니다."
             
             question_text = "\n".join([f"- {q}" for q in questions]) if questions else ""
-            full_message = f"{message}\n\n{question_text}" if question_text else message
+            # 프로젝트 이름 추가
+            project_name = context.get('projectName', '프로젝트')
+            full_message = f"# {project_name}\n\n{message}\n\n{question_text}" if question_text else f"# {project_name}\n\n{message}"
+            
+            print(f"[Agent Router] Task 제안 - needs_more_info 응답 반환 (프로젝트: {project_name})")
             
             return {
                 "agent_type": "task_suggestion_agent",
@@ -325,8 +329,13 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
             {'High': 0, 'Medium': 1, 'Low': 2}.get(x.get('priority', 'Low'), 2)
         ))
         
+        # 프로젝트 이름 가져오기
+        project_name = context.get('projectName', '프로젝트')
+        
         # 상세 메시지 생성 (마크다운 형식)
         message_parts = [
+            f"# {project_name}",
+            "",
             f"## 💡 {len(suggestions)}개의 Task를 제안했습니다",
             ""
         ]
