@@ -36,19 +36,13 @@ def create_task_suggestion_initial_prompt(context, user_message, read_files, ana
             content = file_info.get('content', '')[:500]  # 최대 500자
             files_context += f"파일: {file_info.get('path', '')}\n{content}\n---\n"
     
-    base_prompt = create_optimized_task_suggestion_prompt(
-        commits, issues, currentTasks, projectDescription, githubRepo
-    )
+    # 정보 충분성 확인 (GitHub 여부와 관계없이)
+    has_project_desc = projectDescription and len(projectDescription.strip()) > 20
+    has_user_request = user_request and len(user_request.strip()) > 10
+    has_tasks = len(currentTasks) > 0
     
-    # GitHub가 없을 때 추가 지시사항
-    if not has_github or (not has_commits and not has_issues):
-        # 정보 충분성 확인
-        has_project_desc = projectDescription and len(projectDescription.strip()) > 20
-        has_user_request = user_request and len(user_request.strip()) > 10
-        has_tasks = len(currentTasks) > 0
-        
-        # 정보가 충분하지 않으면 질문 요청
-        if not has_project_desc and not has_user_request and not has_tasks:
+    # 정보가 충분하지 않으면 질문 요청 (GitHub 여부와 관계없이)
+    if not has_project_desc and not has_user_request and not has_tasks and not has_commits and not has_issues:
             # 정보가 매우 부족한 경우 - 질문을 요청하는 프롬프트
             return f"""프로젝트에 대한 정보가 부족하여 Task를 제안하기 어렵습니다.
 
@@ -74,8 +68,15 @@ def create_task_suggestion_initial_prompt(context, user_message, read_files, ana
 }}
 
 ⚠️ 중요: 반드시 위 JSON 형식으로만 응답하세요."""
-        else:
-            additional_instruction = f"""
+    
+    # base_prompt 생성 (정보가 충분한 경우에만)
+    base_prompt = create_optimized_task_suggestion_prompt(
+        commits, issues, currentTasks, projectDescription, githubRepo
+    )
+    
+    # GitHub가 없을 때 추가 지시사항
+    if not has_github or (not has_commits and not has_issues):
+        additional_instruction = f"""
 
 ⚠️ **중요**: GitHub 저장소가 연결되지 않았거나 커밋/이슈 정보가 없습니다.
 다음 정보를 우선적으로 활용하여 Task를 제안하세요:
