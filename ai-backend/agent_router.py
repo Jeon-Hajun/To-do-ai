@@ -292,8 +292,16 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
         
         # 단계별 결과가 있으면 최종 narrativeResponse 생성
         if step1_result and step2_result and step3_result:
-            project_name = step1_result.get('projectName', '프로젝트')
+            # 프로젝트 이름과 설명을 실제 값으로 채우기
+            project_name = step1_result.get('projectName', '')
+            if not project_name or project_name == '프로젝트' or project_name.startswith('['):
+                # context에서 프로젝트 이름 가져오기
+                project_name = context.get('projectName', '프로젝트')
+            
             project_desc = step1_result.get('projectDescription', '')
+            if not project_desc or project_desc.startswith('['):
+                # context에서 프로젝트 설명 가져오기
+                project_desc = context.get('projectDescription', '')
             required_features = step2_result.get('requiredFeatures', [])
             implemented_features = step3_result.get('implementedFeatures', [])
             missing_features = step4_result.get('missingFeatures', []) if step4_result else []
@@ -345,10 +353,10 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             total_evaluation += f"{'안정적으로 진행 중' if progress >= 70 else '추가 개발이 필요' if progress >= 40 else '초기 단계'}입니다."
             
             # narrativeResponse 생성
-            narrative_response = f"""## 프로젝트 이름
+            narrative_response = f"""# 프로젝트 이름
 {project_name}
 
-### 프로젝트 설명
+## 프로젝트 설명
 {project_desc}
 
 ### 구현된 기능

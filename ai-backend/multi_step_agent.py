@@ -406,19 +406,38 @@ def execute_multi_step_agent(
             commits_to_analyze = evaluation.get('commits_to_analyze', [])
             
             # 진행도 분석의 경우 소스코드 구조 파악을 위한 추가 파일 읽기
-            if agent_type == "progress_analysis_agent" and github_repo and step_number == 1:
-                # 주요 디렉토리의 파일들을 자동으로 찾아 읽기 시도
-                common_source_dirs = ["src", "app", "components", "routes", "controllers", "services", "utils", "lib"]
-                progress_messages.append("🔍 소스코드 구조를 파악하기 위해 주요 파일들을 찾는 중...")
-                
-                # 각 디렉토리에서 대표 파일 찾기 시도
-                for dir_name in common_source_dirs:
-                    common_files = [
-                        f"{dir_name}/index.js", f"{dir_name}/index.ts", f"{dir_name}/index.jsx", f"{dir_name}/index.tsx",
-                        f"{dir_name}/app.js", f"{dir_name}/app.ts", f"{dir_name}/main.js", f"{dir_name}/main.ts",
-                        f"{dir_name}/App.jsx", f"{dir_name}/App.tsx"
+            if agent_type == "progress_analysis_agent" and github_repo:
+                if step_number == 1:
+                    # 1단계: README와 설정 파일 읽기 (이미 위에서 처리됨)
+                    pass
+                elif step_number == 2:
+                    # 2단계: API 라우트 파일들을 대량으로 읽기
+                    progress_messages.append("🔍 API 엔드포인트를 파악하기 위해 라우트 파일들을 찾는 중...")
+                    
+                    # 백엔드 API 라우트 파일들
+                    backend_routes = [
+                        "backend/routes/user.js", "backend/routes/project.js", "backend/routes/task.js",
+                        "backend/routes/ai.js", "backend/routes/github.js", "backend/routes/progress.js",
+                        "backend/routes/index.js", "backend/app.js"
                     ]
-                    for file_path in common_files[:2]:  # 각 디렉토리당 최대 2개 파일만
+                    
+                    # 프론트엔드 API 호출 파일들
+                    frontend_api = [
+                        "morpheus-react/web/src/api/user.js", "morpheus-react/web/src/api/project.js",
+                        "morpheus-react/web/src/api/task.js", "morpheus-react/web/src/api/ai.js",
+                        "morpheus-react/web/src/api/github.js"
+                    ]
+                    
+                    # 컨트롤러 파일들
+                    controllers = [
+                        "backend/controllers/userController.js", "backend/controllers/projectController.js",
+                        "backend/controllers/taskController.js", "backend/controllers/aiController.js",
+                        "backend/controllers/githubController.js", "backend/controllers/progressController.js"
+                    ]
+                    
+                    all_files_to_read = backend_routes + frontend_api + controllers
+                    
+                    for file_path in all_files_to_read:
                         if file_path not in [f.get('path', '') for f in accumulated_files]:
                             try:
                                 file_contents = get_file_contents(github_repo, github_token, [file_path])
@@ -430,7 +449,41 @@ def execute_multi_step_agent(
                                     })
                                     progress_messages.append(f"✅ {file_path} 파일을 읽었습니다.")
                                     context['readFiles'] = accumulated_files
-                                    break  # 한 파일만 읽고 다음 디렉토리로
+                            except:
+                                continue
+                
+                elif step_number == 3:
+                    # 3단계: 페이지 파일들을 대량으로 읽기
+                    progress_messages.append("🔍 페이지 구조를 파악하기 위해 페이지 파일들을 찾는 중...")
+                    
+                    # 주요 페이지 파일들
+                    pages = [
+                        "morpheus-react/web/src/pages/LoginPage.jsx", "morpheus-react/web/src/pages/ProjectPage.jsx",
+                        "morpheus-react/web/src/pages/AIadvisorPage.jsx", "morpheus-react/web/src/pages/HomePage.jsx",
+                        "morpheus-react/web/src/pages/ProjectDetailPage.jsx"
+                    ]
+                    
+                    # 컴포넌트 파일들
+                    components = [
+                        "morpheus-react/web/src/components/ai/ChatBot.jsx",
+                        "morpheus-react/web/src/components/tasks/TaskView.jsx",
+                        "morpheus-react/web/src/components/tasks/List.jsx"
+                    ]
+                    
+                    all_files_to_read = pages + components
+                    
+                    for file_path in all_files_to_read:
+                        if file_path not in [f.get('path', '') for f in accumulated_files]:
+                            try:
+                                file_contents = get_file_contents(github_repo, github_token, [file_path])
+                                if file_contents and file_contents[0].get('content'):
+                                    accumulated_files.append({
+                                        "path": file_path,
+                                        "content": file_contents[0]['content'],
+                                        "truncated": file_contents[0].get('truncated', False)
+                                    })
+                                    progress_messages.append(f"✅ {file_path} 파일을 읽었습니다.")
+                                    context['readFiles'] = accumulated_files
                             except:
                                 continue
             
