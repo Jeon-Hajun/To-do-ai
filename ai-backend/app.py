@@ -332,7 +332,7 @@ def progress_analysis():
         def call_llm_func(prompt, system_prompt):
             if USE_OPENAI:
                 return call_openai(prompt, system_prompt, max_tokens=3000)
-                    else:
+            else:
                 return call_ollama(prompt, system_prompt, max_tokens=3000)
         
         # 새로운 multi-step agent 실행
