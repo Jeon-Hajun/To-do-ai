@@ -518,6 +518,34 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             
             evaluation_section = "\n".join(evaluation_parts)
             
+            # 예상 완성일을 남은 일수로 계산
+            remaining_days = None
+            if estimated_date and estimated_date != "완성 시기 미정" and estimated_date != "곧 완성 예상":
+                try:
+                    from datetime import datetime
+                    today = datetime.now()
+                    # "YYYY-MM-DD" 형식 파싱 시도
+                    if "-" in estimated_date and len(estimated_date) == 10:
+                        target_date = datetime.strptime(estimated_date, "%Y-%m-%d")
+                        remaining_days = (target_date - today).days
+                    elif "주" in estimated_date:
+                        # "2-3주 내 완성 예상" 같은 경우
+                        import re
+                        weeks_match = re.search(r'(\d+)', estimated_date)
+                        if weeks_match:
+                            weeks = int(weeks_match.group(1))
+                            remaining_days = weeks * 7
+                except:
+                    pass
+            
+            # 예상일 표시 형식
+            if remaining_days is not None and remaining_days > 0:
+                estimated_display = f"예상일 ({remaining_days}일)"
+            elif estimated_date:
+                estimated_display = f"예상일 ({estimated_date})"
+            else:
+                estimated_display = "예상일 (미정)"
+            
             # 평가 섹션을 "완성된 기능 n개, 구현해야 할 기능 n개로 진행도 %입니다" 형식으로 변경
             narrative_response = f"""{project_desc}
 
@@ -531,9 +559,7 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
 ### 평가
 {evaluation_section}
 
-**예상 완성일**: {estimated_date}
-
-**총평**: {total_evaluation}"""
+{progress}% | {estimated_display}"""
             
             analysis['narrativeResponse'] = narrative_response
             analysis['currentProgress'] = progress
@@ -597,13 +623,38 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             
             estimated_date = analysis.get('estimatedCompletionDate')
             
-            # 메시지 끝에 핵심 지표 추가 (마크다운 형식)
+            # 메시지 끝에 핵심 지표 추가 (마크다운 형식) - 진행도와 예상일만 표시
+            # 예상일을 남은 일수로 계산
+            remaining_days = None
+            if estimated_date and estimated_date != "완성 시기 미정" and estimated_date != "곧 완성 예상":
+                try:
+                    from datetime import datetime
+                    today = datetime.now()
+                    # "YYYY-MM-DD" 형식 파싱 시도
+                    if "-" in estimated_date and len(estimated_date) == 10:
+                        target_date = datetime.strptime(estimated_date, "%Y-%m-%d")
+                        remaining_days = (target_date - today).days
+                    elif "주" in estimated_date:
+                        # "2-3주 내 완성 예상" 같은 경우
+                        import re
+                        weeks_match = re.search(r'(\d+)', estimated_date)
+                        if weeks_match:
+                            weeks = int(weeks_match.group(1))
+                            remaining_days = weeks * 7
+                except:
+                    pass
+            
+            # 예상일 표시 형식
+            if remaining_days is not None and remaining_days > 0:
+                estimated_display = f"예상일 ({remaining_days}일)"
+            elif estimated_date:
+                estimated_display = f"예상일 ({estimated_date})"
+            else:
+                estimated_display = "예상일 (미정)"
+            
             message += f"\n\n---\n\n## 📊 핵심 지표\n\n"
             message += f"- **진행도**: {progress}%\n"
-            message += f"- **활동 추세**: {trend_kr}\n"
-            message += f"- **지연 위험도**: {delay_risk_kr}\n"
-            if estimated_date:
-                message += f"- **예상 완료일**: {estimated_date}\n"
+            message += f"- **{estimated_display}**\n"
         else:
             # narrativeResponse가 없거나 짧으면 더 상세한 메시지 생성
             progress = analysis.get('currentProgress', 0)
