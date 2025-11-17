@@ -199,11 +199,17 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 ### 2단계: 세부 기능 분류
 - 각 세부 기능을 **페이지, API, 컴포넌트, 인프라** 4가지로 분류하세요.
 
-**기능 분류 (반드시 다음 4가지로 분류):**
+**기능 분류 (반드시 다음 5가지로 분류):**
 - **페이지**: 각 페이지 경로 (예: 로그인 페이지, 프로젝트 목록 페이지, AI 어드바이저 페이지 등)
 - **API**: 포괄적인 API 그룹 (예: 사용자 인증 API, 프로젝트 관리 API, Task 관리 API, GitHub 연동 API, AI API 등)
 - **컴포넌트**: 재사용 가능한 UI 컴포넌트 (예: Task 카드 컴포넌트, 프로젝트 카드 컴포넌트, GitHub 커밋 리스트 컴포넌트 등)
 - **인프라**: 인프라 및 백엔드 기능 (예: 데이터베이스 연결, JWT 인증 미들웨어, 파일 업로드, CORS 설정 등)
+- **테스트/배포**: 테스트 및 배포 관련 기능 (예: 단위 테스트, 통합 테스트, E2E 테스트, CI/CD 파이프라인, 배포 스크립트, Docker 설정 등)
+  - **중요**: 프로젝트 특성에 따라 테스트/배포가 필요하지 않을 수 있습니다.
+  - **웹 애플리케이션**: 테스트(단위/통합/E2E), CI/CD, 배포 설정 등
+  - **API 서버**: 테스트(단위/통합), CI/CD, 배포 설정 등
+  - **라이브러리**: 테스트(단위), CI/CD 등
+  - **간단한 스크립트/도구**: 테스트/배포가 필요 없을 수 있음 (비율 0%)
 
 다음 JSON 형식으로만 응답하세요:
 {{
@@ -212,10 +218,10 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
     {{
       "coreFeatureId": "core_feature_1",
       "coreFeatureName": "핵심 기능명",
-      "name": "세부 기능명 (예: 로그인 페이지, 사용자 인증 API, 프로젝트 관리 API 등)",
-      "type": "page|api|component|infrastructure",
+      "name": "세부 기능명 (예: 로그인 페이지, 사용자 인증 API, 프로젝트 관리 API, 단위 테스트, CI/CD 파이프라인 등)",
+      "type": "page|api|component|infrastructure|test_deployment",
       "description": "간단한 설명 (1-2문장)",
-      "expectedLocation": "예상 위치 (페이지: 경로, API: 엔드포인트 그룹)"
+      "expectedLocation": "예상 위치 (페이지: 경로, API: 엔드포인트 그룹, 테스트/배포: 테스트 파일 경로 또는 배포 설정 파일)"
     }}
   ],
   "nextStep": "다음 단계(3단계)에서는 소스코드를 확인하여 실제로 구현된 기능을 찾겠습니다."
@@ -224,10 +230,14 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 ⚠️ **매우 중요**: 
 - **각 핵심 기능별로** 필요한 세부 기능들을 나열하세요.
 - 각 세부 기능은 반드시 **coreFeatureId**와 **coreFeatureName**을 포함해야 합니다.
-- 반드시 **페이지, API, 컴포넌트, 인프라** 4가지 분류로 나누어 나열하세요.
+- 반드시 **페이지, API, 컴포넌트, 인프라, 테스트/배포** 5가지 분류로 나누어 나열하세요.
 - 페이지는 경로만, API는 엔드포인트 그룹으로 나열하세요.
 - 컴포넌트는 재사용 가능한 UI 컴포넌트만 나열하세요.
 - 인프라 기능은 데이터베이스, 인증, 파일 업로드 등 백엔드 인프라 기능을 나열하세요.
+- **테스트/배포**: 프로젝트 특성에 따라 테스트/배포 기능을 포함하세요.
+  - 웹 애플리케이션이나 API 서버: 단위 테스트, 통합 테스트, E2E 테스트, CI/CD 파이프라인, 배포 설정 등
+  - 라이브러리: 단위 테스트, CI/CD 등
+  - 간단한 스크립트: 테스트/배포가 필요 없을 수 있음
 - 각 핵심 기능당 최소 3-5개의 세부 기능을 나열하세요.
 - 핵심 기능에 속하지 않는 사소한 기능(프로필 변경, 설정 페이지 등)은 별도로 나열하되, 가중치는 낮게 설정하세요."""
     
@@ -260,10 +270,11 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 - 예: routes/user.js 파일을 읽었다면, 그 안의 모든 엔드포인트(/api/user/login, /api/user/register 등)를 찾아서 나열하세요.
 
 ### 2단계: 기능 분류 및 핵심 기능 매핑
-- 찾은 기능을 **페이지, API, 컴포넌트, 인프라** 4가지로 분류하세요.
+- 찾은 기능을 **페이지, API, 컴포넌트, 인프라, 테스트/배포** 5가지로 분류하세요.
 - 각 기능이 **어떤 핵심 기능에 속하는지** 매핑하세요 (coreFeatureId 사용).
 - API의 경우, 비슷한 엔드포인트끼리 묶어서 그룹화하세요.
 - 예: /api/user/login, /api/user/register, /api/user/logout → "사용자 인증 API" 그룹 → coreFeatureId: "auth"
+- **테스트/배포**: 테스트 파일(*.test.js, *.spec.js, __tests__/, tests/ 등)이나 CI/CD 설정 파일(.github/workflows/, .gitlab-ci.yml, Dockerfile 등)을 확인하세요.
 
 ### 3단계: 핵심 기능별 진행도 계산
 - 각 핵심 기능에 대해:
@@ -279,10 +290,11 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 
 **프로젝트 특성에 따른 유동적 소제목 분류:**
 - 프로젝트 구조에 따라 소제목을 유동적으로 나누세요.
-- **웹 애플리케이션**: 페이지, API, 컴포넌트, 인프라
-- **API 서버**: 엔드포인트, 서비스, 인프라
-- **라이브러리**: 모듈, 함수, 유틸리티
+- **웹 애플리케이션**: 페이지, API, 컴포넌트, 인프라, 테스트/배포
+- **API 서버**: 엔드포인트, 서비스, 인프라, 테스트/배포
+- **라이브러리**: 모듈, 함수, 유틸리티, 테스트
 - **프로젝트에 페이지나 컴포넌트가 없다면**: 해당 소제목을 생략하고 다른 소제목에 집중하세요.
+- **테스트/배포가 없는 프로젝트**: 간단한 스크립트나 도구의 경우 테스트/배포 소제목을 생략할 수 있습니다.
 
 **표시 형식 (프로젝트 특성에 따라 유동적으로 분류):**
 - **페이지** (웹 앱인 경우): `페이지명 /경로/경로/.jsx` (예: 로그인 페이지 /src/pages/Login.jsx)
@@ -302,6 +314,9 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
   - 컴포넌트가 없다면 이 소제목을 생략하세요.
 - **인프라**: `기능명 /위치` (예: 데이터베이스 연결 /database/db.js, JWT 인증 미들웨어 /middleware/auth.js)
   - 데이터베이스 연결, 인증 미들웨어, 파일 업로드, CORS 설정 등 백엔드 인프라 기능을 확인하세요.
+- **테스트/배포** (프로젝트 특성에 따라 있을 수 있음): `기능명 /위치` (예: 단위 테스트 /tests/unit/, CI/CD 파이프라인 /.github/workflows/ci.yml, Docker 설정 /Dockerfile)
+  - 테스트 파일(*.test.js, *.spec.js, __tests__/ 등), CI/CD 설정(.github/workflows/, .gitlab-ci.yml 등), 배포 설정(Dockerfile, docker-compose.yml 등)을 확인하세요.
+  - 프로젝트 특성에 따라 테스트/배포가 필요 없을 수 있습니다 (간단한 스크립트 등).
 
 **파일 검색 전략:**
 - 읽은 파일에서 페이지나 컴포넌트가 없다고 판단되면, 다른 UI 관련 파일들(views/, screens/, ui/ 등)을 찾아보세요.
@@ -316,9 +331,9 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
     {{
       "coreFeatureId": "core_feature_1",
       "coreFeatureName": "핵심 기능명",
-      "name": "기능명 (API는 그룹명, 예: 사용자 인증 API, 프로젝트 관리 API 등)",
-      "type": "page|api|component|infrastructure",
-      "location": "페이지: /경로/경로/.jsx 또는 API: /엔드포인트, /엔드포인트, /엔드포인트 (모든 관련 엔드포인트 나열) 또는 컴포넌트: /경로/경로/.jsx 또는 인프라: /위치",
+      "name": "기능명 (API는 그룹명, 예: 사용자 인증 API, 프로젝트 관리 API, 단위 테스트, CI/CD 파이프라인 등)",
+      "type": "page|api|component|infrastructure|test_deployment",
+      "location": "페이지: /경로/경로/.jsx 또는 API: /엔드포인트, /엔드포인트, /엔드포인트 (모든 관련 엔드포인트 나열) 또는 컴포넌트: /경로/경로/.jsx 또는 인프라: /위치 또는 테스트/배포: /테스트_파일_경로 또는 /배포_설정_파일",
       "filePath": "주요 파일 경로 (1-2개)"
     }}
   ],
@@ -336,7 +351,7 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 
 ⚠️ **매우 중요**: 
 - 읽은 파일 내용을 무시하지 말고, 실제로 파일에서 확인된 기능만 나열하세요.
-- **반드시 페이지, API, 컴포넌트, 인프라 4가지 분류로 나누어 나열하세요.**
+- **반드시 페이지, API, 컴포넌트, 인프라, 테스트/배포 5가지 분류로 나누어 나열하세요.**
 - **핵심 기능 위주로 확인하세요**: 사용자 인증, 프로젝트 관리, Task 관리, AI 기능, GitHub 연동 등은 핵심 기능입니다.
 - **사소한 기능은 가중치를 낮게**: 프로필 변경, 설정 페이지, UI 개선 등은 사소한 기능으로 분류하세요.
 - **API는 가능한 대부분의 엔드포인트를 찾아서 비슷한 것끼리 묶어서 그룹화하세요.**
@@ -344,6 +359,7 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 - 페이지는 경로만, API는 엔드포인트를 포괄적으로 나열하세요.
 - 컴포넌트는 재사용 가능한 UI 컴포넌트만 나열하세요.
 - 인프라는 데이터베이스, 인증, 파일 업로드 등 백엔드 인프라 기능만 나열하세요.
+- **테스트/배포**: 테스트 파일이나 CI/CD 설정 파일을 확인하세요. 프로젝트 특성에 따라 없을 수 있습니다.
 - 세부 설명은 생략하고 위치만 명시하세요."""
     
     elif step_number == 4:
@@ -520,12 +536,34 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 - 예: "프로젝트 생성" 기능이 필요하다면, "프로젝트 관리 API"에 /api/project/create가 포함되어 있는지 확인하세요.
 - 읽은 파일 내용을 참고하여 실제로 구현되어 있는지 검증하세요.
 
-### 3단계: 진행도 계산
-- **정확한 계산식**: (구현된 기능 수 / 필요한 기능 수) × 100
-- 계산: ({total_implemented} / {total_required}) × 100 = {progress}%
-- **이 값이 최종 진행도입니다.**
+### 3단계: 테스트/배포 비율 결정
+- 프로젝트 특성을 고려하여 테스트/배포가 필요한지 판단하세요.
+- **웹 애플리케이션이나 API 서버**: 테스트/배포 비율 10~20% 권장
+- **라이브러리**: 테스트 비율 10~15% 권장
+- **간단한 스크립트나 도구**: 테스트/배포 비율 0~5%
+- **프로덕션 수준의 프로젝트**: 테스트/배포 비율 15~20%
+- **프로토타입이나 MVP**: 테스트/배포 비율 5~10%
+- 테스트/배포 기능이 필요한 기능 목록에 포함되어 있는지 확인하세요.
+- 테스트/배포 기능이 없다면 비율을 0%로 설정하세요.
 
-### 4단계: 가중치 적용 (선택사항)
+### 4단계: 기본 진행도 계산
+- **기본 계산식**: (구현된 기능 수 / 필요한 기능 수) × 100
+- 계산: ({total_implemented} / {total_required}) × 100 = {progress}%
+- 이 값은 기능 구현 진행도입니다.
+
+### 5단계: 테스트/배포 진행도 계산 및 최종 진행도 산출
+- 테스트/배포 관련 기능이 있는 경우:
+  - 테스트/배포 필요한 기능 수: requiredFeatures에서 type이 "test_deployment"인 기능 수
+  - 테스트/배포 구현된 기능 수: implementedFeatures에서 type이 "test_deployment"인 기능 수
+  - 테스트/배포 진행도 = (구현된 테스트/배포 기능 수 / 필요한 테스트/배포 기능 수) × 100
+  - 테스트/배포 비율: 프로젝트 특성에 따라 0~20% (위 3단계에서 결정)
+  - **최종 진행도 계산**: 기본 진행도 × (1 - 테스트/배포_비율) + 테스트/배포_진행도 × 테스트/배포_비율
+  - 예: 기본 진행도 80%, 테스트/배포 비율 15%, 테스트/배포 진행도 50% → 최종 진행도 = 80% × 0.85 + 50% × 0.15 = 75.5%
+- 테스트/배포 관련 기능이 없는 경우:
+  - 테스트/배포 비율 = 0%
+  - 최종 진행도 = 기본 진행도
+
+### 6단계: 가중치 적용 (선택사항)
 - 핵심 기능과 사소한 기능을 구분하여 가중치를 적용할 수 있습니다.
 - 하지만 기본 진행도는 위 계산식에 따릅니다.
 

@@ -335,12 +335,13 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
                 # 기존 방식: 전체 기능 수로 계산
                 progress = round((total_implemented / total_required * 100) if total_required > 0 else 0, 1)
             
-            # 구현된 기능 목록 생성 (페이지, API, 컴포넌트, 인프라로 분류)
+            # 구현된 기능 목록 생성 (페이지, API, 컴포넌트, 인프라, 테스트/배포로 분류)
             # 프로젝트 특성에 따라 유동적으로 소제목 생성
             pages_list = []
             apis_list = []
             components_list = []
             infrastructure_list = []
+            test_deployment_list = []
             
             for feat in implemented_features:
                 name = feat.get('name', '')
@@ -355,6 +356,8 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
                     components_list.append(f"- **{name}** {location}")
                 elif feat_type == 'infrastructure':
                     infrastructure_list.append(f"- **{name}** {location}")
+                elif feat_type == 'test_deployment':
+                    test_deployment_list.append(f"- **{name}** {location}")
                 else:
                     # 기타는 인프라로 분류
                     infrastructure_list.append(f"- **{name}** {location}")
@@ -403,6 +406,9 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             if infrastructure_list:
                 sections.append(f"#### 인프라\n{chr(10).join(infrastructure_list)}")
             
+            if test_deployment_list:
+                sections.append(f"#### 테스트/배포\n{chr(10).join(test_deployment_list)}")
+            
             implemented_section = "\n\n".join(sections) if sections else "없음"
             
             # 평가 섹션: 핵심 기능별 진행도 표시
@@ -418,6 +424,27 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
                     core_progress_lines.append(f"- **{cf_name}**: {cf_progress_value}% (완성된 기능 {cf_implemented}개, 구현해야 할 기능 {cf_missing}개)")
                 core_progress_section = "\n".join(core_progress_lines)
             
+            # 테스트/배포 정보 추출
+            test_deployment_required = step5_result.get('testDeploymentRequiredCount', 0) if step5_result else 0
+            test_deployment_completed = step5_result.get('testDeploymentCompletedCount', 0) if step5_result else 0
+            
+            # 평가 섹션 생성
+            evaluation_parts = []
+            if core_progress_section:
+                evaluation_parts.append(core_progress_section)
+            
+            # 기능 구현 진행도
+            evaluation_parts.append(f"기능 구현 진행도: {base_progress}% (완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개)")
+            
+            # 테스트/배포 진행도 (있는 경우)
+            if test_deployment_ratio > 0:
+                evaluation_parts.append(f"테스트/배포 진행도: {test_deployment_progress}% (완성된 기능 {test_deployment_completed}개, 필요한 기능 {test_deployment_required}개)")
+                evaluation_parts.append(f"전체 진행도: {progress}% (기능 구현 {base_progress}% × {100 - test_deployment_ratio}% + 테스트/배포 {test_deployment_progress}% × {test_deployment_ratio}%)")
+            else:
+                evaluation_parts.append(f"전체 진행도: {progress}% (완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개)")
+            
+            evaluation_section = "\n".join(evaluation_parts)
+            
             # 평가 섹션을 "완성된 기능 n개, 구현해야 할 기능 n개로 진행도 %입니다" 형식으로 변경
             narrative_response = f"""{project_desc}
 
@@ -429,9 +456,7 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
 {chr(10).join(missing_list) if missing_list else "없음"}
 
 ### 평가
-{core_progress_section if core_progress_section else f"완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개로 진행도 {progress}%입니다."}
-
-전체 진행도: {progress}% (완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개)
+{evaluation_section}
 
 **예상 완성일**: {estimated_date}
 
