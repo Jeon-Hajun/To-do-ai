@@ -90,7 +90,6 @@ def check_github_required(agent_type):
         bool: GitHub 연동이 필요하면 True
     """
     github_required_agents = [
-        "task_suggestion_agent",
         "progress_analysis_agent",
         "task_completion_agent"
     ]
@@ -115,7 +114,6 @@ def route_to_agent(agent_type, context, call_llm_func, user_message=None):
         github_repo = context.get('githubRepo', '')
         if not github_repo or github_repo.strip() == '':
             agent_name = {
-                "task_suggestion_agent": "Task 제안",
                 "progress_analysis_agent": "진행도 분석",
                 "task_completion_agent": "Task 완료 확인"
             }.get(agent_type, "이 기능")
