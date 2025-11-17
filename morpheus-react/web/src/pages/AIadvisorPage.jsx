@@ -122,7 +122,7 @@ export default function AIadvisorPage() {
         sx={{ flex: 1, pt: 2 }}
       >
         {/* 하나의 큰 박스에 프로젝트 선택과 챗봇 통합 */}
-        <Card sx={{ height: 650, display: "flex", flexDirection: "column" }}>
+        <Card sx={{ height: "calc(100vh - 120px)", minHeight: 600, display: "flex", flexDirection: "column" }}>
           {/* 프로젝트 카테고리 바 */}
           <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
             <CategoryBar
