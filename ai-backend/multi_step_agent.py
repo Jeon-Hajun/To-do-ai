@@ -114,6 +114,66 @@ def evaluate_information_sufficiency(
             "reason": f"평가 중 오류 발생: {str(e)}"
         }
 
+def list_directory_contents(
+    github_repo: str,
+    github_token: Optional[str],
+    directory_path: str,
+    ref: str = 'main'
+) -> List[str]:
+    """
+    GitHub 디렉토리 내용을 나열하여 파일 목록을 가져옴
+    
+    Returns:
+        파일 경로 리스트
+    """
+    if not github_repo or not directory_path:
+        return []
+    
+    try:
+        import requests
+        
+        headers = {}
+        if github_token:
+            headers['Authorization'] = f'token {github_token}'
+        
+        # repoUrl에서 owner/repo 추출
+        match = re.search(r'github\.com[/:]([^/]+)/([^/]+?)(?:\.git)?/?$', github_repo)
+        if not match:
+            return []
+        
+        owner = match.group(1)
+        repo = match.group(2).replace('.git', '')
+        
+        url = f'https://api.github.com/repos/{owner}/{repo}/contents/{directory_path}'
+        if ref != 'main':
+            url += f'?ref={ref}'
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        contents = response.json()
+        if not isinstance(contents, list):
+            return []
+        
+        files = []
+        for item in contents:
+            if item.get('type') == 'file':
+                # JavaScript/TypeScript/JSX 파일만
+                file_name = item.get('name', '')
+                if file_name.endswith(('.js', '.jsx', '.ts', '.tsx')):
+                    files.append(item.get('path', ''))
+            elif item.get('type') == 'dir':
+                # 하위 디렉토리는 재귀적으로 탐색 (최대 2단계 깊이)
+                sub_path = item.get('path', '')
+                if directory_path.count('/') < 3:  # 깊이 제한
+                    sub_files = list_directory_contents(github_repo, github_token, sub_path, ref)
+                    files.extend(sub_files)
+        
+        return files
+    except Exception as e:
+        print(f"[Multi-Step Agent] 디렉토리 목록 조회 실패: {e}")
+        return []
+
 def get_file_contents(
     github_repo: str,
     github_token: Optional[str],
@@ -154,7 +214,7 @@ def get_file_contents(
         repo = match.group(2).replace('.git', '')
         
         results = []
-        for file_path in file_paths[:10]:  # 최대 10개 파일만
+        for file_path in file_paths[:50]:  # 최대 50개 파일로 증가
             try:
                 url = f'https://api.github.com/repos/{owner}/{repo}/contents/{file_path}'
                 if ref != 'main':
@@ -459,56 +519,29 @@ def execute_multi_step_agent(
                     # 3단계: 페이지와 컴포넌트 파일들을 동적으로 찾아 읽기
                     progress_messages.append("🔍 프로젝트 구조를 파악하여 페이지와 컴포넌트 파일들을 찾는 중...")
                     
-                    # 프로젝트 구조에 따라 다양한 경로 시도
-                    # 웹 애플리케이션의 경우 일반적인 디렉토리 구조
-                    common_paths = [
-                        # React/Vue 등 프론트엔드 프레임워크
-                        "src/pages", "src/components", "src/views", "src/screens",
-                        "web/src/pages", "web/src/components", "web/src/views",
-                        "frontend/src/pages", "frontend/src/components",
-                        "app/pages", "app/components", "app/views",
-                        "pages", "components", "views",
-                        # Morpheus React 구조
-                        "morpheus-react/web/src/pages", "morpheus-react/web/src/components",
-                        # Next.js 구조
-                        "pages", "app", "components",
-                        # Nuxt.js 구조
-                        "pages", "components", "layouts",
-                        # 기타
-                        "ui", "widgets", "features"
+                    # GitHub API를 사용하여 디렉토리 내용 확인
+                    directories_to_explore = [
+                        "morpheus-react/web/src/pages",
+                        "morpheus-react/web/src/components",
+                        "src/pages",
+                        "src/components",
+                        "web/src/pages",
+                        "web/src/components",
+                        "frontend/src/pages",
+                        "frontend/src/components",
+                        "pages",
+                        "components"
                     ]
                     
-                    # 각 경로에서 일반적인 파일 패턴 시도
-                    files_to_try = []
-                    for base_path in common_paths[:10]:  # 최대 10개 경로만 시도
-                        # 페이지 파일 패턴
-                        page_patterns = [
-                            f"{base_path}/**/*Page.jsx", f"{base_path}/**/*Page.js",
-                            f"{base_path}/**/*Page.tsx", f"{base_path}/**/*Page.ts",
-                            f"{base_path}/**/index.jsx", f"{base_path}/**/index.js"
-                        ]
-                        # 컴포넌트 파일 패턴
-                        component_patterns = [
-                            f"{base_path}/**/*.jsx", f"{base_path}/**/*.js",
-                            f"{base_path}/**/*.tsx", f"{base_path}/**/*.ts"
-                        ]
-                        
-                        # 실제로는 GitHub API로 디렉토리 내용을 확인해야 하지만,
-                        # 여기서는 일반적인 파일명을 시도
-                        common_page_names = ["Login", "Signup", "Home", "Dashboard", "Project", "Task", "Settings", "About"]
-                        common_component_names = ["Button", "Card", "Modal", "List", "Form", "Layout", "NavBar", "Header"]
-                        
-                        for name in common_page_names:
-                            files_to_try.extend([
-                                f"{base_path}/{name}.jsx", f"{base_path}/{name}.js",
-                                f"{base_path}/{name}Page.jsx", f"{base_path}/{name}Page.js"
-                            ])
-                        
-                        for name in common_component_names:
-                            files_to_try.extend([
-                                f"{base_path}/{name}.jsx", f"{base_path}/{name}.js",
-                                f"{base_path}/components/{name}.jsx", f"{base_path}/components/{name}.js"
-                            ])
+                    discovered_files = []
+                    for directory in directories_to_explore:
+                        try:
+                            files_in_dir = list_directory_contents(github_repo, github_token, directory)
+                            discovered_files.extend(files_in_dir)
+                            if files_in_dir:
+                                progress_messages.append(f"📁 {directory} 디렉토리에서 {len(files_in_dir)}개 파일 발견")
+                        except:
+                            continue
                     
                     # 기존 하드코딩된 파일 목록도 포함 (확실한 파일들)
                     known_files = [
@@ -532,11 +565,12 @@ def execute_multi_step_agent(
                         "morpheus-react/web/src/components/layout/CategoryBar.jsx"
                     ]
                     
-                    all_files_to_read = list(set(known_files + files_to_try[:30]))  # 중복 제거 및 최대 30개
+                    all_files_to_read = list(set(known_files + discovered_files))  # 중복 제거
                     
                     read_count = 0
+                    max_files_to_read = 50  # 최대 50개로 증가
                     for file_path in all_files_to_read:
-                        if file_path not in [f.get('path', '') for f in accumulated_files] and read_count < 20:  # 최대 20개만 읽기
+                        if file_path not in [f.get('path', '') for f in accumulated_files] and read_count < max_files_to_read:
                             try:
                                 file_contents = get_file_contents(github_repo, github_token, [file_path])
                                 if file_contents and file_contents[0].get('content'):
@@ -553,6 +587,8 @@ def execute_multi_step_agent(
                     
                     if read_count == 0:
                         progress_messages.append("⚠️ 페이지나 컴포넌트 파일을 찾지 못했습니다. 프로젝트 구조를 확인 중...")
+                    else:
+                        progress_messages.append(f"📊 총 {read_count}개의 페이지/컴포넌트 파일을 읽었습니다.")
             
             # 평가에서 제안한 파일 읽기
             if files_to_read and github_repo:

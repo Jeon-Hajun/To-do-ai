@@ -272,7 +272,29 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
         required_features = step2_result.get('requiredFeatures', [])
         implemented_features = step3_result.get('implementedFeatures', [])
         
-        implemented_names = [f.get('name', '') for f in implemented_features]
+        # 구현된 기능 이름들을 정확히 추출 (API 그룹명, 페이지명 등)
+        implemented_names = []
+        for feat in implemented_features:
+            name = feat.get('name', '')
+            feat_type = feat.get('type', '')
+            location = feat.get('location', '')
+            
+            # API의 경우 그룹명과 개별 엔드포인트 모두 확인
+            if feat_type == 'api':
+                implemented_names.append(name)  # API 그룹명
+                # location에서 개별 엔드포인트 추출
+                if location:
+                    endpoints = [e.strip() for e in location.split(',')]
+                    for endpoint in endpoints:
+                        if endpoint.startswith('/api/'):
+                            # 엔드포인트에서 기능명 추출 (예: /api/project/create -> 프로젝트 생성)
+                            parts = endpoint.replace('/api/', '').split('/')
+                            if len(parts) >= 2:
+                                resource = parts[0]  # project, task, user 등
+                                action = parts[1]  # create, update, delete 등
+                                implemented_names.append(f"{resource}_{action}")
+            else:
+                implemented_names.append(name)
         
         prompt = f"""진행도 분석 **4단계: 미구현 기능 분석**입니다.
 
@@ -288,12 +310,18 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
 ### 3단계: 구현된 기능 확인
 구현된 기능 수: {len(implemented_features)}개
 구현된 기능 목록:
-{json.dumps(implemented_features, ensure_ascii=False, indent=2)[:1000]}
+{json.dumps(implemented_features, ensure_ascii=False, indent=2)[:2000]}
 
 {files_section}
 
 ## 4단계 작업: 미구현 기능 분석
-필요한 기능 목록과 구현된 기능 목록을 비교하여, 아직 구현되지 않은 기능을 찾으세요.
+필요한 기능 목록과 구현된 기능 목록을 **정확히** 비교하여, 아직 구현되지 않은 기능을 찾으세요.
+
+**매우 중요:**
+- 구현된 기능 목록을 **자세히 확인**하세요. API 그룹에 포함된 개별 엔드포인트도 확인하세요.
+- 예를 들어, "프로젝트 관리 API"에 /api/project/create가 포함되어 있다면, "프로젝트 생성" 기능은 이미 구현된 것입니다.
+- 읽은 파일 내용을 확인하여 실제로 구현된 기능인지 검증하세요.
+- **이미 구현된 기능을 미구현으로 분류하지 마세요.**
 
 다음 JSON 형식으로만 응답하세요:
 {{
@@ -308,8 +336,9 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
   "nextStep": "다음 단계(5단계)에서는 평가 및 진행도 계산을 수행하겠습니다."
 }}
 
-⚠️ **중요**: 
-- 필요한 기능 중 구현된 기능에 없는 것만 나열하세요.
+⚠️ **매우 중요**: 
+- 필요한 기능 중 **정말로** 구현된 기능에 없는 것만 나열하세요.
+- 구현된 기능 목록을 자세히 확인하여 중복 분류를 피하세요.
 - 각 미구현 기능에 대해 왜 필요한지, 어디에 있어야 하는지 명시하세요."""
     
     else:
