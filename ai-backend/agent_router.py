@@ -506,15 +506,12 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             if core_progress_section:
                 evaluation_parts.append(core_progress_section)
             
-            # 기능 구현 진행도
-            evaluation_parts.append(f"기능 구현 진행도: {base_progress}% (완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개)")
-            
             # 테스트/배포 진행도 (있는 경우)
             if test_deployment_ratio > 0:
                 evaluation_parts.append(f"테스트/배포 진행도: {test_deployment_progress}% (완성된 기능 {test_deployment_completed}개, 필요한 기능 {test_deployment_required}개)")
-                evaluation_parts.append(f"전체 진행도: {progress}% (기능 구현 {base_progress}% × {100 - test_deployment_ratio}% + 테스트/배포 {test_deployment_progress}% × {test_deployment_ratio}%)")
-            else:
-                evaluation_parts.append(f"전체 진행도: {progress}% (완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개)")
+            
+            # 전체 진행도만 표시 (기능 구현 진행도는 제거)
+            evaluation_parts.append(f"전체 진행도: {progress}% (완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개)")
             
             evaluation_section = "\n".join(evaluation_parts)
             
