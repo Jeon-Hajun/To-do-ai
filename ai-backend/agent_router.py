@@ -323,10 +323,10 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
         print(f"[Agent Router] Task 제안 - 2단계: 현재 Task 및 소스코드 구현 파악")
         progress_messages.append("📋 2단계: 현재 Task 및 소스코드 구현 파악 중...")
         
-        # 소스코드 파일 읽기 (GitHub 연결 시)
+        # 소스코드 파일 읽기 (GitHub 연결 시) - 논리적 읽기 방식
         read_files_step2 = []
         if has_github:
-            # 주요 디렉토리 탐색
+            # 주요 디렉토리 탐색 (파일 목록만 수집)
             project_structure = step1_result.get('projectInfo', {}).get('projectStructure', {})
             main_directories = project_structure.get('mainDirectories', [])
             
@@ -334,32 +334,95 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
             if not main_directories:
                 main_directories = ["src", "app", "components", "pages", "routes", "controllers", "services", "utils", "backend", "frontend"]
             
-            # 디렉토리에서 파일 찾기
-            files_to_read = []
+            # 디렉토리에서 파일 목록만 수집 (파일 내용은 읽지 않음)
+            all_files_list = []
+            progress_messages.append("🔍 프로젝트 파일 목록 수집 중...")
             for dir_path in main_directories[:5]:  # 최대 5개 디렉토리
                 try:
                     dir_files = list_directory_contents(github_repo, github_token, dir_path)
                     # JavaScript/TypeScript/Python 파일 선택
-                    code_files = [f for f in dir_files if f.endswith(('.js', '.jsx', '.ts', '.tsx', '.py'))][:10]
-                    files_to_read.extend(code_files)
-                    if len(files_to_read) >= 30:
+                    code_files = [f for f in dir_files if f.endswith(('.js', '.jsx', '.ts', '.tsx', '.py'))]
+                    all_files_list.extend(code_files)
+                    if len(all_files_list) >= 100:  # 최대 100개 파일 목록 수집
                         break
                 except Exception as e:
                     print(f"[Agent Router] 디렉토리 탐색 실패 ({dir_path}): {e}")
                     continue
             
-            # 파일 읽기
-            if files_to_read:
-                file_contents = get_file_contents(github_repo, github_token, files_to_read[:30], max_lines_per_file=500)
-                read_files_step2 = [
-                    {
-                        "path": f.get('filePath', ''),
-                        "content": f.get('content', ''),
-                        "truncated": f.get('truncated', False)
-                    }
-                    for f in file_contents if f.get('content')
-                ]
-                print(f"[Agent Router] Task 제안 - 2단계에서 {len(read_files_step2)}개 파일 읽음")
+            print(f"[Agent Router] Task 제안 - 2단계에서 {len(all_files_list)}개 파일 목록 수집")
+            
+            # LLM에게 파일 목록 제공하여 필요한 파일만 선택 요청
+            if all_files_list:
+                progress_messages.append("🤔 필요한 파일 선택 중...")
+                from prompt_functions import create_task_suggestion_file_selection_prompt
+                file_selection_prompt = create_task_suggestion_file_selection_prompt(
+                    context, user_message, all_files_list, step1_result
+                )
+                file_selection_response = call_llm_func(file_selection_prompt, system_prompt)
+                
+                # JSON 파싱
+                try:
+                    if '```json' in file_selection_response:
+                        file_selection_response = file_selection_response.split('```json')[1].split('```')[0].strip()
+                    elif '```' in file_selection_response:
+                        file_selection_response = file_selection_response.split('```')[1].split('```')[0].strip()
+                    
+                    file_selection_response = file_selection_response.strip()
+                    if '{' in file_selection_response:
+                        file_selection_response = file_selection_response[file_selection_response.find('{'):]
+                    if '}' in file_selection_response:
+                        file_selection_response = file_selection_response[:file_selection_response.rfind('}')+1]
+                    
+                    file_selection_result = json.loads(file_selection_response)
+                    selected_files = file_selection_result.get('selectedFiles', [])
+                    selection_reason = file_selection_result.get('reason', '')
+                    
+                    print(f"[Agent Router] Task 제안 - LLM이 {len(selected_files)}개 파일 선택: {selection_reason}")
+                    progress_messages.append(f"✅ {len(selected_files)}개 파일 선택됨")
+                    
+                    # 선택된 파일만 읽기
+                    if selected_files:
+                        progress_messages.append(f"📄 선택된 파일 읽는 중... ({len(selected_files)}개)")
+                        file_contents = get_file_contents(github_repo, github_token, selected_files[:15], max_lines_per_file=500)  # 최대 15개로 제한
+                        read_files_step2 = [
+                            {
+                                "path": f.get('filePath', ''),
+                                "content": f.get('content', ''),
+                                "truncated": f.get('truncated', False)
+                            }
+                            for f in file_contents if f.get('content')
+                        ]
+                        print(f"[Agent Router] Task 제안 - 2단계에서 {len(read_files_step2)}개 파일 읽음 (논리적 선택)")
+                        progress_messages.append(f"✅ {len(read_files_step2)}개 파일 읽기 완료")
+                    else:
+                        print(f"[Agent Router] Task 제안 - LLM이 파일을 선택하지 않음")
+                        progress_messages.append("⚠️ 파일 선택 실패, 기본 파일 읽기 시도")
+                        # 폴백: 처음 10개 파일만 읽기
+                        if all_files_list:
+                            file_contents = get_file_contents(github_repo, github_token, all_files_list[:10], max_lines_per_file=500)
+                            read_files_step2 = [
+                                {
+                                    "path": f.get('filePath', ''),
+                                    "content": f.get('content', ''),
+                                    "truncated": f.get('truncated', False)
+                                }
+                                for f in file_contents if f.get('content')
+                            ]
+                            print(f"[Agent Router] Task 제안 - 2단계에서 폴백으로 {len(read_files_step2)}개 파일 읽음")
+                except Exception as e:
+                    print(f"[Agent Router] 파일 선택 파싱 실패: {e}")
+                    # 폴백: 처음 10개 파일만 읽기
+                    if all_files_list:
+                        file_contents = get_file_contents(github_repo, github_token, all_files_list[:10], max_lines_per_file=500)
+                        read_files_step2 = [
+                            {
+                                "path": f.get('filePath', ''),
+                                "content": f.get('content', ''),
+                                "truncated": f.get('truncated', False)
+                            }
+                            for f in file_contents if f.get('content')
+                        ]
+                        print(f"[Agent Router] Task 제안 - 2단계에서 폴백으로 {len(read_files_step2)}개 파일 읽음")
         
         # 2단계 프롬프트 생성 및 LLM 호출
         prompt_step2 = create_task_suggestion_step2_prompt(context, user_message, read_files_step2, [], 2, step1_result)

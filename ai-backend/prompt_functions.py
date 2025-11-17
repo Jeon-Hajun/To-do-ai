@@ -76,6 +76,77 @@ def create_task_suggestion_initial_prompt(context, user_message, read_files, ana
     # 새로운 5단계 프로세스로 전환되므로 이 함수는 create_task_suggestion_step1_prompt를 호출
     return create_task_suggestion_step1_prompt(context, user_message, read_files, analyzed_commits, step_number)
 
+def create_task_suggestion_file_selection_prompt(context, user_message, file_list, previous_step_result=None):
+    """파일 선택 프롬프트: LLM이 필요한 파일만 선택하도록 요청"""
+    step1_result = previous_step_result or {}
+    project_info = step1_result.get('projectInfo', {})
+    currentTasks = context.get('currentTasks', [])
+    projectDescription = context.get('projectDescription', '')
+    
+    # 프로젝트 정보 요약
+    core_features = project_info.get('coreFeatures', [])
+    tech_stack = project_info.get('techStack', [])
+    
+    # 현재 Task 요약
+    task_summary = ""
+    if currentTasks:
+        task_summary = "\n## 현재 Task 목록:\n"
+        for task in currentTasks[:10]:
+            title = task.get('title', '')
+            status = task.get('status', '')
+            task_summary += f"- [{status}] {title}\n"
+    
+    # 파일 목록을 디렉토리별로 그룹화
+    file_groups = {}
+    for file_path in file_list[:100]:  # 최대 100개 파일
+        dir_path = '/'.join(file_path.split('/')[:-1]) if '/' in file_path else ''
+        if dir_path not in file_groups:
+            file_groups[dir_path] = []
+        file_groups[dir_path].append(file_path)
+    
+    files_by_dir = "\n".join([
+        f"### {dir_path or '(루트)'}\n" + "\n".join([f"  - {f}" for f in files[:20]])
+        for dir_path, files in list(file_groups.items())[:10]
+    ])
+    
+    prompt = f"""당신은 소프트웨어 프로젝트 분석 전문가입니다. Task 제안을 위해 필요한 파일만 선택하세요.
+
+## 프로젝트 정보:
+- 프로젝트 설명: {projectDescription[:200] if projectDescription else '없음'}
+- 핵심 기능: {', '.join(core_features[:5]) if core_features else '없음'}
+- 기술 스택: {', '.join(tech_stack[:5]) if tech_stack else '없음'}
+
+{task_summary if task_summary else ''}
+
+## 사용 가능한 파일 목록:
+{files_by_dir if files_by_dir else '파일 없음'}
+
+## 선택 기준:
+1. **핵심 기능 관련 파일**: 프로젝트의 핵심 기능을 구현한 파일
+2. **주요 컴포넌트**: 재사용 가능한 주요 컴포넌트나 모듈
+3. **API 엔드포인트**: 주요 API 라우트나 컨트롤러
+4. **설정 파일**: 프로젝트 구조를 파악할 수 있는 설정 파일
+5. **현재 Task 관련**: 현재 진행 중인 Task와 관련된 파일
+
+## 출력 형식:
+다음 JSON 형식으로만 응답하세요:
+
+{{
+  "selectedFiles": [
+    "파일경로1",
+    "파일경로2",
+    ...
+  ],
+  "reason": "선택한 파일들의 이유를 간단히 설명"
+}}
+
+⚠️ 중요:
+- 5-10개 파일만 선택하세요 (너무 많으면 분석이 느려집니다)
+- 파일 경로는 정확히 입력하세요
+- 반드시 위 JSON 형식으로만 응답하세요. 한국어로 응답하세요."""
+
+    return prompt
+
 def create_task_suggestion_step2_prompt(context, user_message, read_files, analyzed_commits, step_number=2, previous_step_result=None):
     """2단계: 현재 Task 및 소스코드 구현 파악"""
     commits = context.get('commits', [])
