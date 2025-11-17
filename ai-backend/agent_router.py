@@ -158,6 +158,27 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
         
         # 결과 처리
         final_result = result.get('response', {})
+        
+        # 정보 부족으로 질문이 필요한 경우 처리
+        if isinstance(final_result, dict) and final_result.get('needsMoreInfo'):
+            questions = final_result.get('questions', [])
+            message = final_result.get('message', '추가 정보가 필요합니다.')
+            
+            question_text = "\n".join([f"- {q}" for q in questions]) if questions else ""
+            full_message = f"{message}\n\n{question_text}" if question_text else message
+            
+            return {
+                "agent_type": "task_suggestion_agent",
+                "response": {
+                    "type": "needs_more_info",
+                    "message": full_message,
+                    "questions": questions
+                },
+                "analysis_steps": result.get('analysis_steps', 1),
+                "confidence": result.get('confidence', 'low'),
+                "progress_messages": result.get('progress_messages', [])
+            }
+        
         if isinstance(final_result, dict) and 'suggestions' in final_result:
             suggestions = final_result['suggestions']
         elif isinstance(final_result, list):
@@ -167,6 +188,25 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
             all_steps = result.get('all_steps', [])
             if all_steps:
                 last_step = all_steps[-1]
+                # needsMoreInfo 체크
+                if isinstance(last_step, dict) and last_step.get('needsMoreInfo'):
+                    questions = last_step.get('questions', [])
+                    message = last_step.get('message', '추가 정보가 필요합니다.')
+                    question_text = "\n".join([f"- {q}" for q in questions]) if questions else ""
+                    full_message = f"{message}\n\n{question_text}" if question_text else message
+                    
+                    return {
+                        "agent_type": "task_suggestion_agent",
+                        "response": {
+                            "type": "needs_more_info",
+                            "message": full_message,
+                            "questions": questions
+                        },
+                        "analysis_steps": result.get('analysis_steps', 1),
+                        "confidence": result.get('confidence', 'low'),
+                        "progress_messages": result.get('progress_messages', [])
+                    }
+                
                 if isinstance(last_step, list):
                     suggestions = last_step
                 elif isinstance(last_step, dict) and 'suggestions' in last_step:
