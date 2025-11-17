@@ -186,10 +186,10 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
             {'High': 0, 'Medium': 1, 'Low': 2}.get(x.get('priority', 'Low'), 2)
         ))
         
-        # 상세 메시지 생성
+        # 상세 메시지 생성 (마크다운 형식)
         message_parts = [
-            f"💡 **{len(suggestions)}개의 Task를 제안했습니다**",
-            f""
+            f"## 💡 {len(suggestions)}개의 Task를 제안했습니다",
+            ""
         ]
         
         if suggestions:
@@ -210,17 +210,32 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
             }
             
             for category, items in by_category.items():
-                message_parts.append(f"**{category_kr.get(category, category)}** ({len(items)}개):")
-                for i, item in enumerate(items[:3], 1):  # 카테고리당 최대 3개
+                message_parts.append(f"### {category_kr.get(category, category)} ({len(items)}개)")
+                message_parts.append("")
+                for i, item in enumerate(items, 1):
                     title = item.get('title', '제목 없음')
+                    description = item.get('description', '')
                     priority = item.get('priority', 'Low')
                     estimated_hours = item.get('estimatedHours', 0)
-                    message_parts.append(f"{i}. {title} (우선순위: {priority}, 예상 시간: {estimated_hours}시간)")
-                message_parts.append("")
+                    reason = item.get('reason', '')
+                    
+                    message_parts.append(f"#### {i}. {title}")
+                    message_parts.append("")
+                    if description:
+                        message_parts.append(f"**설명**: {description}")
+                        message_parts.append("")
+                    message_parts.append(f"- **우선순위**: {priority}")
+                    message_parts.append(f"- **예상 시간**: {estimated_hours}시간")
+                    if reason:
+                        message_parts.append(f"- **추천 이유**: {reason}")
+                    message_parts.append("")
             
-            message_parts.append(f"💡 **팁**: 각 Task를 클릭하여 상세 정보를 확인하고 프로젝트에 추가할 수 있습니다.")
+            message_parts.append("---")
+            message_parts.append("")
+            message_parts.append("💡 각 Task를 프로젝트에 추가하려면 Task 제목을 클릭하거나 '추가' 버튼을 사용하세요.")
         else:
             message_parts.append("현재 프로젝트 상태를 분석한 결과, 추가로 제안할 Task가 없습니다.")
+            message_parts.append("")
             message_parts.append("프로젝트가 잘 관리되고 있습니다! 🎉")
         
         message = "\n".join(message_parts)

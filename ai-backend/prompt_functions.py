@@ -20,6 +20,14 @@ def create_task_suggestion_initial_prompt(context, user_message, read_files, ana
     projectDescription = context.get('projectDescription', '')
     githubRepo = context.get('githubRepo', '')
     
+    # GitHub 연결 여부 확인
+    has_github = githubRepo and githubRepo.strip() != ''
+    has_commits = len(commits) > 0
+    has_issues = len(issues) > 0
+    
+    # 사용자 요구사항 추출
+    user_request = user_message or ""
+    
     # 읽은 파일 정보 추가
     files_context = ""
     if read_files:
@@ -32,7 +40,27 @@ def create_task_suggestion_initial_prompt(context, user_message, read_files, ana
         commits, issues, currentTasks, projectDescription, githubRepo
     )
     
-    return base_prompt + files_context + "\n\n위 정보를 바탕으로 Task를 제안하세요. JSON 배열 형식으로 응답하세요."
+    # GitHub가 없을 때 추가 지시사항
+    if not has_github or (not has_commits and not has_issues):
+        additional_instruction = f"""
+
+⚠️ **중요**: GitHub 저장소가 연결되지 않았거나 커밋/이슈 정보가 없습니다.
+다음 정보를 우선적으로 활용하여 Task를 제안하세요:
+
+1. **프로젝트 설명**: {projectDescription[:300] if projectDescription else '없음'}
+2. **사용자 요구사항**: {user_request[:200] if user_request else '없음'}
+3. **현재 Task 목록**: {len(currentTasks)}개의 기존 Task가 있습니다. 이를 참고하여 연관된 Task를 제안하세요.
+
+프로젝트 설명과 사용자 요구사항을 바탕으로:
+- 프로젝트의 핵심 기능 구현을 위한 Task
+- 사용자가 요청한 기능을 구현하기 위한 구체적인 Task
+- 프로젝트의 다음 단계로 진행하기 위한 Task
+
+를 제안하세요. 정보가 부족하다면 일반적인 프로젝트 개발 단계를 고려하여 제안하세요."""
+    else:
+        additional_instruction = ""
+    
+    return base_prompt + files_context + additional_instruction + "\n\n위 정보를 바탕으로 Task를 제안하세요. JSON 배열 형식으로 응답하세요."
 
 def create_task_suggestion_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits, step_number=2, all_steps=None):
     """Task 제안 에이전트 후속 프롬프트"""

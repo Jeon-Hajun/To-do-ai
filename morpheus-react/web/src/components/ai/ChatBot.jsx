@@ -214,14 +214,21 @@ export default function ChatBot({ projectId, onError }) {
         
         setConversationId(res.data.conversationId);
 
-        // Task 제안 결과가 있으면 모달로 표시
+        // Task 제안 결과가 있으면 채팅 메시지로 표시 (팝업 제거)
         if (res.data.response && res.data.response.type === "task_suggestions" && res.data.response.suggestions) {
-          setResultData({
-            type: "task_suggestions",
-            suggestions: res.data.response.suggestions,
-            message: res.data.message,
+          // Task 제안 결과를 채팅 메시지로 표시
+          const suggestions = res.data.response.suggestions || [];
+          const taskSuggestionMessage = {
+            role: "assistant",
+            content: res.data.message || "Task 제안이 완료되었습니다.",
+            agentType: "task_suggestion_agent",
+            response: res.data.response,
+            id: Date.now() + 3,
+          };
+          setMessages((prev) => {
+            const filtered = prev.filter((msg) => !msg.isProgress);
+            return [...filtered, taskSuggestionMessage];
           });
-          setResultModalOpen(true);
         }
       } else {
         // 에러 처리 - 채팅 메시지로 표시
@@ -382,14 +389,21 @@ export default function ChatBot({ projectId, onError }) {
         
         setConversationId(res.data.conversationId);
 
-        // Task 제안 결과가 있으면 모달로 표시
+        // Task 제안 결과가 있으면 채팅 메시지로 표시 (팝업 제거)
         if (res.data.response && res.data.response.type === "task_suggestions" && res.data.response.suggestions) {
-          setResultData({
-            type: "task_suggestions",
-            suggestions: res.data.response.suggestions,
-            message: res.data.message,
+          // Task 제안 결과를 채팅 메시지로 표시
+          const suggestions = res.data.response.suggestions || [];
+          const taskSuggestionMessage = {
+            role: "assistant",
+            content: res.data.message || "Task 제안이 완료되었습니다.",
+            agentType: "task_suggestion_agent",
+            response: res.data.response,
+            id: Date.now() + 3,
+          };
+          setMessages((prev) => {
+            const filtered = prev.filter((msg) => !msg.isProgress);
+            return [...filtered, taskSuggestionMessage];
           });
-          setResultModalOpen(true);
         }
       } else {
         // 에러 처리 - 채팅 메시지로 표시
@@ -594,6 +608,78 @@ export default function ChatBot({ projectId, onError }) {
                       message.agentType === "progress_analysis" ||
                       (message.response && message.response.type === "progress_analysis")) ? (
                   <MarkdownRenderer content={message.content} />
+                ) : (message.agentType === "task_suggestion_agent" ||
+                      (message.response && message.response.type === "task_suggestions")) ? (
+                  <Box>
+                    <MarkdownRenderer content={message.content} />
+                    {message.response && message.response.suggestions && message.response.suggestions.length > 0 && (
+                      <Box sx={{ mt: 2 }}>
+                        {message.response.suggestions.map((suggestion, index) => {
+                          const globalIndex = message.id + index;
+                          const isAdded = addedTasks.has(globalIndex);
+                          const isAdding = addingTasks.has(globalIndex);
+                          return (
+                            <Box
+                              key={index}
+                              sx={{
+                                p: 1.5,
+                                mb: 1,
+                                border: 1,
+                                borderColor: "divider",
+                                borderRadius: 1,
+                                bgcolor: "background.default",
+                              }}
+                            >
+                              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: "bold", flex: 1 }}>
+                                  {suggestion.title || "제목 없음"}
+                                </Typography>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <Chip
+                                    label={suggestion.category || "기타"}
+                                    size="small"
+                                    sx={{ fontSize: "0.7rem" }}
+                                  />
+                                  {isAdded ? (
+                                    <Chip
+                                      label="추가됨"
+                                      size="small"
+                                      color="success"
+                                      sx={{ fontSize: "0.7rem" }}
+                                    />
+                                  ) : (
+                                    <Button
+                                      variant="contained"
+                                      size="small"
+                                      startIcon={isAdding ? <CircularProgress size={14} /> : <AddIcon />}
+                                      onClick={() => handleAddTask(suggestion, globalIndex)}
+                                      disabled={isAdding || !projectId}
+                                      sx={{ fontSize: "0.7rem", px: 1, py: 0.5 }}
+                                    >
+                                      {isAdding ? "추가 중..." : "추가"}
+                                    </Button>
+                                  )}
+                                </Stack>
+                              </Box>
+                              {suggestion.description && (
+                                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                                  {suggestion.description}
+                                </Typography>
+                              )}
+                              <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
+                                <Typography variant="caption" color="text.secondary">
+                                  우선순위: {suggestion.priority || "Low"}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  예상 시간: {suggestion.estimatedHours || 0}시간
+                                </Typography>
+                              </Box>
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    )}
+                  </Box>
                 ) : (
                   <Typography variant="body1" component="div" sx={{ fontSize: { xs: "0.875rem", md: "1rem" } }}>
                     {message.content}
