@@ -34,7 +34,7 @@ def create_task_suggestion_initial_prompt(context, user_message, read_files, ana
     
     return base_prompt + files_context + "\n\n위 정보를 바탕으로 Task를 제안하세요. JSON 배열 형식으로 응답하세요."
 
-def create_task_suggestion_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits, step_number=2):
+def create_task_suggestion_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits, step_number=2, all_steps=None):
     """Task 제안 에이전트 후속 프롬프트"""
     commits = context.get('commits', [])
     issues = context.get('issues', [])
@@ -666,7 +666,7 @@ def create_progress_analysis_followup_prompt(context, previous_result, user_mess
     
     return prompt
 
-def create_task_completion_initial_prompt(context, user_message, read_files, analyzed_commits):
+def create_task_completion_initial_prompt(context, user_message, read_files, analyzed_commits, step_number=1):
     """Task 완료 확인 에이전트 초기 프롬프트"""
     task = context.get('task')
     commits = context.get('commits', [])
