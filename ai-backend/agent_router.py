@@ -308,6 +308,11 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             core_features = step1_result.get('coreFeatures', [])
             core_feature_progress = step3_result.get('coreFeatureProgress', [])
             
+            # 기본 변수 정의 (항상 사용되므로 먼저 정의)
+            total_required = len(required_features)
+            total_implemented = len(implemented_features)
+            total_missing = len(missing_features)
+            
             # 진행도 계산: 핵심 기능별 진행도를 가중 평균으로 계산
             if core_feature_progress and core_features:
                 # 각 핵심 기능의 weight를 가져와서 가중 평균 계산
@@ -328,9 +333,6 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
                 progress = round((total_weighted_progress / total_weight) if total_weight > 0 else 0, 1)
             else:
                 # 기존 방식: 전체 기능 수로 계산
-                total_required = len(required_features)
-                total_implemented = len(implemented_features)
-                total_missing = len(missing_features)
                 progress = round((total_implemented / total_required * 100) if total_required > 0 else 0, 1)
             
             # 구현된 기능 목록 생성 (페이지, API, 컴포넌트, 인프라로 분류)
