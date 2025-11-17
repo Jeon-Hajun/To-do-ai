@@ -91,33 +91,7 @@ def create_optimized_task_suggestion_prompt(commits, issues, currentTasks, proje
             "labels": issue.get('labels', [])
         })
     
-    # 정보 충분성 확인
-    has_info = (len(commits) > 0 or len(issues) > 0 or len(currentTasks) > 0 or 
-                (projectDescription and len(projectDescription.strip()) > 20))
-    
-    if not has_info:
-        # 정보가 전혀 없는 경우 - 질문 요청
-        return """프로젝트에 대한 정보가 전혀 없어 Task를 제안하기 어렵습니다.
-
-현재 상황:
-- 프로젝트 설명: 없음
-- 커밋 정보: 없음
-- 이슈 정보: 없음
-- 기존 Task: 없음
-- GitHub 저장소: 연결 안 됨
-
-다음 형식의 JSON으로 응답하세요:
-{
-  "needsMoreInfo": true,
-  "questions": [
-    "프로젝트의 핵심 기능은 무엇인가요?",
-    "현재 어떤 기능이 구현되어 있나요?",
-    "다음으로 구현하고 싶은 기능은 무엇인가요?"
-  ],
-  "message": "프로젝트에 대한 정보가 부족합니다. 위 질문에 답변해주시면 더 정확한 Task를 제안할 수 있습니다."
-}
-
-⚠️ 중요: 반드시 위 JSON 형식으로만 응답하세요."""
+    # 정보 충분성 체크는 agent_router.py에서 처리되므로 여기서는 제거
     
     prompt = f"""프로젝트를 종합적으로 분석하여 **구체적이고 실용적인 Task**를 제안하세요.
 

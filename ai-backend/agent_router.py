@@ -17,6 +17,11 @@ from multi_step_agent import execute_multi_step_agent
 from prompt_functions import (
     create_task_suggestion_initial_prompt,
     create_task_suggestion_followup_prompt,
+    create_task_suggestion_step1_prompt,
+    create_task_suggestion_step2_prompt,
+    create_task_suggestion_step3_prompt,
+    create_task_suggestion_step4_prompt,
+    create_task_suggestion_step5_prompt,
     create_progress_analysis_initial_prompt,
     create_progress_analysis_followup_prompt,
     create_task_completion_initial_prompt,
@@ -143,197 +148,317 @@ def route_to_agent(agent_type, context, call_llm_func, user_message=None):
             "agent_type": agent_type
         }
 
+def check_task_suggestion_info_sufficiency(context, user_message):
+    """
+    Task 제안을 위한 정보 충분성 체크
+    
+    Returns:
+        dict: {
+            "sufficient": bool,
+            "missing_info": list,  # 부족한 정보 유형 리스트
+            "has_project_desc": bool,
+            "has_user_request": bool,
+            "has_tasks": bool,
+            "has_commits": bool,
+            "has_issues": bool
+        }
+    """
+    commits = context.get('commits', [])
+    issues = context.get('issues', [])
+    currentTasks = context.get('currentTasks', [])
+    projectDescription = context.get('projectDescription', '')
+    projectName = context.get('projectName', '')
+    user_message = user_message or ""
+    
+    # 프로젝트 설명이 실제로 있는지 확인 (제목만 있는 경우 제외)
+    # 백엔드에서 project.description || project.title로 보내므로,
+    # projectName과 같으면 실제 설명이 없는 것으로 간주
+    actual_description = projectDescription
+    if projectName and projectDescription == projectName:
+        actual_description = ""  # 제목만 있는 경우 설명이 없는 것으로 간주
+    
+    has_project_desc = actual_description and len(actual_description.strip()) > 20
+    has_user_request = user_message and len(user_message.strip()) > 10
+    has_tasks = len(currentTasks) > 0
+    has_commits = len(commits) > 0
+    has_issues = len(issues) > 0
+    
+    # 충분성 기준: 하나라도 있으면 충분
+    sufficient = has_project_desc or has_user_request or has_tasks or has_commits or has_issues
+    
+    # 부족한 정보 유형 수집
+    missing_info = []
+    if not has_project_desc:
+        missing_info.append('project_description')
+    if not has_user_request:
+        missing_info.append('user_request')
+    if not has_tasks:
+        missing_info.append('tasks')
+    if not has_commits:
+        missing_info.append('commits')
+    if not has_issues:
+        missing_info.append('issues')
+    
+    return {
+        "sufficient": sufficient,
+        "missing_info": missing_info,
+        "has_project_desc": has_project_desc,
+        "has_user_request": has_user_request,
+        "has_tasks": has_tasks,
+        "has_commits": has_commits,
+        "has_issues": has_issues,
+        "actual_description": actual_description,
+        "project_name": projectName
+    }
+
+def generate_task_suggestion_questions(context, missing_info):
+    """
+    부족한 정보에 따라 적절한 질문 생성
+    
+    Args:
+        context: 프로젝트 컨텍스트
+        missing_info: 부족한 정보 유형 리스트
+    
+    Returns:
+        dict: {
+            "questions": list,
+            "message": str
+        }
+    """
+    project_name = context.get('projectName', '프로젝트')
+    
+    # 기본 질문들
+    question_map = {
+        'project_description': "프로젝트의 핵심 기능은 무엇인가요?",
+        'user_request': "현재 어떤 기능을 구현하고 싶으신가요?",
+        'tasks': "이미 진행 중인 작업이 있나요?",
+        'commits': "프로젝트에 코드 변경 이력이 있나요?",
+        'issues': "프로젝트에 이슈나 버그가 있나요?"
+    }
+    
+    # 부족한 정보에 따라 질문 선택
+    questions = []
+    if 'project_description' in missing_info:
+        questions.append(question_map['project_description'])
+    if 'user_request' in missing_info:
+        questions.append(question_map['user_request'])
+    if 'tasks' in missing_info:
+        questions.append(question_map['tasks'])
+    
+    # 기본 질문이 없으면 일반적인 질문들 추가
+    if not questions:
+        questions = [
+            "프로젝트의 핵심 기능은 무엇인가요?",
+            "현재 어떤 기능이 구현되어 있나요?",
+            "다음으로 구현하고 싶은 기능은 무엇인가요?"
+        ]
+    
+    message = "프로젝트에 대한 정보가 부족합니다. 위 질문에 답변해주시면 더 정확한 Task를 제안할 수 있습니다."
+    
+    # 프로젝트 이름을 포함한 메시지 포맷팅
+    question_text = "\n".join([f"- {q}" for q in questions])
+    full_message = f"# {project_name}\n\n{message}\n\n{question_text}"
+    
+    return {
+        "questions": questions,
+        "message": full_message
+    }
+
 def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
-    """Task 제안 agent 실행 (다단계 분석)"""
+    """Task 제안 agent 실행 (5단계 프로세스 재설계)"""
     try:
-        result = execute_multi_step_agent(
-            agent_type="task_suggestion_agent",
-            context=context,
-            call_llm_func=call_llm_func,
-            user_message=user_message,
-            initial_prompt_func=create_task_suggestion_initial_prompt,
-            followup_prompt_func=create_task_suggestion_followup_prompt,
-            system_prompt="소프트웨어 엔지니어링 전문가. 코드 분석 후 Task 제안. 반드시 한국어로 응답. JSON만 응답."
-        )
+        project_name = context.get('projectName', '프로젝트')
+        github_repo = context.get('githubRepo', '')
+        github_token = context.get('githubToken')
+        has_github = github_repo and github_repo.strip() != ''
         
-        # 결과 처리
-        final_result = result.get('response', {})
+        progress_messages = []
+        all_steps = []
         
-        # 정보 충분성 확인 (먼저 체크하여 needs_more_info 응답 결정)
-        commits = context.get('commits', [])
-        issues = context.get('issues', [])
-        currentTasks = context.get('currentTasks', [])
-        projectDescription = context.get('projectDescription', '')
-        projectName = context.get('projectName', '')
-        githubRepo = context.get('githubRepo', '')
-        user_message = user_message or ""
+        # multi_step_agent의 파일 읽기 함수 import
+        from multi_step_agent import get_file_contents, list_directory_contents
         
-        # 프로젝트 설명이 실제로 있는지 확인 (제목만 있는 경우 제외)
-        # 백엔드에서 project.description || project.title로 보내므로,
-        # projectName과 같으면 실제 설명이 없는 것으로 간주
-        actual_description = projectDescription
-        if projectName and projectDescription == projectName:
-            actual_description = ""  # 제목만 있는 경우 설명이 없는 것으로 간주
+        print(f"[Agent Router] Task 제안 - 5단계 프로세스 시작 (프로젝트: {project_name})")
         
-        has_project_desc = actual_description and len(actual_description.strip()) > 20
-        has_user_request = user_message and len(user_message.strip()) > 10
-        has_tasks = len(currentTasks) > 0
-        has_commits = len(commits) > 0
-        has_issues = len(issues) > 0
+        # ===== 1단계: 프로젝트 정보 파악 =====
+        print(f"[Agent Router] Task 제안 - 1단계: 프로젝트 정보 파악")
+        progress_messages.append("🔍 1단계: 프로젝트 정보 파악 중...")
         
-        # 디버깅 로그
-        print(f"[Agent Router] Task 제안 - 정보 충분성 체크:")
-        print(f"  - 프로젝트 설명: {len(actual_description)}자 (실제: {actual_description[:50]}...)")
-        print(f"  - 프로젝트 제목: {projectName}")
-        print(f"  - 사용자 요구사항: {len(user_message)}자")
-        print(f"  - 커밋: {len(commits)}개")
-        print(f"  - 이슈: {len(issues)}개")
-        print(f"  - Task: {len(currentTasks)}개")
-        print(f"  - 정보 충분: desc={has_project_desc}, request={has_user_request}, tasks={has_tasks}, commits={has_commits}, issues={has_issues}")
+        # README 파일 읽기 (GitHub 연결 시)
+        read_files_step1 = []
+        if has_github:
+            readme_files = ["README.md", "README.txt", "readme.md", "README", "readme"]
+            for readme_file in readme_files:
+                try:
+                    file_contents = get_file_contents(github_repo, github_token, [readme_file])
+                    if file_contents and file_contents[0].get('content'):
+                        read_files_step1.append({
+                            "path": file_contents[0].get('filePath', readme_file),
+                            "content": file_contents[0]['content'],
+                            "truncated": file_contents[0].get('truncated', False)
+                        })
+                        break
+                except:
+                    continue
         
-        # 정보 부족으로 질문이 필요한 경우 처리 (먼저 체크)
-        if not has_project_desc and not has_user_request and not has_tasks and not has_commits and not has_issues:
-            # LLM 응답에서 needsMoreInfo 확인
-            needs_more_info = False
-            questions = []
-            message = ""
+        # 1단계 프롬프트 생성 및 LLM 호출
+        prompt_step1 = create_task_suggestion_step1_prompt(context, user_message, read_files_step1, [], 1)
+        system_prompt = "소프트웨어 프로젝트 분석 전문가. 반드시 한국어로 응답. JSON만 응답."
+        response_step1 = call_llm_func(prompt_step1, system_prompt)
+        
+        # JSON 파싱
+        try:
+            if '```json' in response_step1:
+                response_step1 = response_step1.split('```json')[1].split('```')[0].strip()
+            elif '```' in response_step1:
+                response_step1 = response_step1.split('```')[1].split('```')[0].strip()
+            step1_result = json.loads(response_step1)
+        except:
+            step1_result = {}
+        
+        all_steps.append(step1_result)
+        progress_messages.append("✅ 1단계 완료: 프로젝트 정보 파악")
+        
+        # ===== 2단계: 현재 Task 및 소스코드 구현 파악 =====
+        print(f"[Agent Router] Task 제안 - 2단계: 현재 Task 및 소스코드 구현 파악")
+        progress_messages.append("📋 2단계: 현재 Task 및 소스코드 구현 파악 중...")
+        
+        # 소스코드 파일 읽기 (GitHub 연결 시)
+        read_files_step2 = []
+        if has_github:
+            # 주요 디렉토리 탐색
+            project_structure = step1_result.get('projectInfo', {}).get('projectStructure', {})
+            main_directories = project_structure.get('mainDirectories', [])
             
-            if isinstance(final_result, dict) and final_result.get('needsMoreInfo'):
-                needs_more_info = True
-                questions = final_result.get('questions', [])
-                message = final_result.get('message', '추가 정보가 필요합니다.')
-            else:
-                # all_steps에서 needsMoreInfo 확인
-                all_steps = result.get('all_steps', [])
-                if all_steps:
-                    last_step = all_steps[-1]
-                    if isinstance(last_step, dict) and last_step.get('needsMoreInfo'):
-                        needs_more_info = True
-                        questions = last_step.get('questions', [])
-                        message = last_step.get('message', '추가 정보가 필요합니다.')
+            # mainDirectories가 비어있으면 기본 디렉토리 목록 사용
+            if not main_directories:
+                main_directories = ["src", "app", "components", "pages", "routes", "controllers", "services", "utils", "backend", "frontend"]
             
-            # needsMoreInfo가 없어도 정보가 부족하면 질문 요청
-            if not needs_more_info:
-                questions = [
-                    "프로젝트의 핵심 기능은 무엇인가요?",
-                    "현재 어떤 기능이 구현되어 있나요?",
-                    "다음으로 구현하고 싶은 기능은 무엇인가요?"
-                ]
-                message = "프로젝트에 대한 정보가 부족합니다. 위 질문에 답변해주시면 더 정확한 Task를 제안할 수 있습니다."
+            # 디렉토리에서 파일 찾기
+            files_to_read = []
+            for dir_path in main_directories[:5]:  # 최대 5개 디렉토리
+                try:
+                    dir_files = list_directory_contents(github_repo, github_token, dir_path)
+                    # JavaScript/TypeScript/Python 파일 선택
+                    code_files = [f for f in dir_files if f.endswith(('.js', '.jsx', '.ts', '.tsx', '.py'))][:10]
+                    files_to_read.extend(code_files)
+                    if len(files_to_read) >= 30:
+                        break
+                except Exception as e:
+                    print(f"[Agent Router] 디렉토리 탐색 실패 ({dir_path}): {e}")
+                    continue
             
-            question_text = "\n".join([f"- {q}" for q in questions]) if questions else ""
-            # 프로젝트 이름 추가
-            project_name = context.get('projectName', '프로젝트')
-            full_message = f"# {project_name}\n\n{message}\n\n{question_text}" if question_text else f"# {project_name}\n\n{message}"
-            
-            print(f"[Agent Router] Task 제안 - needs_more_info 응답 반환 (프로젝트: {project_name})")
-            
-            return {
-                "agent_type": "task_suggestion_agent",
-                "response": {
-                    "type": "needs_more_info",
-                    "message": full_message,
-                    "questions": questions
-                },
-                "analysis_steps": result.get('analysis_steps', 1),
-                "confidence": result.get('confidence', 'low'),
-                "progress_messages": result.get('progress_messages', [])
-            }
-        
-        # 정보 부족으로 질문이 필요한 경우 처리 (LLM 응답에서)
-        if isinstance(final_result, dict) and final_result.get('needsMoreInfo'):
-            questions = final_result.get('questions', [])
-            message = final_result.get('message', '추가 정보가 필요합니다.')
-            
-            question_text = "\n".join([f"- {q}" for q in questions]) if questions else ""
-            full_message = f"{message}\n\n{question_text}" if question_text else message
-            
-            return {
-                "agent_type": "task_suggestion_agent",
-                "response": {
-                    "type": "needs_more_info",
-                    "message": full_message,
-                    "questions": questions
-                },
-                "analysis_steps": result.get('analysis_steps', 1),
-                "confidence": result.get('confidence', 'low'),
-                "progress_messages": result.get('progress_messages', [])
-            }
-        
-        if isinstance(final_result, dict) and 'suggestions' in final_result:
-            suggestions = final_result['suggestions']
-        elif isinstance(final_result, list):
-            suggestions = final_result
-        else:
-            # 마지막 단계 결과에서 suggestions 추출 시도
-            all_steps = result.get('all_steps', [])
-            if all_steps:
-                last_step = all_steps[-1]
-                # needsMoreInfo 체크
-                if isinstance(last_step, dict) and last_step.get('needsMoreInfo'):
-                    questions = last_step.get('questions', [])
-                    message = last_step.get('message', '추가 정보가 필요합니다.')
-                    question_text = "\n".join([f"- {q}" for q in questions]) if questions else ""
-                    full_message = f"{message}\n\n{question_text}" if question_text else message
-                    
-                    return {
-                        "agent_type": "task_suggestion_agent",
-                        "response": {
-                            "type": "needs_more_info",
-                            "message": full_message,
-                            "questions": questions
-                        },
-                        "analysis_steps": result.get('analysis_steps', 1),
-                        "confidence": result.get('confidence', 'low'),
-                        "progress_messages": result.get('progress_messages', [])
+            # 파일 읽기
+            if files_to_read:
+                file_contents = get_file_contents(github_repo, github_token, files_to_read[:30], max_lines_per_file=500)
+                read_files_step2 = [
+                    {
+                        "path": f.get('filePath', ''),
+                        "content": f.get('content', ''),
+                        "truncated": f.get('truncated', False)
                     }
-                
-                if isinstance(last_step, list):
-                    suggestions = last_step
-                elif isinstance(last_step, dict) and 'suggestions' in last_step:
-                    suggestions = last_step['suggestions']
-                else:
-                    suggestions = []
-            else:
-                suggestions = []
+                    for f in file_contents if f.get('content')
+                ]
+                print(f"[Agent Router] Task 제안 - 2단계에서 {len(read_files_step2)}개 파일 읽음")
+        
+        # 2단계 프롬프트 생성 및 LLM 호출
+        prompt_step2 = create_task_suggestion_step2_prompt(context, user_message, read_files_step2, [], 2, step1_result)
+        response_step2 = call_llm_func(prompt_step2, system_prompt)
+        
+        # JSON 파싱
+        try:
+            if '```json' in response_step2:
+                response_step2 = response_step2.split('```json')[1].split('```')[0].strip()
+            elif '```' in response_step2:
+                response_step2 = response_step2.split('```')[1].split('```')[0].strip()
+            step2_result = json.loads(response_step2)
+        except:
+            step2_result = {}
+        
+        all_steps.append(step2_result)
+        progress_messages.append("✅ 2단계 완료: 현재 Task 및 소스코드 구현 파악")
+        
+        # ===== 3단계: 부족한 Task 제안 =====
+        print(f"[Agent Router] Task 제안 - 3단계: 부족한 Task 제안")
+        progress_messages.append("💡 3단계: 부족한 Task 제안 중...")
+        
+        prompt_step3 = create_task_suggestion_step3_prompt(context, user_message, [], [], 3, all_steps)
+        response_step3 = call_llm_func(prompt_step3, system_prompt)
+        
+        # JSON 파싱
+        try:
+            if '```json' in response_step3:
+                response_step3 = response_step3.split('```json')[1].split('```')[0].strip()
+            elif '```' in response_step3:
+                response_step3 = response_step3.split('```')[1].split('```')[0].strip()
+            step3_result = json.loads(response_step3)
+        except:
+            step3_result = {}
+        
+        all_steps.append(step3_result)
+        progress_messages.append("✅ 3단계 완료: 부족한 Task 제안")
+        
+        # ===== 4단계: 보안 및 리팩토링 개선점 제안 (GitHub 연결 시만) =====
+        step4_result = {}
+        if has_github:
+            print(f"[Agent Router] Task 제안 - 4단계: 보안 및 리팩토링 개선점 제안")
+            progress_messages.append("🔒 4단계: 보안 및 리팩토링 개선점 제안 중...")
+            
+            prompt_step4 = create_task_suggestion_step4_prompt(context, user_message, read_files_step2, [], 4, all_steps)
+            response_step4 = call_llm_func(prompt_step4, system_prompt)
+            
+            # JSON 파싱
+            try:
+                if '```json' in response_step4:
+                    response_step4 = response_step4.split('```json')[1].split('```')[0].strip()
+                elif '```' in response_step4:
+                    response_step4 = response_step4.split('```')[1].split('```')[0].strip()
+                step4_result = json.loads(response_step4)
+            except:
+                step4_result = {}
+            
+            all_steps.append(step4_result)
+            progress_messages.append("✅ 4단계 완료: 보안 및 리팩토링 개선점 제안")
+        else:
+            print(f"[Agent Router] Task 제안 - 4단계 건너뜀 (GitHub 미연결)")
+            progress_messages.append("⏭️ 4단계 건너뜀: GitHub 미연결로 보안/리팩토링 제안 생략")
+        
+        # ===== 5단계: Task 형식으로 통합 및 출력 =====
+        print(f"[Agent Router] Task 제안 - 5단계: Task 형식으로 통합 및 출력")
+        progress_messages.append("📊 5단계: Task 형식으로 통합 및 출력 중...")
+        
+        prompt_step5 = create_task_suggestion_step5_prompt(context, user_message, [], [], 5, all_steps)
+        response_step5 = call_llm_func(prompt_step5, system_prompt)
+        
+        # JSON 파싱
+        try:
+            if '```json' in response_step5:
+                response_step5 = response_step5.split('```json')[1].split('```')[0].strip()
+            elif '```' in response_step5:
+                response_step5 = response_step5.split('```')[1].split('```')[0].strip()
+            step5_result = json.loads(response_step5)
+        except:
+            step5_result = {}
+        
+        suggestions = step5_result.get('suggestions', [])
         
         if not isinstance(suggestions, list):
             suggestions = [suggestions] if suggestions else []
         
-        # suggestions가 비어있는 경우 - 정보 충분성 재평가
+        # 빈 배열 처리
         if len(suggestions) == 0:
-            print(f"[Agent Router] Task 제안 - suggestions가 빈 배열입니다. 정보 충분성 재평가:")
-            print(f"  - 프로젝트 설명 있음: {has_project_desc} (실제 설명: {actual_description[:50] if actual_description else '없음'}...)")
-            print(f"  - 사용자 요구사항 있음: {has_user_request} (요구사항: {user_message[:50] if user_message else '없음'}...)")
-            print(f"  - Task 있음: {has_tasks} ({len(currentTasks)}개)")
-            print(f"  - 커밋 있음: {has_commits} ({len(commits)}개)")
-            print(f"  - 이슈 있음: {has_issues} ({len(issues)}개)")
-            
-            # 정보가 부족하면 질문 요청
-            if not has_project_desc and not has_user_request and not has_tasks and not has_commits and not has_issues:
-                questions = [
-                    "프로젝트의 핵심 기능은 무엇인가요?",
-                    "현재 어떤 기능이 구현되어 있나요?",
-                    "다음으로 구현하고 싶은 기능은 무엇인가요?"
-                ]
-                question_text = "\n".join([f"- {q}" for q in questions])
-                # 프로젝트 이름 추가
-                project_name = context.get('projectName', '프로젝트')
-                full_message = f"# {project_name}\n\n프로젝트에 대한 정보가 부족합니다. 위 질문에 답변해주시면 더 정확한 Task를 제안할 수 있습니다.\n\n{question_text}"
-                
-                print(f"[Agent Router] Task 제안 - suggestions 빈 배열, needs_more_info 응답 반환 (프로젝트: {project_name})")
-                
-                return {
-                    "agent_type": "task_suggestion_agent",
-                    "response": {
-                        "type": "needs_more_info",
-                        "message": full_message,
-                        "questions": questions
-                    },
-                    "analysis_steps": result.get('analysis_steps', 1),
-                    "confidence": result.get('confidence', 'low'),
-                    "progress_messages": result.get('progress_messages', [])
-                }
+            message = f"# {project_name}\n\n현재 프로젝트 상태를 분석한 결과, 추가로 제안할 Task가 없습니다.\n\n프로젝트가 잘 관리되고 있습니다! 🎉"
+            return {
+                "agent_type": "task_suggestion_agent",
+                "response": {
+                    "type": "no_suggestions",
+                    "message": message,
+                    "suggestions": []
+                },
+                "analysis_steps": 5,
+                "confidence": "medium",
+                "progress_messages": progress_messages
+            }
         
         # 카테고리별 정렬
         category_order = {'security': 0, 'refactor': 1, 'feature': 2, 'performance': 3, 'maintenance': 4}
@@ -341,9 +466,6 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
             category_order.get(x.get('category', 'maintenance'), 99),
             {'High': 0, 'Medium': 1, 'Low': 2}.get(x.get('priority', 'Low'), 2)
         ))
-        
-        # 프로젝트 이름 가져오기
-        project_name = context.get('projectName', '프로젝트')
         
         # 상세 메시지 생성 (마크다운 형식)
         message_parts = [
@@ -353,53 +475,54 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
             ""
         ]
         
-        if suggestions:
-            # 카테고리별 그룹화
-            by_category = {}
-            for suggestion in suggestions:
-                category = suggestion.get('category', 'maintenance')
-                if category not in by_category:
-                    by_category[category] = []
-                by_category[category].append(suggestion)
-            
-            category_kr = {
-                'feature': '기능 추가',
-                'refactor': '리팩토링',
-                'security': '보안',
-                'performance': '성능',
-                'maintenance': '유지보수'
-            }
-            
-            for category, items in by_category.items():
-                message_parts.append(f"### {category_kr.get(category, category)} ({len(items)}개)")
+        # 카테고리별 그룹화
+        by_category = {}
+        for suggestion in suggestions:
+            category = suggestion.get('category', 'maintenance')
+            if category not in by_category:
+                by_category[category] = []
+            by_category[category].append(suggestion)
+        
+        category_kr = {
+            'feature': '기능 추가',
+            'refactor': '리팩토링',
+            'security': '보안',
+            'performance': '성능',
+            'maintenance': '유지보수'
+        }
+        
+        for category, items in by_category.items():
+            message_parts.append(f"### {category_kr.get(category, category)} ({len(items)}개)")
+            message_parts.append("")
+            for i, item in enumerate(items, 1):
+                title = item.get('title', '제목 없음')
+                description = item.get('description', '')
+                priority = item.get('priority', 'Low')
+                estimated_hours = item.get('estimatedHours', 0)
+                reason = item.get('reason', '')
+                location = item.get('location', '')
+                
+                message_parts.append(f"#### {i}. {title}")
                 message_parts.append("")
-                for i, item in enumerate(items, 1):
-                    title = item.get('title', '제목 없음')
-                    description = item.get('description', '')
-                    priority = item.get('priority', 'Low')
-                    estimated_hours = item.get('estimatedHours', 0)
-                    reason = item.get('reason', '')
-                    
-                    message_parts.append(f"#### {i}. {title}")
+                if description:
+                    message_parts.append(f"**설명**: {description}")
                     message_parts.append("")
-                    if description:
-                        message_parts.append(f"**설명**: {description}")
-                        message_parts.append("")
-                    message_parts.append(f"- **우선순위**: {priority}")
-                    message_parts.append(f"- **예상 시간**: {estimated_hours}시간")
-                    if reason:
-                        message_parts.append(f"- **추천 이유**: {reason}")
-                    message_parts.append("")
-            
-            message_parts.append("---")
-            message_parts.append("")
-            message_parts.append("💡 각 Task를 프로젝트에 추가하려면 Task 제목을 클릭하거나 '추가' 버튼을 사용하세요.")
-        else:
-            message_parts.append("현재 프로젝트 상태를 분석한 결과, 추가로 제안할 Task가 없습니다.")
-            message_parts.append("")
-            message_parts.append("프로젝트가 잘 관리되고 있습니다! 🎉")
+                message_parts.append(f"- **우선순위**: {priority}")
+                message_parts.append(f"- **예상 시간**: {estimated_hours}시간")
+                if location:
+                    message_parts.append(f"- **위치**: {location}")
+                if reason:
+                    message_parts.append(f"- **추천 이유**: {reason}")
+                message_parts.append("")
+        
+        message_parts.append("---")
+        message_parts.append("")
+        message_parts.append("💡 각 Task를 프로젝트에 추가하려면 Task 제목을 클릭하거나 '추가' 버튼을 사용하세요.")
         
         message = "\n".join(message_parts)
+        progress_messages.append("✅ 5단계 완료: Task 형식으로 통합 및 출력")
+        
+        print(f"[Agent Router] Task 제안 - {len(suggestions)}개 제안 생성 완료")
         
         return {
             "agent_type": "task_suggestion_agent",
@@ -408,20 +531,22 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
                 "suggestions": suggestions,
                 "message": message
             },
-            "analysis_steps": result.get('analysis_steps', 1),
-            "confidence": result.get('confidence', 'medium'),
-            "progress_messages": result.get('progress_messages', [])  # 진행 상황 메시지 추가
+            "analysis_steps": 5,
+            "confidence": "high",
+            "progress_messages": progress_messages,
+            "all_steps": all_steps
         }
     except Exception as e:
         print(f"[Agent Router] Task 제안 agent 실행 실패: {e}")
         import traceback
         print(traceback.format_exc())
+        project_name = context.get('projectName', '프로젝트')
         return {
             "agent_type": "task_suggestion_agent",
             "error": f"Task 제안 생성 실패: {str(e)}",
             "response": {
                 "type": "error",
-                "message": "Task 제안을 생성하는 중 오류가 발생했습니다."
+                "message": f"# {project_name}\n\nTask 제안을 생성하는 중 오류가 발생했습니다."
             }
         }
 

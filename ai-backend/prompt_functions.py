@@ -12,126 +12,422 @@ from prompt_optimizer import (
     create_task_assignment_prompt
 )
 
-def create_task_suggestion_initial_prompt(context, user_message, read_files, analyzed_commits, step_number=1):
-    """Task 제안 에이전트 초기 프롬프트"""
-    commits = context.get('commits', [])
-    issues = context.get('issues', [])
-    currentTasks = context.get('currentTasks', [])
+def create_task_suggestion_step1_prompt(context, user_message, read_files, analyzed_commits, step_number=1):
+    """1단계: 프로젝트 정보 파악"""
+    projectName = context.get('projectName', '프로젝트')
     projectDescription = context.get('projectDescription', '')
     githubRepo = context.get('githubRepo', '')
+    projectStartDate = context.get('projectStartDate', '')
     
-    # GitHub 연결 여부 확인
-    has_github = githubRepo and githubRepo.strip() != ''
-    has_commits = len(commits) > 0
-    has_issues = len(issues) > 0
-    
-    # 사용자 요구사항 추출
-    user_request = user_message or ""
-    
-    # 읽은 파일 정보 추가
-    files_context = ""
+    # README 파일 내용 (있는 경우)
+    readme_content = ""
     if read_files:
-        files_context = "\n\n## 읽은 파일 내용:\n"
-        for file_info in read_files[:5]:
-            content = file_info.get('content', '')[:500]  # 최대 500자
-            files_context += f"파일: {file_info.get('path', '')}\n{content}\n---\n"
+        for file_info in read_files:
+            path = file_info.get('path', '').lower()
+            if 'readme' in path:
+                readme_content = file_info.get('content', '')[:1000]  # 최대 1000자
+                break
     
-    # 정보 충분성 확인 (GitHub 여부와 관계없이)
-    has_project_desc = projectDescription and len(projectDescription.strip()) > 20
-    has_user_request = user_request and len(user_request.strip()) > 10
-    has_tasks = len(currentTasks) > 0
+    has_github = githubRepo and githubRepo.strip() != ''
     
-    # 정보가 충분하지 않으면 질문 요청 (GitHub 여부와 관계없이)
-    if not has_project_desc and not has_user_request and not has_tasks and not has_commits and not has_issues:
-            # 정보가 매우 부족한 경우 - 질문을 요청하는 프롬프트
-            return f"""프로젝트에 대한 정보가 부족하여 Task를 제안하기 어렵습니다.
+    prompt = f"""당신은 소프트웨어 프로젝트 분석 전문가입니다. 프로젝트의 기본 정보와 구조를 파악하세요.
 
-현재 상황:
-- 프로젝트 설명: {'있음' if projectDescription else '없음'}
-- 사용자 요구사항: {'있음' if user_request else '없음'}
-- 기존 Task: {len(currentTasks)}개
-- GitHub 저장소: {'연결됨' if has_github else '연결 안 됨'}
-- 커밋 정보: {len(commits)}개
-- 이슈 정보: {len(issues)}개
+## 프로젝트 기본 정보:
+- 프로젝트 이름: {projectName}
+- 프로젝트 설명: {projectDescription if projectDescription else '없음'}
+- GitHub 저장소: {githubRepo if has_github else '연결 안 됨'}
+- 프로젝트 시작일: {projectStartDate if projectStartDate else '알 수 없음'}
 
-위 정보만으로는 Task를 제안하기에 충분하지 않습니다.
+## README 파일 내용:
+{readme_content if readme_content else 'README 파일 없음'}
 
-다음 형식의 JSON으로 응답하세요:
+## 분석 요청:
+위 정보를 바탕으로 다음을 분석하세요:
+
+1. **프로젝트 핵심 기능**: 프로젝트 설명과 README에서 핵심 기능을 추출하세요.
+2. **기술 스택**: 사용된 기술, 프레임워크, 라이브러리 등을 파악하세요.
+3. **프로젝트 구조**: 프로젝트의 주요 디렉토리 구조를 추론하세요 (예: src/, app/, components/, routes/ 등).
+
+## 출력 형식:
+다음 JSON 형식으로만 응답하세요:
+
 {{
-  "needsMoreInfo": true,
-  "questions": [
-    "프로젝트의 핵심 기능은 무엇인가요?",
-    "현재 어떤 기능이 구현되어 있나요?",
-    "다음으로 구현하고 싶은 기능은 무엇인가요?"
-  ],
-  "message": "프로젝트에 대한 정보가 부족합니다. 위 질문에 답변해주시면 더 정확한 Task를 제안할 수 있습니다."
+  "projectInfo": {{
+    "name": "프로젝트 이름",
+    "description": "프로젝트 설명 (간략히)",
+    "coreFeatures": ["핵심 기능1", "핵심 기능2", ...],
+    "techStack": ["기술1", "기술2", ...],
+    "projectStructure": {{
+      "mainDirectories": ["src/", "app/", ...],
+      "estimatedFileCount": 100,
+      "language": "JavaScript/Python/..."
+    }}
+  }},
+  "hasGithub": {str(has_github).lower()},
+  "hasReadme": {str(bool(readme_content)).lower()}
 }}
 
-⚠️ 중요: 반드시 위 JSON 형식으로만 응답하세요."""
-    
-    # base_prompt 생성 (정보가 충분한 경우에만)
-    base_prompt = create_optimized_task_suggestion_prompt(
-        commits, issues, currentTasks, projectDescription, githubRepo
-    )
-    
-    # GitHub가 없을 때 추가 지시사항
-    if not has_github or (not has_commits and not has_issues):
-        additional_instruction = f"""
+⚠️ 중요: 반드시 위 JSON 형식으로만 응답하세요. 한국어로 응답하세요."""
 
-⚠️ **중요**: GitHub 저장소가 연결되지 않았거나 커밋/이슈 정보가 없습니다.
-다음 정보를 우선적으로 활용하여 Task를 제안하세요:
+    return prompt
 
-1. **프로젝트 설명**: {projectDescription[:300] if projectDescription else '없음'}
-2. **사용자 요구사항**: {user_request[:200] if user_request else '없음'}
-3. **현재 Task 목록**: {len(currentTasks)}개의 기존 Task가 있습니다. 이를 참고하여 연관된 Task를 제안하세요.
+def create_task_suggestion_initial_prompt(context, user_message, read_files, analyzed_commits, step_number=1):
+    """Task 제안 에이전트 초기 프롬프트 (레거시 - 호환성 유지용)"""
+    # 새로운 5단계 프로세스로 전환되므로 이 함수는 create_task_suggestion_step1_prompt를 호출
+    return create_task_suggestion_step1_prompt(context, user_message, read_files, analyzed_commits, step_number)
 
-프로젝트 설명과 사용자 요구사항을 바탕으로:
-- 프로젝트의 핵심 기능 구현을 위한 Task
-- 사용자가 요청한 기능을 구현하기 위한 구체적인 Task
-- 프로젝트의 다음 단계로 진행하기 위한 Task
-
-를 제안하세요. 정보가 부족하다면 일반적인 프로젝트 개발 단계를 고려하여 제안하세요."""
-    else:
-        additional_instruction = ""
-    
-    return base_prompt + files_context + additional_instruction + "\n\n위 정보를 바탕으로 Task를 제안하세요. JSON 배열 형식으로 응답하세요."
-
-def create_task_suggestion_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits, step_number=2, all_steps=None):
-    """Task 제안 에이전트 후속 프롬프트"""
+def create_task_suggestion_step2_prompt(context, user_message, read_files, analyzed_commits, step_number=2, previous_step_result=None):
+    """2단계: 현재 Task 및 소스코드 구현 파악"""
     commits = context.get('commits', [])
     issues = context.get('issues', [])
     currentTasks = context.get('currentTasks', [])
     projectDescription = context.get('projectDescription', '')
     githubRepo = context.get('githubRepo', '')
     
-    # 읽은 파일 정보 추가
+    # 1단계 결과
+    step1_result = previous_step_result or {}
+    project_info = step1_result.get('projectInfo', {})
+    
+    # 읽은 파일 정보 (소스코드)
     files_context = ""
     if read_files:
-        files_context = "\n\n## 새로 읽은 파일 내용:\n"
-        for file_info in read_files[-5:]:  # 최근 5개만
-            content = file_info.get('content', '')[:500]
-            files_context += f"파일: {file_info.get('path', '')}\n{content}\n---\n"
+        files_context = "\n\n## 읽은 소스코드 파일:\n"
+        for file_info in read_files[:30]:  # 최대 30개 파일
+            path = file_info.get('path', '')
+            content = file_info.get('content', '')[:500]  # 최대 500줄
+            files_context += f"\n### 파일: {path}\n```\n{content}\n```\n"
     
-    prompt = f"""이전 분석 결과를 바탕으로 더 깊이 분석하세요.
+    # 커밋 요약
+    commit_summary = ""
+    if commits:
+        commit_summary = "\n## 최근 커밋 정보:\n"
+        for commit in commits[:30]:
+            msg = commit.get('message', '')[:100]
+            files_changed = commit.get('files', [])
+            commit_summary += f"- {msg} ({len(files_changed)}개 파일 변경)\n"
+    
+    # 현재 Task 요약
+    task_summary = ""
+    if currentTasks:
+        task_summary = "\n## 현재 Task 목록:\n"
+        for task in currentTasks:
+            title = task.get('title', '')
+            status = task.get('status', '')
+            task_summary += f"- [{status}] {title}\n"
+    
+    has_github = githubRepo and githubRepo.strip() != ''
+    
+    prompt = f"""당신은 소프트웨어 코드 분석 전문가입니다. 현재 진행 중인 Task와 실제 구현된 기능을 파악하세요.
 
-## 이전 분석 결과:
-{json.dumps(previous_result, ensure_ascii=False, indent=2)[:1000]}
+## 1단계 분석 결과 (프로젝트 정보):
+{json.dumps(project_info, ensure_ascii=False, indent=2)[:500]}
 
-## 프로젝트 컨텍스트:
-- 커밋: {len(commits)}개
-- 이슈: {len(issues)}개
-- 현재 Task: {len(currentTasks)}개
-- 프로젝트 설명: {projectDescription[:200]}
+## 현재 Task 목록:
+{task_summary if task_summary else '현재 Task 없음'}
 
-{files_context}
+{commit_summary if commit_summary else ''}
 
-## 추가 분석 요청:
-위 파일 내용을 참고하여 더 정확하고 구체적인 Task를 제안하세요. 
-특히 코드 구조, 패턴, 잠재적 문제점을 분석하여 Task를 제안하세요.
+{files_context if files_context else '소스코드 파일 없음 (GitHub 미연결 또는 파일 미읽음)'}
 
-다음 JSON 배열 형식으로만 응답하세요:
-[{{"title": "...", "description": "...", "category": "feature|refactor|security|performance|maintenance", "priority": "High|Medium|Low", "estimatedHours": 숫자, "reason": "..."}}]
-"""
+## 분석 요청:
+위 정보를 바탕으로 다음을 분석하세요:
+
+1. **현재 Task 분석**: 각 Task의 상태, 카테고리, 우선순위를 파악하세요.
+2. **구현된 기능 식별**: 소스코드와 커밋을 분석하여 실제로 구현된 기능을 식별하세요.
+   - 페이지/컴포넌트: 웹 앱의 경우 pages/, components/ 디렉토리 분석
+   - API 엔드포인트: routes/, controllers/ 디렉토리 분석
+   - 서비스/유틸리티: services/, utils/ 디렉토리 분석
+3. **코드 구조 파악**: 프로젝트의 주요 구조 요소를 파악하세요.
+
+## 출력 형식:
+다음 JSON 형식으로만 응답하세요:
+
+{{
+  "currentTasks": [
+    {{
+      "id": 1,
+      "title": "Task 제목",
+      "status": "todo|in_progress|done",
+      "category": "feature|refactor|security|performance|maintenance"
+    }}
+  ],
+  "implementedFeatures": [
+    {{
+      "name": "기능명",
+      "location": "src/pages/LoginPage.jsx",
+      "completeness": "완료|부분완료|미완료",
+      "evidence": "코드 증거 또는 파일 경로"
+    }}
+  ],
+  "codeStructure": {{
+    "pages": ["LoginPage", "HomePage", ...],
+    "components": ["Button", "Modal", ...],
+    "apis": ["/api/user/login", "/api/user/logout", ...],
+    "services": ["authService", "apiService", ...]
+  }}
+}}
+
+⚠️ 중요: 반드시 위 JSON 형식으로만 응답하세요. 한국어로 응답하세요."""
+
+    return prompt
+
+def create_task_suggestion_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits, step_number=2, all_steps=None):
+    """Task 제안 에이전트 후속 프롬프트 (레거시 - 호환성 유지용)"""
+    # step_number에 따라 적절한 단계 프롬프트 호출
+    if step_number == 2:
+        return create_task_suggestion_step2_prompt(context, user_message, read_files, analyzed_commits, step_number, previous_result)
+    elif step_number == 3:
+        return create_task_suggestion_step3_prompt(context, user_message, read_files, analyzed_commits, step_number, all_steps)
+    elif step_number == 4:
+        return create_task_suggestion_step4_prompt(context, user_message, read_files, analyzed_commits, step_number, all_steps)
+    elif step_number == 5:
+        return create_task_suggestion_step5_prompt(context, user_message, read_files, analyzed_commits, step_number, all_steps)
+    else:
+        # 기본 후속 프롬프트
+        return create_task_suggestion_step2_prompt(context, user_message, read_files, analyzed_commits, step_number, previous_result)
+
+def create_task_suggestion_step3_prompt(context, user_message, read_files, analyzed_commits, step_number=3, all_steps=None):
+    """3단계: 부족한 Task 제안"""
+    # 이전 단계 결과 추출
+    step1_result = {}
+    step2_result = {}
+    if all_steps:
+        if len(all_steps) > 0:
+            step1_result = all_steps[0] if isinstance(all_steps[0], dict) else {}
+        if len(all_steps) > 1:
+            step2_result = all_steps[1] if isinstance(all_steps[1], dict) else {}
+    
+    project_info = step1_result.get('projectInfo', {})
+    current_tasks = step2_result.get('currentTasks', [])
+    implemented_features = step2_result.get('implementedFeatures', [])
+    code_structure = step2_result.get('codeStructure', {})
+    
+    projectDescription = context.get('projectDescription', '')
+    githubRepo = context.get('githubRepo', '')
+    has_github = githubRepo and githubRepo.strip() != ''
+    
+    prompt = f"""당신은 소프트웨어 프로젝트 관리 전문가입니다. 프로젝트 목표 대비 부족한 기능을 Task로 제안하세요.
+
+## 1단계 결과 (프로젝트 정보):
+{json.dumps(project_info, ensure_ascii=False, indent=2)[:800]}
+
+## 2단계 결과 (현재 Task 및 구현 상태):
+- 현재 Task: {len(current_tasks)}개
+- 구현된 기능: {len(implemented_features)}개
+- 코드 구조: {json.dumps(code_structure, ensure_ascii=False, indent=2)[:500]}
+
+## 프로젝트 설명:
+{projectDescription if projectDescription else '없음'}
+
+## 분석 요청:
+위 정보를 바탕으로 다음을 수행하세요:
+
+1. **핵심 기능 vs 구현된 기능 비교**: 
+   - 프로젝트 핵심 기능 목록과 실제 구현된 기능을 비교하세요.
+   - 프로젝트 설명에서 언급된 기능 중 미구현 기능을 식별하세요.
+
+2. **부족한 Task 제안**:
+   - 현재 Task와 중복되지 않는 새로운 Task를 제안하세요.
+   - 프로젝트 목표 달성을 위해 필요한 기능을 Task로 변환하세요.
+   - 각 Task에 대해 우선순위를 결정하세요 (프로젝트 목표와의 관련성 기반).
+
+3. **우선순위 기준**:
+   - High: 프로젝트 핵심 기능과 직접 관련
+   - Medium: 프로젝트 목표 달성에 도움
+   - Low: 개선 사항 또는 추가 기능
+
+{"⚠️ GitHub가 연결되지 않았으므로 프로젝트 설명과 현재 Task만으로 분석하세요. 더 일반적인 제안을 생성하세요." if not has_github else ""}
+
+## 출력 형식:
+다음 JSON 형식으로만 응답하세요:
+
+{{
+  "missingTasks": [
+    {{
+      "title": "Task 제목",
+      "description": "상세 설명",
+      "category": "feature",
+      "priority": "High|Medium|Low",
+      "estimatedHours": 8,
+      "reason": "프로젝트 핵심 기능 중 미구현",
+      "relatedFeatures": ["기능1", "기능2"]
+    }}
+  ]
+}}
+
+⚠️ 중요: 반드시 위 JSON 형식으로만 응답하세요. 한국어로 응답하세요."""
+
+    return prompt
+
+def create_task_suggestion_step4_prompt(context, user_message, read_files, analyzed_commits, step_number=4, all_steps=None):
+    """4단계: 보안 및 리팩토링 개선점 제안 (GitHub 연결 시만 실행)"""
+    # 이전 단계 결과 추출
+    step2_result = {}
+    if all_steps and len(all_steps) > 1:
+        step2_result = all_steps[1] if isinstance(all_steps[1], dict) else {}
+    
+    implemented_features = step2_result.get('implementedFeatures', [])
+    code_structure = step2_result.get('codeStructure', {})
+    
+    # 읽은 소스코드 파일들
+    files_context = ""
+    if read_files:
+        files_context = "\n## 분석할 소스코드 파일:\n"
+        for file_info in read_files[:30]:  # 최대 30개 파일
+            path = file_info.get('path', '')
+            content = file_info.get('content', '')
+            # 보안/리팩토링 분석에 필요한 부분만 추출
+            files_context += f"\n### 파일: {path}\n```\n{content[:800]}\n```\n"
+    
+    prompt = f"""당신은 소프트웨어 보안 및 코드 품질 분석 전문가입니다. 실제 소스코드를 기반으로 보안 취약점과 리팩토링 포인트를 식별하세요.
+
+## 2단계 결과 (구현된 기능):
+{json.dumps(implemented_features, ensure_ascii=False, indent=2)[:500]}
+
+## 코드 구조:
+{json.dumps(code_structure, ensure_ascii=False, indent=2)[:300]}
+
+{files_context if files_context else '소스코드 파일 없음'}
+
+## 분석 요청:
+
+### 1. 보안 취약점 분석:
+다음 항목을 확인하세요:
+- 하드코딩된 비밀번호, API 키, 토큰
+- SQL Injection 취약점 (쿼리 문자열 직접 사용)
+- XSS 취약점 (사용자 입력 검증 부족)
+- 인증/인가 로직 문제 (권한 검증 누락)
+- 민감 정보 노출 (로그, 에러 메시지)
+- CORS 설정 문제
+- 암호화되지 않은 통신
+- 세션 관리 문제
+
+### 2. 리팩토링 포인트 분석:
+다음 항목을 확인하세요:
+- 코드 중복 (DRY 원칙 위반)
+- 긴 함수/파일 (단일 책임 원칙 위반)
+- 복잡한 조건문 (가독성 저하)
+- 매직 넘버/문자열 (상수화 필요)
+- 불명확한 변수명/함수명
+- 테스트 부족 (테스트 파일 없음)
+- 주석 부족 또는 오래된 주석
+- 순환 의존성
+
+## 출력 형식:
+다음 JSON 형식으로만 응답하세요:
+
+{{
+  "securityIssues": [
+    {{
+      "title": "보안 취약점 제목",
+      "description": "상세 설명 및 위치",
+      "category": "security",
+      "priority": "High|Medium|Low",
+      "estimatedHours": 4,
+      "location": "src/utils/auth.js:45",
+      "severity": "critical|high|medium|low",
+      "recommendation": "개선 방안"
+    }}
+  ],
+  "refactoringSuggestions": [
+    {{
+      "title": "리팩토링 제안 제목",
+      "description": "상세 설명",
+      "category": "refactor",
+      "priority": "Medium|Low",
+      "estimatedHours": 2,
+      "location": "src/components/UserList.jsx",
+      "issue": "코드 중복/복잡도 높음",
+      "recommendation": "개선 방안"
+    }}
+  ]
+}}
+
+⚠️ 중요: 
+- 실제 코드를 기반으로 구체적인 문제점을 제시하세요.
+- 파일 경로와 라인 번호를 정확히 명시하세요.
+- 반드시 위 JSON 형식으로만 응답하세요. 한국어로 응답하세요."""
+
+    return prompt
+
+def create_task_suggestion_step5_prompt(context, user_message, read_files, analyzed_commits, step_number=5, all_steps=None):
+    """5단계: Task 형식으로 통합 및 출력"""
+    # 이전 단계 결과 추출
+    step1_result = {}
+    step3_result = {}
+    step4_result = {}
+    
+    if all_steps:
+        if len(all_steps) > 0:
+            step1_result = all_steps[0] if isinstance(all_steps[0], dict) else {}
+        if len(all_steps) > 2:
+            step3_result = all_steps[2] if isinstance(all_steps[2], dict) else {}
+        if len(all_steps) > 3:
+            step4_result = all_steps[3] if isinstance(all_steps[3], dict) else {}
+    
+    project_info = step1_result.get('projectInfo', {})
+    project_name = project_info.get('name', context.get('projectName', '프로젝트'))
+    
+    missing_tasks = step3_result.get('missingTasks', [])
+    security_issues = step4_result.get('securityIssues', [])
+    refactoring_suggestions = step4_result.get('refactoringSuggestions', [])
+    
+    githubRepo = context.get('githubRepo', '')
+    has_github = githubRepo and githubRepo.strip() != ''
+    
+    prompt = f"""당신은 Task 관리 전문가입니다. 3단계와 4단계 결과를 통합하여 일관된 Task 형식으로 출력하세요.
+
+## 프로젝트 정보:
+- 프로젝트 이름: {project_name}
+
+## 3단계 결과 (부족한 Task):
+{json.dumps(missing_tasks, ensure_ascii=False, indent=2)[:1000]}
+
+## 4단계 결과 (보안/리팩토링):
+{"보안 이슈: " + str(len(security_issues)) + "개, 리팩토링 제안: " + str(len(refactoring_suggestions)) + "개" if has_github else "GitHub 미연결로 4단계 건너뜀"}
+{json.dumps({"securityIssues": security_issues, "refactoringSuggestions": refactoring_suggestions}, ensure_ascii=False, indent=2)[:1000] if has_github else ""}
+
+## 통합 요청:
+위 결과를 통합하여 다음을 수행하세요:
+
+1. **Task 통합**: 
+   - 3단계의 missingTasks와 4단계의 securityIssues, refactoringSuggestions를 하나의 suggestions 배열로 통합하세요.
+   - 각 항목을 일관된 형식으로 변환하세요.
+
+2. **정렬**:
+   - 카테고리별 정렬: security > feature > refactor > performance > maintenance
+   - 같은 카테고리 내에서는 우선순위별 정렬: High > Medium > Low
+
+3. **중복 제거**: 동일하거나 유사한 Task는 하나로 통합하세요.
+
+4. **형식 통일**: 모든 Task가 다음 형식을 따르도록 하세요:
+   - title: 명확하고 간결한 제목
+   - description: 상세 설명
+   - category: feature/security/refactor/performance/maintenance
+   - priority: High/Medium/Low
+   - estimatedHours: 예상 소요 시간 (숫자)
+   - reason: 추천 이유
+   - location: 파일 경로 (있는 경우)
+
+## 출력 형식:
+다음 JSON 형식으로만 응답하세요:
+
+{{
+  "suggestions": [
+    {{
+      "title": "Task 제목",
+      "description": "상세 설명",
+      "category": "feature|security|refactor|performance|maintenance",
+      "priority": "High|Medium|Low",
+      "estimatedHours": 8,
+      "reason": "추천 이유",
+      "location": "파일 경로 (있는 경우)"
+    }}
+  ]
+}}
+
+⚠️ 중요: 반드시 위 JSON 형식으로만 응답하세요. 한국어로 응답하세요."""
+
     return prompt
 
 def create_progress_analysis_initial_prompt(context, user_message, read_files, analyzed_commits, step_number=1):
