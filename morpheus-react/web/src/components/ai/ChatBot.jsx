@@ -225,15 +225,19 @@ export default function ChatBot({ projectId, onError }) {
           setResultModalOpen(true);
         }
       } else {
-        // 에러 처리
-        setError(res.error?.message || "메시지 전송에 실패했습니다.");
+        // 에러 처리 - 채팅 메시지로 표시
+        const errorMessage = {
+          role: "assistant",
+          content: res.error?.message || res.data?.message || "메시지 전송에 실패했습니다. 다시 시도해주세요.",
+          id: Date.now() + 2,
+        };
+        setMessages((prev) => {
+          const filtered = prev.filter((msg) => msg.id !== progressMessageId);
+          return [...filtered, errorMessage];
+        });
         if (onError) {
           onError(res.error);
         }
-        // 진행 상황 메시지와 사용자 메시지 제거
-        setMessages((prev) => 
-          prev.filter((msg) => msg.id !== newUserMessage.id && msg.id !== progressMessageId)
-        );
       }
     } catch (err) {
       console.error("메시지 전송 오류:", err);
@@ -385,25 +389,35 @@ export default function ChatBot({ projectId, onError }) {
           setResultModalOpen(true);
         }
       } else {
-        setError(res.error?.message || "메시지 전송에 실패했습니다.");
+        // 에러 처리 - 채팅 메시지로 표시
+        const errorMessage = {
+          role: "assistant",
+          content: res.error?.message || res.data?.message || "메시지 전송에 실패했습니다. 다시 시도해주세요.",
+          id: Date.now() + 2,
+        };
+        setMessages((prev) => {
+          const filtered = prev.filter((msg) => msg.id !== progressMessageId);
+          return [...filtered, errorMessage];
+        });
         if (onError) {
           onError(res.error);
         }
-        // 진행 상황 메시지와 사용자 메시지 제거
-        setMessages((prev) => 
-          prev.filter((msg) => msg.id !== newUserMessage.id && msg.id !== progressMessageId)
-        );
       }
     } catch (err) {
       console.error("메시지 전송 오류:", err);
-      setError(err.message || "메시지 전송 중 오류가 발생했습니다.");
+      // 에러 처리 - 채팅 메시지로 표시
+      const errorMessage = {
+        role: "assistant",
+        content: err.message || "메시지 전송 중 오류가 발생했습니다. 다시 시도해주세요.",
+        id: Date.now() + 2,
+      };
+      setMessages((prev) => {
+        const filtered = prev.filter((msg) => msg.id !== progressMessageId);
+        return [...filtered, errorMessage];
+      });
       if (onError) {
         onError({ message: err.message });
       }
-      // 진행 상황 메시지와 사용자 메시지 제거
-      setMessages((prev) => 
-        prev.filter((msg) => msg.id !== newUserMessage.id && msg.id !== progressMessageId)
-      );
     } finally {
       setLoading(false);
     }
