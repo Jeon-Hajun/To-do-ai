@@ -295,17 +295,10 @@ def task_suggestion():
 @app.route('/api/ai/progress-analysis', methods=['POST'])
 def progress_analysis():
     """
-    AI 기반 프로젝트 진행도 분석 및 예측
-    Request Body:
-    {
-        "commits": [...],  # 커밋 목록
-        "tasks": [...],  # Task 목록
-        "projectDescription": "...",
-        "projectStartDate": "...",  # 선택사항
-        "projectDueDate": "..."  # 선택사항
-    }
+    AI 기반 프로젝트 진행도 분석 및 예측 (deprecated - /api/ai/chat을 사용하세요)
+    이 엔드포인트는 이전 버전과의 호환성을 위해 유지되지만, 내부적으로는 새로운 multi-step agent를 사용합니다.
     """
-    print('[AI Backend] progress_analysis 요청 수신')
+    print('[AI Backend] progress_analysis 요청 수신 (deprecated 엔드포인트)')
     try:
         data = request.json
         commits = data.get('commits', [])
@@ -313,111 +306,61 @@ def progress_analysis():
         projectDescription = data.get('projectDescription', '')
         projectStartDate = data.get('projectStartDate', None)
         projectDueDate = data.get('projectDueDate', None)
+        githubRepo = data.get('githubRepo', '')
+        githubToken = data.get('githubToken', '')
         
         print(f'[AI Backend] progress_analysis - 데이터 수신: commits={len(commits)}, tasks={len(tasks)}')
 
-        # 데이터가 없어도 기본 분석 제공
-        if not commits and not tasks:
-            return jsonify({
-                'currentProgress': 0,
-                'activityTrend': 'stable',
-                'estimatedCompletionDate': None,
-                'delayRisk': 'Low',
-                'insights': [
-                    '프로젝트가 시작 단계입니다. 커밋이나 작업 데이터가 없어 정확한 분석이 어렵습니다.',
-                    'GitHub 저장소를 연결하고 작업을 추가하면 더 정확한 분석을 받을 수 있습니다.'
-                ],
-                'recommendations': [
-                    'GitHub 저장소를 연결하여 커밋 이력을 동기화하세요.',
-                    '프로젝트 작업(Task)을 추가하여 진행 상황을 추적하세요.'
-                ]
-            })
-
-        # Task 통계
-        taskStats = {
-            'total': len(tasks),
-            'todo': len([t for t in tasks if t.get('status') == 'todo']),
-            'inProgress': len([t for t in tasks if t.get('status') == 'in_progress']),
-            'done': len([t for t in tasks if t.get('status') == 'done'])
+        # 새로운 multi-step agent를 사용하도록 변경
+        from agent_router import execute_progress_analysis_agent
+        from prompt_functions import create_progress_analysis_initial_prompt, create_progress_analysis_followup_prompt
+        
+        # context 구성
+        context = {
+            'commits': commits,
+            'tasks': tasks,
+            'currentTasks': tasks,
+            'projectDescription': projectDescription,
+            'projectStartDate': projectStartDate,
+            'projectDueDate': projectDueDate,
+            'githubRepo': githubRepo,
+            'githubToken': githubToken,
+            'projectName': data.get('projectName', '프로젝트')
         }
         
-        # 커밋 통계
-        commitStats = {
-            'total': len(commits),
-            'totalLinesAdded': sum(c.get('linesAdded', 0) or 0 for c in commits),
-            'totalLinesDeleted': sum(c.get('linesDeleted', 0) or 0 for c in commits),
-            'recentCommits': len([c for c in commits if c.get('date')])  # 날짜가 있는 커밋
-        }
-
-        # 최근 활동 분석 (최근 7일, 30일)
-        from datetime import datetime, timedelta
-        now = datetime.now()
-        week_ago = now - timedelta(days=7)
-        month_ago = now - timedelta(days=30)
+        # LLM 호출 함수
+        def call_llm_func(prompt, system_prompt):
+            if USE_OPENAI:
+                return call_openai(prompt, system_prompt, max_tokens=3000)
+            else:
+                return call_ollama(prompt, system_prompt, max_tokens=3000)
         
-        recent_week_commits = []
-        recent_month_commits = []
+        # 새로운 multi-step agent 실행
+        result = execute_progress_analysis_agent(context, call_llm_func, user_message="진행도 분석을 수행해주세요.")
         
-        for commit in commits:
-            commit_date = commit.get('date')
-            if commit_date:
-                try:
-                    if isinstance(commit_date, str):
-                        commit_dt = datetime.fromisoformat(commit_date.replace('Z', '+00:00'))
-                    else:
-                        commit_dt = commit_date
-                    
-                    if commit_dt >= week_ago:
-                        recent_week_commits.append(commit)
-                    if commit_dt >= month_ago:
-                        recent_month_commits.append(commit)
-                except:
-                    pass
-
-        # 최적화된 프롬프트 사용
-        prompt = create_optimized_progress_prompt(
-            commits, tasks, projectDescription, projectStartDate, projectDueDate
-        )
+        # 응답 형식 변환 (이전 형식과 호환)
+        analysis = result.get('response', {}).get('analysis', {})
+        message = result.get('response', {}).get('message', '')
         
-        # 기존 프롬프트는 prompt_optimizer.py로 이동됨
+        # narrativeResponse에서 진행도 추출
+        import re
+        progress_match = re.search(r'진행도[:\s]*(\d+(?:\.\d+)?)\s*%', message)
+        current_progress = analysis.get('currentProgress', 0)
+        if progress_match:
+            current_progress = float(progress_match.group(1))
         
-        system_prompt = """프로젝트 관리 전문가. 진행도 분석 및 예측. 반드시 한국어로 응답. JSON만 응답."""
-
-        print(f'[AI Backend] progress_analysis - LLM 호출 시작 (모드: {"OpenAI" if USE_OPENAI else "Ollama"})')
-        if USE_OPENAI:
-            content = call_openai(prompt, system_prompt)
-        else:
-            content = call_ollama(prompt, system_prompt)
-        
-        print(f'[AI Backend] progress_analysis - LLM 응답 수신 (길이: {len(content)} 문자)')
-        
-        try:
-            # JSON 코드 블록 제거
-            if '```json' in content:
-                content = content.split('```json')[1].split('```')[0].strip()
-            elif '```' in content:
-                content = content.split('```')[1].split('```')[0].strip()
-            
-            # 앞뒤 공백 및 불필요한 텍스트 제거
-            content = content.strip()
-            # JSON 객체 시작 부분 찾기
-            if '{' in content:
-                content = content[content.find('{'):]
-            # JSON 객체 끝 부분 찾기
-            if '}' in content:
-                content = content[:content.rfind('}')+1]
-            
-            print(f'[AI Backend] progress_analysis - 파싱할 내용 (처음 200자): {content[:200]}')
-            analysis = json.loads(content)
-            print(f'[AI Backend] progress_analysis - 분석 완료: {list(analysis.keys())}')
-            return jsonify(analysis)
-        except json.JSONDecodeError as e:
-            print(f"[AI Backend] progress_analysis - JSON 파싱 실패: {e}")
-            print(f"[AI Backend] progress_analysis - 응답 내용 (처음 500자): {content[:500]}")
-            return jsonify({
-                'error': '분석 결과 파싱 실패',
-                'rawResponse': content[:200]
-            }), 500
+        return jsonify({
+            'currentProgress': current_progress,
+            'activityTrend': analysis.get('activityTrend', 'stable'),
+            'estimatedCompletionDate': analysis.get('estimatedCompletionDate'),
+            'delayRisk': analysis.get('delayRisk', 'Low'),
+            'insights': analysis.get('insights', []),
+            'recommendations': analysis.get('recommendations', []),
+            'narrativeResponse': message or analysis.get('narrativeResponse', ''),
+            'agent_type': 'progress_analysis_agent',
+            'analysis_steps': result.get('analysis_steps', 1),
+            'progress_messages': result.get('progress_messages', [])
+        })
 
     except Exception as e:
         print(f"[AI Backend] progress_analysis - 예외 발생: {str(e)}")
