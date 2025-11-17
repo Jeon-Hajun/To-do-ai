@@ -92,17 +92,17 @@ export default function SettingsPage() {
         <ContainerBox sx={{ pb: 8 }}>
             <Header title="설정" />
             
-            <Box sx={{ flex: 1, pt: 3, px: 2, display: 'flex', justifyContent: 'center' }}>
-                <Paper sx={{ maxWidth: 360, width: '100%', p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Box sx={{ flex: 1, pt: { xs: 2, md: 3 }, px: { xs: 1, md: 2 }, display: 'flex', justifyContent: 'center' }}>
+                <Paper sx={{ maxWidth: { xs: "100%", sm: 360 }, width: '100%', p: { xs: 2, sm: 2.5, md: 3 }, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <Avatar
                         alt={user?.nickname}
                         src={imgSrc}
-                        sx={{ width: 70, height: 70, mb: 2 }}
+                        sx={{ width: { xs: 60, md: 70 }, height: { xs: 60, md: 70 }, mb: { xs: 1.5, md: 2 } }}
                     />
-                    <Typography variant="body1" sx={{ mb: 0.5 }}>
+                    <Typography variant="body1" sx={{ mb: 0.5, fontSize: { xs: "0.875rem", md: "1rem" }, wordBreak: "break-word", textAlign: "center" }}>
                         닉네임: {user?.nickname}
                     </Typography>
-                    <Typography variant="body1" sx={{ mb: 2 }}>
+                    <Typography variant="body1" sx={{ mb: { xs: 1.5, md: 2 }, fontSize: { xs: "0.875rem", md: "1rem" }, wordBreak: "break-word", textAlign: "center" }}>
                         이메일: {user?.email}
                     </Typography>
 

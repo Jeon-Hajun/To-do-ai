@@ -158,19 +158,19 @@ export default function ChatBot({ projectId, onError }) {
   };
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 500 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: { xs: 300, md: 500 } }}>
       {/* 헤더 */}
       <Box
         sx={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          p: 2,
+          p: { xs: 1, sm: 1.5, md: 2 },
           borderBottom: 1,
           borderColor: "divider",
         }}
       >
-        <Typography variant="h6">AI 어시스턴트</Typography>
+        <Typography variant="h6" sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>AI 어시스턴트</Typography>
         {conversationId && (
           <IconButton
             onClick={handleClearConversation}
@@ -188,7 +188,7 @@ export default function ChatBot({ projectId, onError }) {
         sx={{
           flex: 1,
           overflowY: "auto",
-          p: 2,
+          p: { xs: 1, sm: 1.5, md: 2 },
           bgcolor: "background.default",
         }}
       >
@@ -217,57 +217,57 @@ export default function ChatBot({ projectId, onError }) {
                   p: 3,
                 }}
               >
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: "bold" }}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: "bold", fontSize: { xs: "1rem", md: "1.25rem" } }}>
                   안녕하세요! 프로젝트 관리 AI 어시스턴트입니다.
                 </Typography>
-                <Typography variant="body2" sx={{ mb: 3, textAlign: "center" }}>
+                <Typography variant="body2" sx={{ mb: 3, textAlign: "center", fontSize: { xs: "0.8rem", md: "0.875rem" } }}>
                   다음과 같은 기능을 사용할 수 있습니다:
                 </Typography>
-                <Box sx={{ width: "100%", maxWidth: 500 }}>
+                <Box sx={{ width: "100%", maxWidth: { xs: "100%", md: 500 } }}>
                   <Stack spacing={1}>
-                    <Paper sx={{ p: 1.5, bgcolor: "background.paper" }}>
-                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5 }}>
+                    <Paper sx={{ p: { xs: 1, md: 1.5 }, bgcolor: "background.paper" }}>
+                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5, fontSize: { xs: "0.8rem", md: "0.875rem" } }}>
                         📊 프로젝트 진행도 분석
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.7rem", md: "0.75rem" } }}>
                         "진행도 알려줘", "프로젝트 상태 분석해줘"
                       </Typography>
                     </Paper>
-                    <Paper sx={{ p: 1.5, bgcolor: "background.paper" }}>
-                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5 }}>
+                    <Paper sx={{ p: { xs: 1, md: 1.5 }, bgcolor: "background.paper" }}>
+                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5, fontSize: { xs: "0.8rem", md: "0.875rem" } }}>
                         💡 Task 제안
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.7rem", md: "0.75rem" } }}>
                         "할 일 추천해줘", "새로운 작업 제안해줘"
                       </Typography>
                     </Paper>
-                    <Paper sx={{ p: 1.5, bgcolor: "background.paper" }}>
-                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5 }}>
+                    <Paper sx={{ p: { xs: 1, md: 1.5 }, bgcolor: "background.paper" }}>
+                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5, fontSize: { xs: "0.8rem", md: "0.875rem" } }}>
                         ✅ Task 완료 확인
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.7rem", md: "0.75rem" } }}>
                         "이 작업 완료됐어?", "Task 완료 확인해줘"
                       </Typography>
                     </Paper>
-                    <Paper sx={{ p: 1.5, bgcolor: "background.paper" }}>
-                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5 }}>
+                    <Paper sx={{ p: { xs: 1, md: 1.5 }, bgcolor: "background.paper" }}>
+                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5, fontSize: { xs: "0.8rem", md: "0.875rem" } }}>
                         📝 프로젝트 정보 질문
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.7rem", md: "0.75rem" } }}>
                         "커밋 몇 개야?", "프로젝트 설명해줘", "작업 몇 개 있어?"
                       </Typography>
                     </Paper>
-                    <Paper sx={{ p: 1.5, bgcolor: "background.paper" }}>
-                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5 }}>
+                    <Paper sx={{ p: { xs: 1, md: 1.5 }, bgcolor: "background.paper" }}>
+                      <Typography variant="body2" sx={{ fontWeight: "bold", mb: 0.5, fontSize: { xs: "0.8rem", md: "0.875rem" } }}>
                         👤 Task 할당 추천
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.7rem", md: "0.75rem" } }}>
                         "이 Task를 누구에게 할당하면 좋을까?", "Task 할당 추천해줘"
                       </Typography>
                     </Paper>
                   </Stack>
                 </Box>
-                <Typography variant="body2" sx={{ mt: 3, color: "text.secondary" }}>
+                <Typography variant="body2" sx={{ mt: 3, color: "text.secondary", fontSize: { xs: "0.8rem", md: "0.875rem" } }}>
                   위의 예시처럼 질문을 입력해주세요!
                 </Typography>
               </Box>
@@ -285,13 +285,13 @@ export default function ChatBot({ projectId, onError }) {
             >
               <Paper
                 sx={{
-                  p: 2,
-                  maxWidth: "70%",
+                  p: { xs: 1.5, md: 2 },
+                  maxWidth: { xs: "85%", sm: "75%", md: "70%" },
                   bgcolor: message.role === "user" ? "primary.main" : "background.paper",
                   color: message.role === "user" ? "primary.contrastText" : "text.primary",
                 }}
               >
-                <Typography variant="body1">{message.content}</Typography>
+                <Typography variant="body1" sx={{ fontSize: { xs: "0.875rem", md: "1rem" } }}>{message.content}</Typography>
                 {message.agentType && (
                   <Chip
                     label={message.agentType.replace("_agent", "")}
@@ -305,7 +305,7 @@ export default function ChatBot({ projectId, onError }) {
 
         {loading && (
           <Box sx={{ display: "flex", justifyContent: "flex-start", mb: 2 }}>
-            <Paper sx={{ p: 2 }}>
+            <Paper sx={{ p: { xs: 1.5, md: 2 } }}>
               <CircularProgress size={20} />
             </Paper>
           </Box>
@@ -323,7 +323,7 @@ export default function ChatBot({ projectId, onError }) {
       {/* 입력 영역 */}
       <Box
         sx={{
-          p: 2,
+          p: { xs: 1, sm: 1.5, md: 2 },
           borderTop: 1,
           borderColor: "divider",
           bgcolor: "background.paper",

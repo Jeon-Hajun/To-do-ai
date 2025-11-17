@@ -69,35 +69,97 @@ class GitHubService {
   }
 
   /**
-   * 커밋 목록 가져오기
+   * 커밋 목록 가져오기 (페이지네이션 지원)
    */
   async getCommits(repoUrl, options = {}) {
     try {
       const { owner, repo } = this.parseRepoUrl(repoUrl);
-      const { perPage = 30, since } = options;
+      const { perPage = 100, since, maxCommits = null } = options;
 
       const params = {
         owner,
         repo,
-        per_page: perPage
+        per_page: Math.min(perPage, 100) // GitHub API 최대값은 100
       };
 
       if (since) {
         params.since = since;
       }
 
-      console.log(`[getCommits] API 호출: ${owner}/${repo}, perPage: ${perPage}`);
-      const response = await this.octokit.repos.listCommits(params);
-      console.log(`[getCommits] 응답 성공: ${response.data.length}개 커밋`);
+      console.log(`[getCommits] API 호출: ${owner}/${repo}, perPage: ${params.per_page}, maxCommits: ${maxCommits || '무제한'}`);
       
-      return response.data.map(commit => ({
-        sha: commit.sha,
-        message: commit.commit.message,
-        author: commit.commit.author.name,
-        date: commit.commit.author.date,
-        url: commit.html_url,
-        stats: null // stats는 별도 API 호출 필요
-      }));
+      // maxCommits가 지정되지 않았거나 null이면 모든 커밋 가져오기 (페이지네이션)
+      if (maxCommits === null) {
+        const allCommits = [];
+        let page = 1;
+        let hasMore = true;
+
+        while (hasMore) {
+          const response = await this.octokit.repos.listCommits({
+            ...params,
+            page: page
+          });
+
+          const commits = response.data.map(commit => ({
+            sha: commit.sha,
+            message: commit.commit.message,
+            author: commit.commit.author.name,
+            date: commit.commit.author.date,
+            url: commit.html_url,
+            stats: null // stats는 별도 API 호출 필요
+          }));
+
+          allCommits.push(...commits);
+          console.log(`[getCommits] 페이지 ${page}: ${commits.length}개 커밋 (누적: ${allCommits.length}개)`);
+
+          // 마지막 페이지인지 확인 (응답이 per_page보다 적으면 마지막 페이지)
+          if (commits.length < params.per_page) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        }
+
+        console.log(`[getCommits] 전체 응답 성공: 총 ${allCommits.length}개 커밋`);
+        return allCommits;
+      } else {
+        // maxCommits가 지정된 경우 해당 개수만큼만 가져오기
+        const commits = [];
+        let page = 1;
+        let hasMore = true;
+
+        while (hasMore && commits.length < maxCommits) {
+          const remaining = maxCommits - commits.length;
+          const currentPerPage = Math.min(params.per_page, remaining);
+
+          const response = await this.octokit.repos.listCommits({
+            ...params,
+            per_page: currentPerPage,
+            page: page
+          });
+
+          const pageCommits = response.data.map(commit => ({
+            sha: commit.sha,
+            message: commit.commit.message,
+            author: commit.commit.author.name,
+            date: commit.commit.author.date,
+            url: commit.html_url,
+            stats: null
+          }));
+
+          commits.push(...pageCommits);
+          console.log(`[getCommits] 페이지 ${page}: ${pageCommits.length}개 커밋 (누적: ${commits.length}개)`);
+
+          if (pageCommits.length < currentPerPage || commits.length >= maxCommits) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        }
+
+        console.log(`[getCommits] 응답 성공: 총 ${commits.length}개 커밋`);
+        return commits.slice(0, maxCommits);
+      }
     } catch (error) {
       console.error('[getCommits] 커밋 조회 오류:', error);
       console.error('[getCommits] 에러 상세:', {

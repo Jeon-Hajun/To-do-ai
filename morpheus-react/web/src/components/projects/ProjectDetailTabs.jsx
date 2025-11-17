@@ -23,7 +23,7 @@ export default function ProjectDetailTabs() {
     );
 
   return (
-    <Box sx={{ maxWidth: 800, margin: "auto", mt: 4 }}>
+    <Box sx={{ maxWidth: { xs: "100%", md: 800 }, margin: "auto", mt: { xs: 2, md: 4 } }}>
       <Card sx={{ p: 0, borderRadius: 2, overflow: "hidden" }}>
         {/* 탭 버튼 */}
         <Box sx={{ display: "flex", borderBottom: 1, borderColor: "divider" }}>
@@ -35,6 +35,8 @@ export default function ProjectDetailTabs() {
               bgcolor: activeTab === "detail" ? "primary.main" : "transparent",
               color: activeTab === "detail" ? "white" : "text.primary",
               fontWeight: activeTab === "detail" ? "bold" : 500,
+              fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
+              py: { xs: 1, md: 1.5 },
               "&:hover": {
                 bgcolor: activeTab === "detail" ? "primary.dark" : "action.hover",
               },
@@ -50,6 +52,8 @@ export default function ProjectDetailTabs() {
               bgcolor: activeTab === "task" ? "primary.main" : "transparent",
               color: activeTab === "task" ? "white" : "text.primary",
               fontWeight: activeTab === "task" ? "bold" : 500,
+              fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
+              py: { xs: 1, md: 1.5 },
               "&:hover": {
                 bgcolor: activeTab === "task" ? "primary.dark" : "action.hover",
               },
@@ -65,6 +69,8 @@ export default function ProjectDetailTabs() {
               bgcolor: activeTab === "github" ? "primary.main" : "transparent",
               color: activeTab === "github" ? "white" : "text.primary",
               fontWeight: activeTab === "github" ? "bold" : 500,
+              fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
+              py: { xs: 1, md: 1.5 },
               "&:hover": {
                 bgcolor: activeTab === "github" ? "primary.dark" : "action.hover",
               },
@@ -74,13 +80,13 @@ export default function ProjectDetailTabs() {
           </Button>
         </Box>
 
-        <CardContent sx={{ pt: 3 }}>
+        <CardContent sx={{ pt: { xs: 2, md: 3 }, px: { xs: 1, sm: 2, md: 3 } }}>
           {activeTab === "detail" && (
             <ProjectDetailCard projectId={projectId} showTaskList={false} />
           )}
           {activeTab === "task" && <TaskView projectId={projectId} />}
           {activeTab === "github" && (
-            <Box sx={{ p: 3 }}>
+            <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
               <ProjectGitHubTab 
                 projectId={projectId} 
                 githubRepo={project.githubRepo || project.github_repo}

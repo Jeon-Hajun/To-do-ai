@@ -64,10 +64,10 @@ exports.sync = async function(req, res, next) {
         const githubService = new GitHubService(token);
 
         try {
-          // 커밋 정보 가져오기 (기본 정보만)
+          // 커밋 정보 가져오기 (모든 커밋 가져오기)
           let commits = [];
           try {
-            commits = await githubService.getCommits(project.github_repo, { perPage: 100 });
+            commits = await githubService.getCommits(project.github_repo, { perPage: 100, maxCommits: null });
             console.log(`[동기화] GitHub에서 커밋 ${commits.length}개 가져옴`);
           } catch (error) {
             console.error('[동기화] 커밋 목록 가져오기 실패:', error.message);

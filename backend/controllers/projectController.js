@@ -1089,9 +1089,9 @@ exports.update = function(req, res, next) {
                     
                     console.log(`[동기화] 프로젝트 ${projectId} GitHub 저장소 동기화 시작: ${githubRepo}`);
                     
-                    // 커밋 목록 가져오기 (통계 정보 포함)
+                    // 커밋 목록 가져오기 (통계 정보 포함, 모든 커밋 가져오기)
                     try {
-                      const commits = await githubService.getCommits(githubRepo, { perPage: 30 });
+                      const commits = await githubService.getCommits(githubRepo, { perPage: 100, maxCommits: null });
                       
                       // 커밋 정보를 DB에 저장 (통계 정보 포함)
                       for (const commit of commits) {

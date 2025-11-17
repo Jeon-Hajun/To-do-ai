@@ -122,9 +122,9 @@ export default function AIadvisorPage() {
         sx={{ flex: 1, pt: 2 }}
       >
         {/* 하나의 큰 박스에 프로젝트 선택과 챗봇 통합 */}
-        <Card sx={{ height: 650, display: "flex", flexDirection: "column" }}>
+        <Card sx={{ height: { xs: "calc(100vh - 200px)", sm: 600, md: 650 }, minHeight: { xs: 400, md: 650 }, display: "flex", flexDirection: "column" }}>
           {/* 프로젝트 카테고리 바 */}
-          <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
+          <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 }, borderBottom: 1, borderColor: "divider" }}>
             <CategoryBar
               items={projectItems}
               selectedId={selectedProjectId}
@@ -140,8 +140,8 @@ export default function AIadvisorPage() {
             {selectedProjectId ? (
               <ChatBot projectId={selectedProjectId} onError={handleError} />
             ) : (
-              <Box sx={{ p: 4, textAlign: "center", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Typography variant="body1" color="text.secondary">
+              <Box sx={{ p: { xs: 2, md: 4 }, textAlign: "center", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Typography variant="body1" color="text.secondary" sx={{ fontSize: { xs: "0.875rem", md: "1rem" } }}>
                   프로젝트를 선택하면 AI 어시스턴트와 대화를 시작할 수 있습니다.
                 </Typography>
               </Box>

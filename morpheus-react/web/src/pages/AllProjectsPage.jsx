@@ -87,7 +87,7 @@ export default function AllProjectsPage() {
     <ContainerBox sx={{ pb: 8 }}>
       <Header title="프로젝트 참여" />
       
-      <Box sx={{ px: 2, pt: 3 }}>
+      <Box sx={{ px: { xs: 1, md: 2 }, pt: { xs: 2, md: 3 } }}>
         {/* 검색 바 */}
         <TextField
           fullWidth
@@ -101,7 +101,7 @@ export default function AllProjectsPage() {
               </InputAdornment>
             ),
           }}
-          sx={{ mb: 3 }}
+          sx={{ mb: { xs: 2, md: 3 } }}
         />
 
         {/* 로딩 */}
@@ -146,15 +146,15 @@ export default function AllProjectsPage() {
               }}
               onClick={() => handleProjectClick(project)}
             >
-              <CardContent>
-                <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
+              <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
+                <Typography variant="h6" sx={{ mb: 1, fontWeight: 600, fontSize: { xs: "1rem", md: "1.25rem" }, wordBreak: "break-word" }}>
                   {project.title}
                 </Typography>
                 {project.description && (
                   <Typography
                     variant="body2"
                     color="text.secondary"
-                    sx={{ mb: 2, minHeight: 40 }}
+                    sx={{ mb: 2, minHeight: { xs: 30, md: 40 }, fontSize: { xs: "0.8rem", md: "0.875rem" }, wordBreak: "break-word" }}
                   >
                     {project.description.length > 100
                       ? `${project.description.substring(0, 100)}...`
@@ -162,10 +162,10 @@ export default function AllProjectsPage() {
                   </Typography>
                 )}
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.7rem", md: "0.75rem" }, wordBreak: "break-word" }}>
                     소유자: {project.ownerNickname || project.ownerEmail}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.7rem", md: "0.75rem" } }}>
                     멤버 수: {project.memberCount}명
                   </Typography>
                 </Box>

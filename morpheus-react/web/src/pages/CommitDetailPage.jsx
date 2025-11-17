@@ -97,13 +97,13 @@ export default function CommitDetailPage() {
     <ContainerBox sx={{ minHeight: "100vh", pb: 8 }}>
       <Header title="커밋 상세" />
       
-      <Box sx={{ p: 3 }}>
+      <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
         {/* 뒤로가기 버튼 */}
-        <Stack direction="row" alignItems="center" sx={{ mb: 2 }}>
-          <IconButton onClick={() => navigate(-1)} sx={{ mr: 1 }}>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={{ xs: 1, sm: 0 }} alignItems={{ xs: "stretch", sm: "center" }} sx={{ mb: 2 }}>
+          <IconButton onClick={() => navigate(-1)} sx={{ mr: { xs: 0, sm: 1 }, alignSelf: { xs: "flex-start", sm: "center" } }}>
             <ArrowBackIcon />
           </IconButton>
-          <Button variant="outlined" onClick={() => navigate(`/projects/${projectId}`)}>
+          <Button variant="outlined" onClick={() => navigate(`/projects/${projectId}`)} fullWidth={{ xs: true, sm: false }}>
             프로젝트로 돌아가기
           </Button>
         </Stack>
@@ -123,11 +123,11 @@ export default function CommitDetailPage() {
         {commit && !loading && (
           <>
             {/* 커밋 헤더 */}
-            <Paper sx={{ p: 3, mb: 3 }}>
-              <Typography variant="h5" gutterBottom sx={{ wordBreak: "break-word" }}>
+            <Paper sx={{ p: { xs: 1.5, sm: 2, md: 3 }, mb: { xs: 2, md: 3 } }}>
+              <Typography variant={{ xs: "h6", md: "h5" }} gutterBottom sx={{ wordBreak: "break-word", fontSize: { xs: "1.1rem", md: "1.5rem" } }}>
                 {commit.message}
               </Typography>
-              <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ mt: 2 }}>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={{ xs: 1, sm: 2 }} flexWrap="wrap" sx={{ mt: 2 }}>
                 <Typography variant="body2" color="text.secondary">
                   <strong>작성자:</strong> {commit.author}
                 </Typography>
@@ -172,11 +172,12 @@ export default function CommitDetailPage() {
                   {commit.files.map((file, index) => (
                     <Accordion key={index} defaultExpanded={index === 0}>
                       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                        <Stack direction="row" spacing={1} alignItems="center" sx={{ width: "100%" }}>
+                        <Stack direction={{ xs: "column", sm: "row" }} spacing={{ xs: 0.5, sm: 1 }} alignItems={{ xs: "flex-start", sm: "center" }} sx={{ width: "100%" }}>
                           <Chip
                             label={getStatusLabel(file.status)}
                             color={getStatusColor(file.status)}
                             size="small"
+                            sx={{ fontSize: { xs: "0.7rem", sm: "0.75rem" } }}
                           />
                           <Typography
                             variant="body2"
@@ -186,20 +187,23 @@ export default function CommitDetailPage() {
                               overflow: "hidden",
                               textOverflow: "ellipsis",
                               whiteSpace: "nowrap",
+                              fontSize: { xs: "0.75rem", sm: "0.875rem" },
                             }}
                           >
                             {file.filePath}
                           </Typography>
-                          {file.additions > 0 && (
-                            <Typography variant="caption" color="success.main" sx={{ ml: 1 }}>
-                              +{file.additions}
-                            </Typography>
-                          )}
-                          {file.deletions > 0 && (
-                            <Typography variant="caption" color="error.main" sx={{ ml: 1 }}>
-                              -{file.deletions}
-                            </Typography>
-                          )}
+                          <Stack direction="row" spacing={0.5}>
+                            {file.additions > 0 && (
+                              <Typography variant="caption" color="success.main" sx={{ fontSize: { xs: "0.7rem", sm: "0.75rem" } }}>
+                                +{file.additions}
+                              </Typography>
+                            )}
+                            {file.deletions > 0 && (
+                              <Typography variant="caption" color="error.main" sx={{ fontSize: { xs: "0.7rem", sm: "0.75rem" } }}>
+                                -{file.deletions}
+                              </Typography>
+                            )}
+                          </Stack>
                         </Stack>
                       </AccordionSummary>
                       <AccordionDetails>

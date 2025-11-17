@@ -111,14 +111,14 @@ export default function EditProject({ project }) {
             </Tabs>
             
             {descriptionTab === 0 ? (
-              <TextField
-                label="프로젝트 설명"
-                fullWidth
-                margin="dense"
-                multiline
+          <TextField
+            label="프로젝트 설명"
+            fullWidth
+            margin="dense"
+            multiline
                 minRows={8}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
                 placeholder={`## 프로젝트 목적
 이 프로젝트의 목표와 배경을 설명해주세요.
 

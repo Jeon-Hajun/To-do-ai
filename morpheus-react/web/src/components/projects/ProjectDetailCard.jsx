@@ -30,13 +30,13 @@ export default function ProjectDetailCard({ projectId, showTaskList = true }) {
   return (
     <Box>
       {/* 프로젝트명 */}
-      <Typography variant="h4" sx={{ mb: 2, fontWeight: "bold" }}>
+      <Typography variant={{ xs: "h5", md: "h4" }} sx={{ mb: { xs: 1.5, md: 2 }, fontWeight: "bold", fontSize: { xs: "1.5rem", md: "2.125rem" } }}>
         {project.title}
       </Typography>
 
       {/* 프로젝트 상세 설명 카드 */}
-      <Box p={3} boxShadow={1} borderRadius={2}>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: "bold" }}>
+      <Box p={{ xs: 1.5, sm: 2, md: 3 }} boxShadow={1} borderRadius={2}>
+        <Typography variant={{ xs: "h6", md: "h6" }} sx={{ mb: { xs: 1.5, md: 2 }, fontWeight: "bold", fontSize: { xs: "1rem", md: "1.25rem" } }}>
           프로젝트 상세 설명
         </Typography>
         {project.description ? (
@@ -78,14 +78,14 @@ export default function ProjectDetailCard({ projectId, showTaskList = true }) {
         )}
 
 
-        <Stack direction="row" spacing={1} mt={2} alignItems="center" flexWrap="wrap">
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={{ xs: 1, sm: 1 }} mt={2} alignItems={{ xs: "flex-start", sm: "center" }} flexWrap="wrap">
           <AvatarGroup max={4}>
             {members.map((m) => (
               <Avatar
                 key={m.id}
                 alt={m.nickname || m.email}
                 src={getProfileImageSrc(m.profileImage, true)}
-                sx={{ width: 32, height: 32 }}
+                sx={{ width: { xs: 28, md: 32 }, height: { xs: 28, md: 32 } }}
               >
                 {m.nickname?.[0] || m.email?.[0]}
               </Avatar>
@@ -94,7 +94,7 @@ export default function ProjectDetailCard({ projectId, showTaskList = true }) {
           
           {/* 멤버 역할 표시 */}
           {members.length > 0 && (
-            <Stack direction="row" spacing={0.5} sx={{ ml: 1 }} flexWrap="wrap">
+            <Stack direction="row" spacing={0.5} sx={{ ml: { xs: 0, sm: 1 }, mt: { xs: 1, sm: 0 } }} flexWrap="wrap">
               {members.map((m) => (
                 <Chip
                   key={m.id}
@@ -102,7 +102,7 @@ export default function ProjectDetailCard({ projectId, showTaskList = true }) {
                   size="small"
                   color={m.role === 'owner' ? 'primary' : 'default'}
                   variant="outlined"
-                  sx={{ fontSize: '0.7rem', height: 20 }}
+                  sx={{ fontSize: { xs: '0.65rem', md: '0.7rem' }, height: { xs: 18, md: 20 } }}
                 />
               ))}
             </Stack>
@@ -123,7 +123,7 @@ export default function ProjectDetailCard({ projectId, showTaskList = true }) {
       )}
 
       {/* 삭제/수정 버튼 */}
-      <Stack direction="row" spacing={2} sx={{ mt: 3, justifyContent: "center" }}>
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={{ xs: 1, sm: 2 }} sx={{ mt: { xs: 2, md: 3 }, justifyContent: "center" }}>
         <EditProject project={project} />
         <DeleteOrLeaveProject projectId={project.id} mode="delete" />
       </Stack>
