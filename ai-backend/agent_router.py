@@ -403,6 +403,19 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
             
             implemented_section = "\n\n".join(sections) if sections else "없음"
             
+            # 평가 섹션: 핵심 기능별 진행도 표시
+            core_progress_section = ""
+            if core_feature_progress:
+                core_progress_lines = []
+                for cf_progress in core_feature_progress:
+                    cf_name = cf_progress.get('coreFeatureName', '')
+                    cf_progress_value = cf_progress.get('progress', 0)
+                    cf_implemented = cf_progress.get('implementedCount', 0)
+                    cf_required = cf_progress.get('requiredCount', 0)
+                    cf_missing = cf_required - cf_implemented
+                    core_progress_lines.append(f"- **{cf_name}**: {cf_progress_value}% (완성된 기능 {cf_implemented}개, 구현해야 할 기능 {cf_missing}개)")
+                core_progress_section = "\n".join(core_progress_lines)
+            
             # 평가 섹션을 "완성된 기능 n개, 구현해야 할 기능 n개로 진행도 %입니다" 형식으로 변경
             narrative_response = f"""{project_desc}
 
@@ -414,7 +427,9 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
 {chr(10).join(missing_list) if missing_list else "없음"}
 
 ### 평가
-완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개로 진행도 {progress}%입니다.
+{core_progress_section if core_progress_section else f"완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개로 진행도 {progress}%입니다."}
+
+전체 진행도: {progress}% (완성된 기능 {total_implemented}개, 구현해야 할 기능 {total_missing}개)
 
 **예상 완성일**: {estimated_date}
 
