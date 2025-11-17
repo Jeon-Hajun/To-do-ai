@@ -311,25 +311,29 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
             
             # 정보가 부족하면 질문 요청
             if not has_project_desc and not has_user_request and not has_tasks and not has_commits and not has_issues:
-            questions = [
-                "프로젝트의 핵심 기능은 무엇인가요?",
-                "현재 어떤 기능이 구현되어 있나요?",
-                "다음으로 구현하고 싶은 기능은 무엇인가요?"
-            ]
-            question_text = "\n".join([f"- {q}" for q in questions])
-            full_message = f"프로젝트에 대한 정보가 부족합니다. 위 질문에 답변해주시면 더 정확한 Task를 제안할 수 있습니다.\n\n{question_text}"
-            
-            return {
-                "agent_type": "task_suggestion_agent",
-                "response": {
-                    "type": "needs_more_info",
-                    "message": full_message,
-                    "questions": questions
-                },
-                "analysis_steps": result.get('analysis_steps', 1),
-                "confidence": result.get('confidence', 'low'),
-                "progress_messages": result.get('progress_messages', [])
-            }
+                questions = [
+                    "프로젝트의 핵심 기능은 무엇인가요?",
+                    "현재 어떤 기능이 구현되어 있나요?",
+                    "다음으로 구현하고 싶은 기능은 무엇인가요?"
+                ]
+                question_text = "\n".join([f"- {q}" for q in questions])
+                # 프로젝트 이름 추가
+                project_name = context.get('projectName', '프로젝트')
+                full_message = f"# {project_name}\n\n프로젝트에 대한 정보가 부족합니다. 위 질문에 답변해주시면 더 정확한 Task를 제안할 수 있습니다.\n\n{question_text}"
+                
+                print(f"[Agent Router] Task 제안 - suggestions 빈 배열, needs_more_info 응답 반환 (프로젝트: {project_name})")
+                
+                return {
+                    "agent_type": "task_suggestion_agent",
+                    "response": {
+                        "type": "needs_more_info",
+                        "message": full_message,
+                        "questions": questions
+                    },
+                    "analysis_steps": result.get('analysis_steps', 1),
+                    "confidence": result.get('confidence', 'low'),
+                    "progress_messages": result.get('progress_messages', [])
+                }
         
         # 카테고리별 정렬
         category_order = {'security': 0, 'refactor': 1, 'feature': 2, 'performance': 3, 'maintenance': 4}
