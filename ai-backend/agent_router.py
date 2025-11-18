@@ -1432,6 +1432,17 @@ def execute_task_assignment_agent(context, call_llm_func, user_message=None):
     project_members_with_tags = context.get('projectMembersWithTags', [])
     tasks = context.get('tasks', []) or context.get('currentTasks', [])
     
+    # 디버깅: 전체 context 정보 로그
+    print(f"[Agent Router] Task 할당 - Context 정보:")
+    print(f"  - taskTitle: {task_title}")
+    print(f"  - taskDescription: {task_description}")
+    print(f"  - taskId: {task_id}")
+    print(f"  - taskTags: {task_tags}")
+    print(f"  - tasks 리스트 길이: {len(tasks) if tasks else 0}")
+    print(f"  - user_message: {user_message[:100] if user_message else 'None'}")
+    if tasks:
+        print(f"  - tasks 샘플 (최대 3개): {[(t.get('id'), t.get('title', '')[:30]) for t in tasks[:3]]}")
+    
     # 디버깅: 멤버 정보 로그
     print(f"[Agent Router] Task 할당 - 프로젝트 멤버 수: {len(project_members_with_tags) if project_members_with_tags else 0}")
     if project_members_with_tags:
@@ -1496,12 +1507,16 @@ def execute_task_assignment_agent(context, call_llm_func, user_message=None):
     
     # Task 정보가 없으면 에러
     if not task_title:
+        print(f"[Agent Router] Task 할당 - ⚠️ Task 정보를 찾을 수 없음")
+        print(f"  - task_title: {task_title}")
+        print(f"  - tasks 리스트: {len(tasks) if tasks else 0}개")
+        print(f"  - user_message: {user_message}")
         return {
             "agent_type": "task_assignment_agent",
             "error": "Task 정보가 필요합니다.",
             "response": {
                 "type": "error",
-                "message": "Task 정보를 찾을 수 없습니다. Task 제목이나 ID를 명시해주세요."
+                "message": f"Task 정보를 찾을 수 없습니다. 프로젝트에 Task가 {len(tasks) if tasks else 0}개 있습니다. Task 제목이나 ID를 명시해주세요. (예: 'Task 1을 할당해줘', '로그인 기능을 누구에게 할당할까?')"
             }
         }
     
