@@ -1078,13 +1078,19 @@ exports.chat = async function(req, res, next) {
             [projectId],
             function(err, rows) {
               if (err) {
+                console.error('[AI Controller] chat - 프로젝트 멤버 조회 오류:', err);
                 resolve([]);
               } else {
-                resolve(rows.map(r => ({
+                const members = rows.map(r => ({
                   userId: r.user_id,
                   nickname: r.nickname,
                   tags: r.tags ? r.tags.split(',') : []
-                })));
+                }));
+                console.log('[AI Controller] chat - 프로젝트 멤버 조회 완료:', members.length, '명');
+                if (members.length === 0) {
+                  console.warn('[AI Controller] chat - ⚠️ 프로젝트 멤버가 없습니다!');
+                }
+                resolve(members);
               }
             }
           );

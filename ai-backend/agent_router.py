@@ -1432,6 +1432,11 @@ def execute_task_assignment_agent(context, call_llm_func, user_message=None):
     project_members_with_tags = context.get('projectMembersWithTags', [])
     tasks = context.get('tasks', []) or context.get('currentTasks', [])
     
+    # 디버깅: 멤버 정보 로그
+    print(f"[Agent Router] Task 할당 - 프로젝트 멤버 수: {len(project_members_with_tags) if project_members_with_tags else 0}")
+    if project_members_with_tags:
+        print(f"[Agent Router] Task 할당 - 멤버 목록: {[m.get('nickname', 'Unknown') for m in project_members_with_tags]}")
+    
     # 1. context에서 직접 Task 정보 가져오기 (우선순위 1)
     if not task_title and task_id and tasks:
         for task in tasks:
