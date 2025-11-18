@@ -321,10 +321,26 @@ def create_task_suggestion_step3_prompt(context, user_message, read_files, analy
       "priority": "High|Medium|Low",
       "estimatedHours": 8,
       "reason": "프로젝트 핵심 기능 중 미구현",
-      "relatedFeatures": ["기능1", "기능2"]
+      "relatedFeatures": ["기능1", "기능2"],
+      "tags": ["frontend|backend|db|test"]
     }}
   ]
 }}
+
+⚠️ **태그 규칙 (매우 중요)**:
+- **category가 "feature"인 경우 반드시 tags를 포함하세요.**
+- **tags는 다음 중 하나 이상을 포함해야 합니다:**
+  - **frontend**: 프론트엔드 관련 (UI, 컴포넌트, 페이지, 클라이언트 로직)
+  - **backend**: 백엔드 관련 (API, 서버 로직, 컨트롤러, 라우트)
+  - **db**: 데이터베이스 관련 (스키마, 마이그레이션, 쿼리)
+  - **test**: 테스트 관련 (단위 테스트, 통합 테스트, E2E 테스트)
+- **Task의 특성에 따라 적절한 태그를 선택하세요:**
+  - UI/페이지/컴포넌트 → frontend
+  - API/서버 로직 → backend
+  - 데이터베이스 스키마/쿼리 → db
+  - 테스트 코드 → test
+  - 여러 영역에 걸치는 경우 → 여러 태그 포함 (예: ["frontend", "backend"])
+- **category가 "feature"가 아닌 경우 (refactor, security, performance, maintenance) tags는 생략 가능합니다.**
 
 ⚠️ 중요: 반드시 위 JSON 형식으로만 응답하세요. 한국어로 응답하세요."""
 
@@ -479,6 +495,18 @@ def create_task_suggestion_step5_prompt(context, user_message, read_files, analy
    - estimatedHours: 예상 소요 시간 (숫자)
    - reason: 추천 이유
    - location: 파일 경로 (있는 경우)
+   - tags: 태그 배열 (category가 "feature"인 경우 필수)
+
+5. **태그 규칙**:
+   - **category가 "feature"인 경우 반드시 tags를 포함하세요.**
+   - **tags는 다음 중 하나 이상을 포함해야 합니다:**
+     - **frontend**: 프론트엔드 관련 (UI, 컴포넌트, 페이지, 클라이언트 로직)
+     - **backend**: 백엔드 관련 (API, 서버 로직, 컨트롤러, 라우트)
+     - **db**: 데이터베이스 관련 (스키마, 마이그레이션, 쿼리)
+     - **test**: 테스트 관련 (단위 테스트, 통합 테스트, E2E 테스트)
+   - **3단계에서 이미 tags가 포함된 경우 그대로 유지하세요.**
+   - **3단계에서 tags가 없는 feature Task는 통합 시 적절한 tags를 추가하세요.**
+   - **category가 "feature"가 아닌 경우 tags는 생략 가능합니다.**
 
 ## 출력 형식:
 다음 JSON 형식으로만 응답하세요:
@@ -492,7 +520,8 @@ def create_task_suggestion_step5_prompt(context, user_message, read_files, analy
       "priority": "High|Medium|Low",
       "estimatedHours": 8,
       "reason": "추천 이유",
-      "location": "파일 경로 (있는 경우)"
+      "location": "파일 경로 (있는 경우)",
+      "tags": ["frontend", "backend"]  // category가 "feature"인 경우 필수
     }}
   ]
 }}

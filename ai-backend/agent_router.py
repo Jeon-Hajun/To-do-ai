@@ -554,6 +554,46 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
         if not isinstance(suggestions, list):
             suggestions = [suggestions] if suggestions else []
         
+        # feature 카테고리 Task에 tags가 없으면 기본 태그 추가
+        for suggestion in suggestions:
+            if suggestion.get('category') == 'feature' and not suggestion.get('tags'):
+                # Task 제목과 설명을 기반으로 태그 추론
+                title = suggestion.get('title', '').lower()
+                description = suggestion.get('description', '').lower()
+                location = suggestion.get('location', '').lower()
+                
+                tags = []
+                # 프론트엔드 키워드
+                if any(keyword in title + description + location for keyword in 
+                       ['ui', '페이지', '컴포넌트', 'frontend', 'react', 'vue', 'jsx', 'tsx', 'component', 'page']):
+                    tags.append('frontend')
+                # 백엔드 키워드
+                if any(keyword in title + description + location for keyword in 
+                       ['api', '서버', 'backend', 'controller', 'route', 'endpoint', '서비스', 'service']):
+                    tags.append('backend')
+                # 데이터베이스 키워드
+                if any(keyword in title + description + location for keyword in 
+                       ['db', 'database', '데이터베이스', '스키마', 'schema', 'migration', '쿼리', 'query']):
+                    tags.append('db')
+                # 테스트 키워드
+                if any(keyword in title + description + location for keyword in 
+                       ['test', '테스트', 'testing', 'unit', 'integration', 'e2e']):
+                    tags.append('test')
+                
+                # 태그가 없으면 기본값으로 frontend 또는 backend 추가
+                if not tags:
+                    # location이나 description에 힌트가 있으면 그걸로 판단
+                    if any(keyword in location for keyword in ['src/', 'components/', 'pages/', 'frontend/']):
+                        tags.append('frontend')
+                    elif any(keyword in location for keyword in ['backend/', 'controllers/', 'routes/', 'api/']):
+                        tags.append('backend')
+                    else:
+                        # 기본값으로 frontend와 backend 둘 다 추가 (안전하게)
+                        tags = ['frontend', 'backend']
+                
+                suggestion['tags'] = tags
+                print(f"[Agent Router] Task 제안 - feature Task에 tags 추가: {suggestion.get('title')} → {tags}")
+        
         # 빈 배열 처리
         if len(suggestions) == 0:
             message = f"# {project_name}\n\n현재 프로젝트 상태를 분석한 결과, 추가로 제안할 Task가 없습니다.\n\n프로젝트가 잘 관리되고 있습니다! 🎉"
