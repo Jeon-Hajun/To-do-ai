@@ -137,10 +137,14 @@ def list_directory_contents(
     github_repo: str,
     github_token: Optional[str],
     directory_path: str,
-    ref: str = 'main'
+    ref: str = 'main',
+    max_depth: int = 1  # 기본 깊이를 1로 제한 (속도 향상)
 ) -> List[str]:
     """
     GitHub 디렉토리 내용을 나열하여 파일 목록을 가져옴
+    
+    Args:
+        max_depth: 최대 탐색 깊이 (기본값: 1, 최대 2)
     
     Returns:
         파일 경로 리스트
@@ -197,12 +201,15 @@ def list_directory_contents(
                 file_name = item.get('name', '')
                 if file_name.endswith(('.js', '.jsx', '.ts', '.tsx', '.py')):
                     files.append(item.get('path', ''))
-            elif item.get('type') == 'dir':
-                # 하위 디렉토리는 재귀적으로 탐색 (최대 2단계 깊이)
+            elif item.get('type') == 'dir' and max_depth > 0:
+                # 하위 디렉토리는 재귀적으로 탐색 (깊이 제한)
                 sub_path = item.get('path', '')
-                if directory_path.count('/') < 3:  # 깊이 제한
-                    sub_files = list_directory_contents(github_repo, github_token, sub_path, ref)
-                    files.extend(sub_files)
+                # 최대 깊이 1로 제한 (속도 향상)
+                sub_files = list_directory_contents(github_repo, github_token, sub_path, ref, max_depth - 1)
+                files.extend(sub_files)
+                # 파일이 너무 많아지면 중단
+                if len(files) >= 100:
+                    break
         
         return files
     except Exception as e:

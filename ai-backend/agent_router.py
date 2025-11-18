@@ -357,19 +357,36 @@ def execute_task_suggestion_agent(context, call_llm_func, user_message=None):
             # 디렉토리에서 파일 목록만 수집 (파일 내용은 읽지 않음)
             all_files_list = []
             progress_messages.append("🔍 프로젝트 파일 목록 수집 중...")
-            for dir_path in main_directories[:5]:  # 최대 5개 디렉토리
+            dir_collection_start = time.time()
+            
+            # 디렉토리 탐색 개수 제한 및 병렬 처리
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            
+            def collect_dir_files(dir_path):
+                """단일 디렉토리에서 파일 수집"""
                 try:
                     dir_files = list_directory_contents(github_repo, github_token, dir_path)
                     # JavaScript/TypeScript/Python 파일 선택
                     code_files = [f for f in dir_files if f.endswith(('.js', '.jsx', '.ts', '.tsx', '.py'))]
-                    all_files_list.extend(code_files)
-                    if len(all_files_list) >= 100:  # 최대 100개 파일 목록 수집
-                        break
+                    return code_files
                 except Exception as e:
                     print(f"[Agent Router] 디렉토리 탐색 실패 ({dir_path}): {e}")
-                    continue
+                    return []
             
-            print(f"[Agent Router] Task 제안 - 2단계에서 {len(all_files_list)}개 파일 목록 수집")
+            # 병렬로 디렉토리 탐색 (최대 3개 동시)
+            directories_to_scan = main_directories[:3]  # 최대 3개 디렉토리만 (속도 향상)
+            if directories_to_scan:
+                with ThreadPoolExecutor(max_workers=3) as executor:
+                    future_to_dir = {executor.submit(collect_dir_files, dir_path): dir_path 
+                                   for dir_path in directories_to_scan}
+                    for future in as_completed(future_to_dir):
+                        code_files = future.result()
+                        all_files_list.extend(code_files)
+                        if len(all_files_list) >= 50:  # 최대 50개로 제한 (속도 향상)
+                            break
+            
+            dir_collection_elapsed = time.time() - dir_collection_start
+            print(f"[Agent Router] Task 제안 - 2단계에서 {len(all_files_list)}개 파일 목록 수집 (소요 시간: {dir_collection_elapsed:.2f}초)")
             
             # LLM에게 파일 목록 제공하여 필요한 파일만 선택 요청
             if all_files_list:
