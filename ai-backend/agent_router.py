@@ -1431,6 +1431,7 @@ def execute_task_assignment_agent(context, call_llm_func, user_message=None):
     task_tags = context.get('taskTags', [])  # Task의 tags (frontend/backend/db/test)
     project_members_with_tags = context.get('projectMembersWithTags', [])
     tasks = context.get('tasks', []) or context.get('currentTasks', [])
+    unassigned_tasks = context.get('unassignedTasks', [])  # 미할당 Task 목록
     
     # 디버깅: 전체 context 정보 로그
     print(f"[Agent Router] Task 할당 - Context 정보:")
@@ -1497,7 +1498,22 @@ def execute_task_assignment_agent(context, call_llm_func, user_message=None):
             task_tags = matched_tasks[0][1].get('tags', []) or task_tags
             print(f"[Agent Router] Task 할당 - 메시지에서 Task 제목 매칭: {task_title}")
     
-    # 4. 최근 Task 사용 (우선순위 4, 마지막 수단)
+    # 4. 미할당 Task 자동 선택 (우선순위 4)
+    if not task_title and unassigned_tasks:
+        # 미할당 Task 중 최근 생성된 것 선택 (createdAt 기준, 없으면 첫 번째)
+        unassigned_sorted = sorted(
+            unassigned_tasks,
+            key=lambda t: t.get('createdAt', '') or t.get('created_at', ''),
+            reverse=True
+        )
+        selected_task = unassigned_sorted[0]
+        task_title = selected_task.get('title', '')
+        task_description = selected_task.get('description', '')
+        task_tags = selected_task.get('tags', []) or task_tags
+        task_id = selected_task.get('id') or task_id
+        print(f"[Agent Router] Task 할당 - 미할당 Task 자동 선택: {task_title} (ID: {task_id})")
+    
+    # 5. 최근 Task 사용 (우선순위 5, 마지막 수단)
     if not task_title and tasks:
         recent_task = tasks[0]
         task_title = recent_task.get('title', '')
@@ -1510,13 +1526,26 @@ def execute_task_assignment_agent(context, call_llm_func, user_message=None):
         print(f"[Agent Router] Task 할당 - ⚠️ Task 정보를 찾을 수 없음")
         print(f"  - task_title: {task_title}")
         print(f"  - tasks 리스트: {len(tasks) if tasks else 0}개")
+        print(f"  - unassigned_tasks 리스트: {len(unassigned_tasks) if unassigned_tasks else 0}개")
         print(f"  - user_message: {user_message}")
+        
+        # 사용자 친화적인 에러 메시지 생성
+        total_tasks = len(tasks) if tasks else 0
+        unassigned_count = len(unassigned_tasks) if unassigned_tasks else 0
+        
+        if total_tasks == 0:
+            error_message = "프로젝트에 Task가 없습니다. 먼저 Task를 생성해주세요."
+        elif unassigned_count == 0:
+            error_message = f"모든 Task가 이미 할당되어 있습니다. (총 {total_tasks}개 Task)"
+        else:
+            error_message = f"Task 정보를 찾을 수 없습니다. 프로젝트에 Task가 {total_tasks}개 있고, 그 중 {unassigned_count}개가 미할당 상태입니다. Task 제목이나 ID를 명시해주세요. (예: 'Task 1을 할당해줘', '로그인 기능을 누구에게 할당할까?')"
+        
         return {
             "agent_type": "task_assignment_agent",
             "error": "Task 정보가 필요합니다.",
             "response": {
                 "type": "error",
-                "message": f"Task 정보를 찾을 수 없습니다. 프로젝트에 Task가 {len(tasks) if tasks else 0}개 있습니다. Task 제목이나 ID를 명시해주세요. (예: 'Task 1을 할당해줘', '로그인 기능을 누구에게 할당할까?')"
+                "message": error_message
             }
         }
     

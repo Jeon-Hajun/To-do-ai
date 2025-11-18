@@ -207,3 +207,56 @@ export const clearConversation = async (conversationId) => {
   return result;
 };
 
+/**
+ * Task 할당 추천 받기
+ * @param {number} projectId - 프로젝트 ID
+ * @param {number} taskId - Task ID (선택사항, 없으면 미할당 Task 중 자동 선택)
+ * @returns {Promise<Object>} { success, data: { recommendedUserId, reason, confidence, message }, error }
+ */
+export const getTaskAssignmentRecommendation = async (projectId, taskId = null) => {
+  console.log('[AI API] getTaskAssignmentRecommendation 호출:', { projectId, taskId });
+  
+  if (!projectId) {
+    console.error('[AI API] getTaskAssignmentRecommendation - projectId 없음');
+    return { success: false, error: { message: "프로젝트 ID 필요" } };
+  }
+  
+  // taskId가 있으면 명시적으로 전달, 없으면 "task 할당해줘" 메시지로 미할당 Task 자동 선택
+  const message = taskId 
+    ? `Task ${taskId}를 할당해줘`
+    : "미할당 task 알아서 할당해줘";
+  
+  const result = await callApi("post", `${API_URL}/chat`, {
+    projectId,
+    message,
+    taskId: taskId || undefined,  // 명시적 taskId 전달
+    conversationHistory: []
+  });
+  
+  console.log('[AI API] getTaskAssignmentRecommendation 결과:', { 
+    success: result.success, 
+    hasData: !!result.data,
+    agentType: result.data?.agent_type,
+    hasError: !!result.error
+  });
+  
+  // 응답 형식 변환 (chat 응답을 할당 추천 응답 형식으로)
+  if (result.success && result.data?.response?.type === 'task_assignment') {
+    return {
+      success: true,
+      data: {
+        recommendedUserId: result.data.response.recommendedUserId,
+        reason: result.data.response.reason,
+        confidence: result.data.response.confidence || result.data.confidence || 'medium',
+        message: result.data.response.message || result.data.message,
+        taskTitle: result.data.response.taskTitle,
+        alternativeUsers: result.data.response.alternativeUsers || [],
+        requiredSkills: result.data.response.requiredSkills || [],
+        matchScore: result.data.response.matchScore
+      }
+    };
+  }
+  
+  return result;
+};
+

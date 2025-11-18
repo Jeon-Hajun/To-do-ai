@@ -873,6 +873,12 @@ exports.chat = async function(req, res, next) {
       try {
         console.log('[AI Controller] chat - 데이터 수집 시작');
         
+        // Request body에서 taskId 추출 (명시적 전달 지원)
+        const { taskId } = req.body;
+        if (taskId) {
+          console.log('[AI Controller] chat - 명시적 taskId 전달:', taskId);
+        }
+        
         // 대화 세션 조회 또는 생성
         let conversationId = null;
         const conversation = await new Promise((resolve, reject) => {
@@ -1036,15 +1042,15 @@ exports.chat = async function(req, res, next) {
           );
         });
         
-        // Task 목록 (tags 포함)
+        // Task 목록 (tags 포함, assignedUserId 포함)
         const tasks = await new Promise((resolve, reject) => {
           db.all(
-            `SELECT t.id, t.title, t.description, t.status, t.due_date, t.created_at,
+            `SELECT t.id, t.title, t.description, t.status, t.due_date, t.created_at, t.assigned_user_id,
                     GROUP_CONCAT(tt.tag) as tags
              FROM tasks t
              LEFT JOIN task_tags tt ON t.id = tt.task_id
              WHERE t.project_id = ?
-             GROUP BY t.id, t.title, t.description, t.status, t.due_date, t.created_at
+             GROUP BY t.id, t.title, t.description, t.status, t.due_date, t.created_at, t.assigned_user_id
              ORDER BY t.created_at DESC`,
             [projectId],
             function(err, rows) {
@@ -1059,12 +1065,13 @@ exports.chat = async function(req, res, next) {
                   status: t.status,
                   dueDate: t.due_date,
                   createdAt: t.created_at,
-                  tags: t.tags ? t.tags.split(',') : []
+                  assignedUserId: t.assigned_user_id,
+                  tags: t.tags ? t.tags.split(',').filter(tag => tag) : []
                 }));
                 console.log('[AI Controller] chat - Task 조회 완료:', taskList.length, '개');
                 if (taskList.length > 0) {
                   console.log('[AI Controller] chat - Task 샘플 (최대 3개):', 
-                    taskList.slice(0, 3).map(t => `ID:${t.id} "${t.title}"`).join(', '));
+                    taskList.slice(0, 3).map(t => `ID:${t.id} "${t.title}" (할당: ${t.assignedUserId || '없음'})`).join(', '));
                 } else {
                   console.warn('[AI Controller] chat - ⚠️ 프로젝트에 Task가 없습니다!');
                 }
@@ -1073,6 +1080,14 @@ exports.chat = async function(req, res, next) {
             }
           );
         });
+        
+        // 미할당 Task 목록 (assignedUserId가 null인 Task)
+        const unassignedTasks = tasks.filter(t => !t.assignedUserId);
+        console.log('[AI Controller] chat - 미할당 Task:', unassignedTasks.length, '개');
+        if (unassignedTasks.length > 0) {
+          console.log('[AI Controller] chat - 미할당 Task 샘플:', 
+            unassignedTasks.slice(0, 3).map(t => `ID:${t.id} "${t.title}"`).join(', '));
+        }
         
         // 프로젝트 멤버들의 Tag 정보 수집 (Task 할당을 위해)
         // owner도 포함하여 조회 (project_members에 없을 수 있음)
@@ -1123,11 +1138,25 @@ exports.chat = async function(req, res, next) {
         console.log('[AI Controller] chat - AI 백엔드로 요청 전송:', AI_BACKEND_URL);
         console.log('[AI Controller] chat - Context 요약:', {
           tasksCount: tasks.length,
+          unassignedTasksCount: unassignedTasks.length,
           commitsCount: commits.length,
           issuesCount: issues.length,
           membersCount: projectMembersWithTags.length,
-          hasGithubRepo: !!project.github_repo
+          hasGithubRepo: !!project.github_repo,
+          explicitTaskId: taskId || null
         });
+        
+        // taskId가 명시적으로 전달된 경우 해당 Task 정보 찾기
+        let explicitTask = null;
+        if (taskId) {
+          explicitTask = tasks.find(t => t.id === taskId || String(t.id) === String(taskId));
+          if (explicitTask) {
+            console.log('[AI Controller] chat - 명시적 Task 찾음:', explicitTask.title);
+          } else {
+            console.warn('[AI Controller] chat - ⚠️ 명시적 taskId에 해당하는 Task를 찾을 수 없음:', taskId);
+          }
+        }
+        
         const aiResponse = await axios.post(
           `${AI_BACKEND_URL}/api/ai/chat`,
           {
@@ -1138,6 +1167,11 @@ exports.chat = async function(req, res, next) {
               issues: issues,
               tasks: tasks,
               currentTasks: tasks,
+              unassignedTasks: unassignedTasks,  // 미할당 Task 목록 추가
+              taskId: taskId || null,  // 명시적 taskId 전달
+              taskTitle: explicitTask ? explicitTask.title : null,  // 명시적 Task 제목
+              taskDescription: explicitTask ? explicitTask.description : null,  // 명시적 Task 설명
+              taskTags: explicitTask ? explicitTask.tags : null,  // 명시적 Task 태그
               projectName: project.title || '프로젝트',
               projectDescription: project.description || project.title,
               githubRepo: project.github_repo || null,

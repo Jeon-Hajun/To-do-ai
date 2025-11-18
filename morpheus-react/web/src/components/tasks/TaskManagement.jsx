@@ -25,6 +25,7 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchProjectMembers } from "../../api/projects";
 import {
@@ -34,6 +35,7 @@ import {
   assignTask,
   updateTaskStatus,
 } from "../../api/tasks";
+import { getTaskAssignmentRecommendation } from "../../api/ai";
 import { getProfileImageSrc } from "../../utils/profileImage";
 import TaskAdd from "./TaskAdd";
 import { normalizeStatus, getStatusDisplay } from "../../utils/taskStatus";
@@ -45,6 +47,10 @@ export default function TaskManagement({ projectId }) {
   const [statusMenuAnchor, setStatusMenuAnchor] = useState(null);
   const [assignMenuAnchor, setAssignMenuAnchor] = useState(null);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const [aiRecommendationOpen, setAiRecommendationOpen] = useState(false);
+  const [aiRecommendationData, setAiRecommendationData] = useState(null);
+  const [aiRecommendationLoading, setAiRecommendationLoading] = useState(false);
+  const [aiRecommendationTaskId, setAiRecommendationTaskId] = useState(null);
 
   // 프로젝트 멤버 조회
   const { data: members = [], isLoading: membersLoading } = useQuery({
@@ -81,10 +87,21 @@ export default function TaskManagement({ projectId }) {
   // Task 할당
   const assignMutation = useMutation({
     mutationFn: ({ taskId, assignedUserId }) => assignTask(taskId, assignedUserId),
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
       setAssignMenuAnchor(null);
       setSelectedTaskId(null);
+      
+      // 할당된 사용자 정보 가져오기
+      const assignedMember = getMemberById(variables.assignedUserId);
+      if (assignedMember) {
+        // 성공 메시지는 조용히 처리 (사용자가 직접 할당한 경우)
+        // AI 추천을 통한 할당은 handleAiRecommendationAssign에서 처리
+      }
+    },
+    onError: (error) => {
+      console.error("Task 할당 실패:", error);
+      alert(`Task 할당 실패: ${error.message || "알 수 없는 오류"}`);
     },
   });
 
@@ -112,6 +129,56 @@ export default function TaskManagement({ projectId }) {
   const handleAssignChange = (assignedUserId) => {
     if (selectedTaskId) {
       assignMutation.mutate({ taskId: selectedTaskId, assignedUserId });
+    }
+  };
+
+  // AI 추천 요청
+  const handleAiRecommendationClick = async (taskId) => {
+    setAiRecommendationTaskId(taskId);
+    setAiRecommendationOpen(true);
+    setAiRecommendationLoading(true);
+    setAiRecommendationData(null);
+
+    try {
+      const result = await getTaskAssignmentRecommendation(projectId, taskId);
+      if (result.success && result.data) {
+        setAiRecommendationData(result.data);
+      } else {
+        setAiRecommendationData({
+          error: result.error?.message || "AI 추천을 받을 수 없습니다.",
+        });
+      }
+    } catch (err) {
+      console.error("AI 추천 요청 실패:", err);
+      setAiRecommendationData({
+        error: err.message || "AI 추천 요청 중 오류가 발생했습니다.",
+      });
+    } finally {
+      setAiRecommendationLoading(false);
+    }
+  };
+
+  // AI 추천 결과에서 할당하기
+  const handleAiRecommendationAssign = () => {
+    if (aiRecommendationTaskId && aiRecommendationData?.recommendedUserId) {
+      assignMutation.mutate(
+        {
+          taskId: aiRecommendationTaskId,
+          assignedUserId: aiRecommendationData.recommendedUserId,
+        },
+        {
+          onSuccess: () => {
+            setAiRecommendationOpen(false);
+            setAiRecommendationData(null);
+            setAiRecommendationTaskId(null);
+            // 성공 메시지는 assignMutation의 onSuccess에서 처리됨
+          },
+          onError: (error) => {
+            console.error("Task 할당 실패:", error);
+            alert(`Task 할당 실패: ${error.message || "알 수 없는 오류"}`);
+          },
+        }
+      );
     }
   };
 
@@ -246,13 +313,24 @@ export default function TaskManagement({ projectId }) {
                           </Typography>
                         </Stack>
                       ) : (
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          onClick={(e) => handleAssignClick(e, task.id)}
-                        >
-                          할당하기
-                        </Button>
+                        <Stack direction="row" spacing={1}>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={(e) => handleAssignClick(e, task.id)}
+                          >
+                            할당하기
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="secondary"
+                            startIcon={<AutoAwesomeIcon />}
+                            onClick={() => handleAiRecommendationClick(task.id)}
+                          >
+                            AI 추천
+                          </Button>
+                        </Stack>
                       )}
                     </TableCell>
                     <TableCell>
@@ -352,6 +430,155 @@ export default function TaskManagement({ projectId }) {
           onDelete={handleDeleteTask}
         />
       )}
+
+      {/* AI 추천 결과 모달 */}
+      <Dialog
+        open={aiRecommendationOpen}
+        onClose={() => {
+          setAiRecommendationOpen(false);
+          setAiRecommendationData(null);
+          setAiRecommendationTaskId(null);
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>AI 할당 추천</DialogTitle>
+        <DialogContent>
+          {aiRecommendationLoading ? (
+            <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+              <CircularProgress />
+              <Typography variant="body2" sx={{ ml: 2 }}>
+                AI가 적합한 담당자를 분석 중입니다...
+              </Typography>
+            </Box>
+          ) : aiRecommendationData?.error ? (
+            <Typography color="error">{aiRecommendationData.error}</Typography>
+          ) : aiRecommendationData ? (
+            <Box>
+              {aiRecommendationData.taskTitle && (
+                <Typography variant="h6" gutterBottom>
+                  Task: {aiRecommendationData.taskTitle}
+                </Typography>
+              )}
+              {aiRecommendationData.recommendedUserId && (
+                <>
+                  <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
+                    추천 담당자
+                  </Typography>
+                  {(() => {
+                    const recommendedMember = getMemberById(
+                      aiRecommendationData.recommendedUserId
+                    );
+                    return recommendedMember ? (
+                      <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1 }}>
+                        <Box
+                          component="img"
+                          src={getProfileImageSrc(recommendedMember.profileImage, true)}
+                          alt={recommendedMember.nickname || recommendedMember.email}
+                          sx={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                          }}
+                        />
+                        <Box>
+                          <Typography variant="body1" fontWeight="medium">
+                            {recommendedMember.nickname || recommendedMember.email}
+                          </Typography>
+                          {aiRecommendationData.reason && (
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                              {aiRecommendationData.reason}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Stack>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        사용자 ID: {aiRecommendationData.recommendedUserId}
+                      </Typography>
+                    );
+                  })()}
+                  {aiRecommendationData.confidence && (
+                    <Chip
+                      label={`신뢰도: ${aiRecommendationData.confidence}`}
+                      size="small"
+                      color={
+                        aiRecommendationData.confidence === "high"
+                          ? "success"
+                          : aiRecommendationData.confidence === "medium"
+                          ? "warning"
+                          : "default"
+                      }
+                      sx={{ mt: 2 }}
+                    />
+                  )}
+                  {aiRecommendationData.requiredSkills &&
+                    aiRecommendationData.requiredSkills.length > 0 && (
+                      <Box sx={{ mt: 2 }}>
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                          필요한 기술:
+                        </Typography>
+                        <Stack direction="row" spacing={1} flexWrap="wrap">
+                          {aiRecommendationData.requiredSkills.map((skill, idx) => (
+                            <Chip key={idx} label={skill} size="small" />
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+                  {aiRecommendationData.alternativeUsers &&
+                    aiRecommendationData.alternativeUsers.length > 0 && (
+                      <Box sx={{ mt: 2 }}>
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                          대안 담당자:
+                        </Typography>
+                        <Stack direction="row" spacing={1} flexWrap="wrap">
+                          {aiRecommendationData.alternativeUsers.map((userId, idx) => {
+                            const altMember = getMemberById(userId);
+                            return (
+                              <Chip
+                                key={idx}
+                                label={altMember?.nickname || altMember?.email || `User ${userId}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            );
+                          })}
+                        </Stack>
+                      </Box>
+                    )}
+                </>
+              )}
+              {aiRecommendationData.message && (
+                <Typography variant="body2" sx={{ mt: 2, whiteSpace: "pre-wrap" }}>
+                  {aiRecommendationData.message}
+                </Typography>
+              )}
+            </Box>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setAiRecommendationOpen(false);
+              setAiRecommendationData(null);
+              setAiRecommendationTaskId(null);
+            }}
+          >
+            닫기
+          </Button>
+          {aiRecommendationData?.recommendedUserId && !aiRecommendationData.error && (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleAiRecommendationAssign}
+              disabled={assignMutation.isPending}
+            >
+              {assignMutation.isPending ? "할당 중..." : "할당하기"}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
