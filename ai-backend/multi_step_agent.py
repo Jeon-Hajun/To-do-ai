@@ -206,7 +206,7 @@ def list_directory_contents(
                 sub_path = item.get('path', '')
                 # 최대 깊이 1로 제한 (속도 향상)
                 sub_files = list_directory_contents(github_repo, github_token, sub_path, ref, max_depth - 1)
-                    files.extend(sub_files)
+                files.extend(sub_files)
                 # 파일이 너무 많아지면 중단
                 if len(files) >= 100:
                     break
