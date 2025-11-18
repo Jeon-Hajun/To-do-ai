@@ -18,7 +18,7 @@ export default function ContainerBox({ children, sx = {}, ...props }) {
         display: "flex",
         flexDirection: "column",
         bgcolor: theme.palette.background.default,
-        px: { xs: 0.25, sm: 0.5, md: 1 },
+        px: { xs: 0.5, sm: 1, md: 2 },
         ...sx,
       }}
       {...props}

@@ -542,7 +542,7 @@ export default function ChatBot({ projectId, onError }) {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          p: { xs: 0.75, sm: 1, md: 1.5 },
+          p: { xs: 1, sm: 1.5, md: 2 },
           borderBottom: 1,
           borderColor: "divider",
         }}
@@ -565,7 +565,7 @@ export default function ChatBot({ projectId, onError }) {
         sx={{
           flex: 1,
           overflowY: "auto",
-          p: { xs: 0.75, sm: 1, md: 1.5 },
+          p: { xs: 1, sm: 1.5, md: 2 },
           bgcolor: "background.default",
         }}
       >
@@ -816,7 +816,7 @@ export default function ChatBot({ projectId, onError }) {
       {/* 입력 영역 */}
       <Box
         sx={{
-          p: { xs: 0.75, sm: 1, md: 1.5 },
+          p: { xs: 1, sm: 1.5, md: 2 },
           borderTop: 1,
           borderColor: "divider",
           bgcolor: "background.paper",

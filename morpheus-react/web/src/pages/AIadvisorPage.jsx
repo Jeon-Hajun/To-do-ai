@@ -118,11 +118,12 @@ export default function AIadvisorPage() {
   return (
     <ContainerBox>
       <PageContainer
-        maxWidth="lg"
+        maxWidth={false}
         sx={{ 
           flex: 1, 
-          pt: { xs: 0.5, md: 1 }, 
-          pb: { xs: 0.5, md: 1 },
+          pt: { xs: 1, md: 2 }, 
+          pb: { xs: 1, md: 2 },
+          px: { xs: 0.5, md: 1 },
           display: "flex", 
           flexDirection: "column",
           overflow: "hidden",
@@ -138,7 +139,7 @@ export default function AIadvisorPage() {
           minHeight: 0
         }}>
           {/* 프로젝트 카테고리 바 */}
-          <Box sx={{ p: { xs: 0.75, sm: 1, md: 1.5 }, borderBottom: 1, borderColor: "divider" }}>
+          <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 }, borderBottom: 1, borderColor: "divider" }}>
             <CategoryBar
               items={projectItems}
               selectedId={selectedProjectId}
