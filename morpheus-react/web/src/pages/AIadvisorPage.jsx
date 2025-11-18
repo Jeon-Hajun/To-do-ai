@@ -118,25 +118,17 @@ export default function AIadvisorPage() {
   return (
     <ContainerBox>
       <PageContainer
-        maxWidth={false}
-        sx={{ 
-          flex: 1, 
-          pt: { xs: 1, md: 2 }, 
-          pb: { xs: 1, md: 2 },
-          px: { xs: 0.5, md: 1 },
-          display: "flex", 
-          flexDirection: "column",
-          overflow: "hidden",
-          minHeight: 0
-        }}
+        maxWidth="lg"
+        sx={{ flex: 1, pt: { xs: 1, md: 1.5 }, overflow: "hidden", display: "flex", flexDirection: "column" }}
       >
         {/* 하나의 큰 박스에 프로젝트 선택과 챗봇 통합 */}
         <Card sx={{ 
-          flex: 1,
+          height: { xs: "calc(100vh - 100px)", md: "calc(100vh - 110px)" }, 
+          minHeight: { xs: 450, md: 650 }, 
           display: "flex", 
           flexDirection: "column",
-          overflow: "hidden",
-          minHeight: 0
+          flex: 1,
+          overflow: "hidden"
         }}>
           {/* 프로젝트 카테고리 바 */}
           <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 }, borderBottom: 1, borderColor: "divider" }}>
