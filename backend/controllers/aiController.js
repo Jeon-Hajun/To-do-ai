@@ -1043,20 +1043,52 @@ exports.chat = async function(req, res, next) {
         });
         
         // Task 목록 (tags 포함, assignedUserId 포함)
+        // task_tags 테이블이 없을 수 있으므로 먼저 간단한 쿼리로 시도
         const tasks = await new Promise((resolve, reject) => {
+          // task_tags 테이블 존재 여부 확인 없이 직접 쿼리
+          // LEFT JOIN이 실패하면 에러가 나므로, 서브쿼리나 IFNULL 사용
           db.all(
             `SELECT t.id, t.title, t.description, t.status, t.due_date, t.created_at, t.assigned_user_id,
-                    GROUP_CONCAT(tt.tag) as tags
+                    COALESCE(
+                      (SELECT GROUP_CONCAT(tt.tag) 
+                       FROM task_tags tt 
+                       WHERE tt.task_id = t.id), 
+                      ''
+                    ) as tags
              FROM tasks t
-             LEFT JOIN task_tags tt ON t.id = tt.task_id
              WHERE t.project_id = ?
-             GROUP BY t.id, t.title, t.description, t.status, t.due_date, t.created_at, t.assigned_user_id
              ORDER BY t.created_at DESC`,
             [projectId],
             function(err, rows) {
               if (err) {
                 console.error('[AI Controller] chat - Task 조회 오류:', err);
-                resolve([]);
+                // task_tags 테이블이 없을 수 있으므로, tags 없이 다시 시도
+                db.all(
+                  `SELECT t.id, t.title, t.description, t.status, t.due_date, t.created_at, t.assigned_user_id
+                   FROM tasks t
+                   WHERE t.project_id = ?
+                   ORDER BY t.created_at DESC`,
+                  [projectId],
+                  function(err2, rows2) {
+                    if (err2) {
+                      console.error('[AI Controller] chat - Task 조회 재시도 오류:', err2);
+                      resolve([]);
+                    } else {
+                      const taskList = rows2.map(t => ({
+                        id: t.id,
+                        title: t.title,
+                        description: t.description,
+                        status: t.status,
+                        dueDate: t.due_date,
+                        createdAt: t.created_at,
+                        assignedUserId: t.assigned_user_id,
+                        tags: []
+                      }));
+                      console.log('[AI Controller] chat - Task 조회 완료 (tags 없이):', taskList.length, '개');
+                      resolve(taskList);
+                    }
+                  }
+                );
               } else {
                 const taskList = rows.map(t => ({
                   id: t.id,
