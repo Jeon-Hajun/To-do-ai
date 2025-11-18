@@ -1421,37 +1421,84 @@ def execute_general_qa_agent(context, call_llm_func, user_message=None):
         }
 
 def execute_task_assignment_agent(context, call_llm_func, user_message=None):
-    """Task 할당 추천 agent 실행 (다단계 분석)"""
-    if not user_message:
-        return {
-            "agent_type": "task_assignment_agent",
-            "error": "사용자 메시지가 필요합니다.",
-            "response": {
-                "type": "error",
-                "message": "Task 할당 추천을 위해 질문을 입력해주세요."
-            }
-        }
+    """Task 할당 추천 agent 실행 (개선된 버전)"""
+    import re
     
-    # Task 정보 추출 (context에서 또는 user_message에서)
+    # Task 정보 추출 (개선된 로직)
     task_title = context.get('taskTitle', '')
     task_description = context.get('taskDescription', '')
+    task_id = context.get('taskId')
+    task_tags = context.get('taskTags', [])  # Task의 tags (frontend/backend/db/test)
     project_members_with_tags = context.get('projectMembersWithTags', [])
-    tasks = context.get('tasks', [])
+    tasks = context.get('tasks', []) or context.get('currentTasks', [])
     
-    # user_message에서 Task 정보 추출 시도
-    if not task_title and user_message and tasks:
-        user_message_lower = user_message.lower()
-        for task in tasks[:10]:
-            task_title_lower = task.get('title', '').lower()
-            if task_title_lower and task_title_lower in user_message_lower:
+    # 1. context에서 직접 Task 정보 가져오기 (우선순위 1)
+    if not task_title and task_id and tasks:
+        for task in tasks:
+            if task.get('id') == task_id or str(task.get('id')) == str(task_id):
                 task_title = task.get('title', '')
                 task_description = task.get('description', '')
+                task_tags = task.get('tags', []) or task_tags
                 break
+    
+    # 2. user_message에서 Task ID 추출 시도 (우선순위 2)
+    if not task_title and user_message:
+        # "Task 123", "작업 123", "#123" 등의 패턴 찾기
+        task_id_patterns = [
+            r'(?:task|작업|할일)\s*[#:]?\s*(\d+)',
+            r'#(\d+)',
+            r'id[:\s]+(\d+)'
+        ]
+        for pattern in task_id_patterns:
+            match = re.search(pattern, user_message, re.IGNORECASE)
+            if match:
+                found_id = int(match.group(1))
+                for task in tasks:
+                    if task.get('id') == found_id or str(task.get('id')) == str(found_id):
+                        task_title = task.get('title', '')
+                        task_description = task.get('description', '')
+                        task_tags = task.get('tags', []) or task_tags
+                        print(f"[Agent Router] Task 할당 - Task ID {found_id}로 Task 찾음: {task_title}")
+                        break
+                if task_title:
+                    break
+    
+    # 3. user_message에서 Task 제목 추출 시도 (우선순위 3)
+    if not task_title and user_message and tasks:
+        user_message_lower = user_message.lower()
+        # 가장 긴 매칭을 찾기 위해 길이순 정렬
+        matched_tasks = []
+        for task in tasks[:20]:  # 최대 20개까지 확인
+            task_title_lower = task.get('title', '').lower()
+            if task_title_lower and task_title_lower in user_message_lower:
+                matched_tasks.append((len(task_title_lower), task))
         
-        if not task_title and tasks:
-            recent_task = tasks[0]
-            task_title = recent_task.get('title', '')
-            task_description = recent_task.get('description', '')
+        if matched_tasks:
+            # 가장 긴 매칭 선택 (더 정확함)
+            matched_tasks.sort(reverse=True, key=lambda x: x[0])
+            task_title = matched_tasks[0][1].get('title', '')
+            task_description = matched_tasks[0][1].get('description', '')
+            task_tags = matched_tasks[0][1].get('tags', []) or task_tags
+            print(f"[Agent Router] Task 할당 - 메시지에서 Task 제목 매칭: {task_title}")
+    
+    # 4. 최근 Task 사용 (우선순위 4, 마지막 수단)
+    if not task_title and tasks:
+        recent_task = tasks[0]
+        task_title = recent_task.get('title', '')
+        task_description = recent_task.get('description', '')
+        task_tags = recent_task.get('tags', []) or task_tags
+        print(f"[Agent Router] Task 할당 - 최근 Task 사용: {task_title}")
+    
+    # Task 정보가 없으면 에러
+    if not task_title:
+        return {
+            "agent_type": "task_assignment_agent",
+            "error": "Task 정보가 필요합니다.",
+            "response": {
+                "type": "error",
+                "message": "Task 정보를 찾을 수 없습니다. Task 제목이나 ID를 명시해주세요."
+            }
+        }
     
     if not project_members_with_tags:
         return {
@@ -1462,6 +1509,12 @@ def execute_task_assignment_agent(context, call_llm_func, user_message=None):
                 "message": "프로젝트 멤버 정보가 없어 Task 할당 추천을 할 수 없습니다."
             }
         }
+    
+    # Task tags를 context에 추가
+    context['taskTitle'] = task_title
+    context['taskDescription'] = task_description
+    context['taskTags'] = task_tags
+    print(f"[Agent Router] Task 할당 - Task 정보: {task_title}, Tags: {task_tags}")
     
     try:
         result = execute_multi_step_agent(
@@ -1514,6 +1567,8 @@ def execute_task_assignment_agent(context, call_llm_func, user_message=None):
             message_parts.append(f"**Task**: {task_title}")
             if task_description:
                 message_parts.append(f"**설명**: {task_description[:200]}")
+            if task_tags:
+                message_parts.append(f"**Task 태그**: {', '.join(task_tags)}")
             message_parts.append(f"")
             message_parts.append(f"**추천 이유**:")
             message_parts.append(f"{reason}")
@@ -1529,6 +1584,25 @@ def execute_task_assignment_agent(context, call_llm_func, user_message=None):
             if required_skills:
                 message_parts.append(f"")
                 message_parts.append(f"**Task 필요 기술**: {', '.join(required_skills)}")
+            
+            # 태그 매칭 정보 표시
+            if task_tags and user_tags:
+                matched_tags = []
+                tag_mapping = {
+                    'frontend': ['프론트엔드', 'Frontend', 'React', 'Vue', 'UI', '프론트', '웹', '클라이언트'],
+                    'backend': ['백엔드', 'Backend', '서버', 'API', 'Node.js', 'Express', '서버사이드'],
+                    'db': ['데이터베이스', 'Database', 'DB', 'MySQL', 'PostgreSQL', 'MongoDB', 'SQL'],
+                    'test': ['테스트', 'Test', 'QA', '테스터', '품질보증']
+                }
+                for task_tag in task_tags:
+                    for user_tag in user_tags:
+                        user_tag_lower = user_tag.lower()
+                        if task_tag.lower() in user_tag_lower or any(mapped in user_tag for mapped in tag_mapping.get(task_tag.lower(), [])):
+                            matched_tags.append(f"{task_tag} ↔ {user_tag}")
+                
+                if matched_tags:
+                    message_parts.append(f"")
+                    message_parts.append(f"**태그 매칭**: {', '.join(matched_tags)}")
             
             message_parts.append(f"")
             message_parts.append(f"**신뢰도**: {confidence_kr}")

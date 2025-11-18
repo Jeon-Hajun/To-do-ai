@@ -1036,13 +1036,16 @@ exports.chat = async function(req, res, next) {
           );
         });
         
-        // Task 목록
+        // Task 목록 (tags 포함)
         const tasks = await new Promise((resolve, reject) => {
           db.all(
-            `SELECT id, title, description, status, due_date, created_at
-             FROM tasks
-             WHERE project_id = ?
-             ORDER BY created_at DESC`,
+            `SELECT t.id, t.title, t.description, t.status, t.due_date, t.created_at,
+                    GROUP_CONCAT(tt.tag) as tags
+             FROM tasks t
+             LEFT JOIN task_tags tt ON t.id = tt.task_id
+             WHERE t.project_id = ?
+             GROUP BY t.id, t.title, t.description, t.status, t.due_date, t.created_at
+             ORDER BY t.created_at DESC`,
             [projectId],
             function(err, rows) {
               if (err) {
@@ -1054,7 +1057,8 @@ exports.chat = async function(req, res, next) {
                   description: t.description,
                   status: t.status,
                   dueDate: t.due_date,
-                  createdAt: t.created_at
+                  createdAt: t.created_at,
+                  tags: t.tags ? t.tags.split(',') : []
                 })));
               }
             }

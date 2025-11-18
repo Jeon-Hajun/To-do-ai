@@ -1302,31 +1302,65 @@ def create_general_qa_followup_prompt(context, previous_result, user_message, re
     return prompt
 
 def create_task_assignment_initial_prompt(context, user_message, read_files, analyzed_commits, step_number=1):
-    """Task 할당 추천 에이전트 초기 프롬프트"""
+    """Task 할당 추천 에이전트 초기 프롬프트 (개선된 버전)"""
     task_title = context.get('taskTitle', '')
     task_description = context.get('taskDescription', '')
+    task_tags = context.get('taskTags', [])
     project_members_with_tags = context.get('projectMembersWithTags', [])
     
-    return create_task_assignment_prompt(task_title, task_description, project_members_with_tags)
+    return create_task_assignment_prompt(task_title, task_description, project_members_with_tags, task_tags)
 
 def create_task_assignment_followup_prompt(context, previous_result, user_message, read_files, analyzed_commits, step_number=2, all_steps=None):
-    """Task 할당 추천 에이전트 후속 프롬프트"""
+    """Task 할당 추천 에이전트 후속 프롬프트 (개선된 버전)"""
     task_title = context.get('taskTitle', '')
     task_description = context.get('taskDescription', '')
+    task_tags = context.get('taskTags', [])
     project_members_with_tags = context.get('projectMembersWithTags', [])
+    
+    # 이전 결과에서 추천된 사용자와 이유 확인
+    prev_recommended = previous_result.get('recommendedUserId')
+    prev_reason = previous_result.get('reason', '')
+    prev_confidence = previous_result.get('confidence', 'medium')
+    
+    task_tags_section = ""
+    if task_tags:
+        task_tags_str = ", ".join(task_tags)
+        task_tags_section = f"\n**Task 태그**: {task_tags_str}\n"
     
     prompt = f"""이전 분석 결과를 바탕으로 더 정확한 Task 할당 추천을 수행하세요.
 
 ## Task 정보:
-제목: {task_title}
-설명: {task_description}
+**제목**: {task_title}
+**설명**: {task_description}{task_tags_section}
 
 ## 이전 분석 결과:
 {json.dumps(previous_result, ensure_ascii=False, indent=2)[:1000]}
 
-## 읽은 파일:
-{json.dumps([f.get('path', '') for f in read_files], ensure_ascii=False)[:500]}
+## 프로젝트 멤버 정보:
+{json.dumps(project_members_with_tags, ensure_ascii=False, indent=2)[:800]}
 
-위 파일 내용을 참고하여 Task에 필요한 기술 스택과 경험을 더 정확히 파악하고, 적합한 담당자를 추천하세요. JSON 형식으로만 응답하세요."""
+## 개선 요청:
+1. **이전 추천 검증**: 이전에 추천된 사용자가 정말 적합한지 재검토하세요.
+2. **태그 매칭 강화**: Task 태그와 멤버 태그의 매칭을 더 정확히 분석하세요.
+3. **대안 제시**: 최적의 멤버 외에 2-3명의 대안 멤버도 제시하세요.
+4. **신뢰도 조정**: 태그 매칭이 정확하면 confidence를 높이고, 불확실하면 낮추세요.
+
+## 출력 형식:
+다음 JSON 형식으로만 응답하세요:
+{{
+  "recommendedUserId": 사용자ID 또는 null,
+  "reason": "개선된 추천 이유 (태그 매칭 상세 분석 포함)",
+  "confidence": "high|medium|low",
+  "requiredSkills": ["필요한 기술1", "필요한 기술2"],
+  "matchScore": 0-100,
+  "alternativeUsers": [
+    {{
+      "userId": 사용자ID,
+      "reason": "대안 추천 이유"
+    }}
+  ]
+}}
+
+⚠️ 중요: 반드시 위 JSON 형식으로만 응답하세요. 한국어로 응답하세요."""
     return prompt
 

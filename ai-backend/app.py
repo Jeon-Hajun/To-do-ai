@@ -882,8 +882,11 @@ def assign_task():
             else:
                 return call_ollama(prompt, system_prompt)
         
-        # 프롬프트 생성
-        prompt = create_task_assignment_prompt(task_title, task_description, project_members_with_tags)
+        # Task tags 추출 (있는 경우)
+        task_tags = data.get('taskTags', [])
+        
+        # 프롬프트 생성 (tags 포함)
+        prompt = create_task_assignment_prompt(task_title, task_description, project_members_with_tags, task_tags)
         system_prompt = "프로젝트 관리 전문가. Task 내용을 분석하여 적합한 담당자를 추천합니다. 반드시 한국어로만 응답. JSON만 응답."
         
         # LLM 호출

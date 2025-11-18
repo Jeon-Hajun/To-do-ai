@@ -673,36 +673,73 @@ def create_project_creation_prompt(natural_language_input):
     
     return prompt
 
-def create_task_assignment_prompt(task_title, task_description, project_members_with_tags):
-    """Task 할당을 위한 프롬프트 생성"""
+def create_task_assignment_prompt(task_title, task_description, project_members_with_tags, task_tags=None):
+    """Task 할당을 위한 프롬프트 생성 (개선된 버전)"""
     members_info = ""
     for member in project_members_with_tags:
         tags_str = ", ".join(member.get('tags', [])) if member.get('tags') else "태그 없음"
         members_info += f"- 사용자 ID {member['userId']} ({member.get('nickname', 'Unknown')}): {tags_str}\n"
     
-    prompt = f"""당신은 프로젝트 관리 AI 어시스턴트입니다. Task의 내용을 분석하여 가장 적합한 담당자를 추천하세요.
+    # Task tags 정보 추가
+    task_tags_section = ""
+    if task_tags:
+        task_tags_str = ", ".join(task_tags)
+        task_tags_section = f"\n**Task 태그**: {task_tags_str}\n"
+        task_tags_section += "이 태그는 Task가 어떤 영역(frontend/backend/db/test)에 속하는지 나타냅니다.\n"
+    
+    # 태그 매핑 규칙
+    tag_mapping_section = """
+## 태그 매핑 규칙 (매우 중요):
+Task의 태그와 멤버의 태그를 매핑할 때 다음 규칙을 사용하세요:
+
+**Task 태그 → 멤버 태그 매핑:**
+- **frontend** → "프론트엔드", "Frontend", "React", "Vue", "UI", "프론트", "웹", "클라이언트" 등
+- **backend** → "백엔드", "Backend", "서버", "API", "Node.js", "Express", "서버사이드" 등
+- **db** → "데이터베이스", "Database", "DB", "MySQL", "PostgreSQL", "MongoDB", "SQL" 등
+- **test** → "테스트", "Test", "QA", "테스터", "품질보증" 등
+
+**매칭 우선순위:**
+1. Task 태그와 정확히 매칭되는 멤버 태그가 있으면 최우선 추천
+2. Task 태그와 관련된 멤버 태그가 있으면 차순위 추천
+3. Task 태그가 여러 개인 경우, 가장 핵심적인 태그에 매칭되는 멤버 우선
+4. 태그 매칭이 없어도 Task 내용과 멤버 태그가 관련 있으면 추천 가능
+"""
+    
+    prompt = f"""당신은 프로젝트 관리 AI 어시스턴트입니다. Task의 내용과 태그를 분석하여 가장 적합한 담당자를 추천하세요.
 
 ⚠️ 중요: 반드시 한국어로만 응답하세요.
 
 ## Task 정보:
-제목: {task_title}
-설명: {task_description or '설명 없음'}
+**제목**: {task_title}
+**설명**: {task_description or '설명 없음'}{task_tags_section}
 
 ## 프로젝트 멤버 정보:
 {members_info if members_info else "멤버 정보 없음"}
 
+{tag_mapping_section}
+
 ## 추천 규칙:
-1. Task의 내용과 멤버의 태그(직무)를 매칭하여 추천하세요
-2. Task가 여러 직무를 포함하는 경우, 가장 핵심적인 직무를 담당하는 멤버를 추천하세요
-3. 적합한 멤버가 없는 경우, null을 반환하세요
-4. 추천 이유를 명확하게 설명하세요
+1. **Task 태그 우선 매칭**: Task에 태그가 있으면 해당 태그와 매칭되는 멤버를 최우선 추천
+2. **Task 내용 분석**: Task 제목과 설명을 분석하여 필요한 기술/역량 파악
+3. **멤버 태그 매칭**: 멤버의 태그와 Task 태그/내용을 매칭하여 추천
+4. **다중 태그 처리**: Task가 여러 태그를 가진 경우, 가장 핵심적인 태그에 매칭되는 멤버 우선
+5. **대안 제시**: 최적의 멤버 외에 대안 멤버도 제시
+6. **적합한 멤버 없음**: 태그 매칭이 전혀 없고 Task 내용과도 관련이 없으면 null 반환
 
 ## 응답 형식
 다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
 {{
   "recommendedUserId": 사용자ID 또는 null,
-  "reason": "추천 이유를 한국어로 설명",
-  "confidence": "high|medium|low"
+  "reason": "추천 이유를 한국어로 상세히 설명 (태그 매칭 여부, Task 내용 분석 결과 포함)",
+  "confidence": "high|medium|low",
+  "requiredSkills": ["필요한 기술1", "필요한 기술2"],
+  "matchScore": 85,
+  "alternativeUsers": [
+    {{
+      "userId": 사용자ID,
+      "reason": "대안 추천 이유"
+    }}
+  ]
 }}"""
     
     return prompt
