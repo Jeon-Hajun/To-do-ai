@@ -1500,7 +1500,8 @@ def execute_task_assignment_agent(context, call_llm_func, user_message=None):
             }
         }
     
-    if not project_members_with_tags:
+    # 프로젝트 멤버 검증
+    if not project_members_with_tags or len(project_members_with_tags) == 0:
         return {
             "agent_type": "task_assignment_agent",
             "error": "프로젝트 멤버 정보가 필요합니다.",
@@ -1508,6 +1509,23 @@ def execute_task_assignment_agent(context, call_llm_func, user_message=None):
                 "type": "error",
                 "message": "프로젝트 멤버 정보가 없어 Task 할당 추천을 할 수 없습니다."
             }
+        }
+    
+    # 멤버가 1명만 있으면 할당 추천이 의미 없음
+    if len(project_members_with_tags) == 1:
+        single_member = project_members_with_tags[0]
+        return {
+            "agent_type": "task_assignment_agent",
+            "response": {
+                "type": "task_assignment",
+                "recommendedUserId": single_member.get('userId'),
+                "reason": f"프로젝트에 멤버가 1명뿐이므로 {single_member.get('nickname', 'Unknown')}님에게 할당하는 것을 추천합니다.",
+                "confidence": "high",
+                "message": f"👤 **추천 담당자: {single_member.get('nickname', 'Unknown')}님**\n\n프로젝트에 멤버가 1명뿐이므로 자동으로 할당됩니다.\n\n**Task**: {task_title}"
+            },
+            "analysis_steps": 0,
+            "confidence": "high",
+            "progress_messages": []
         }
     
     # Task tags를 context에 추가
