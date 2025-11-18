@@ -214,7 +214,7 @@ export default function ChatBot({ projectId, onError }) {
         }
         // needs_more_info 응답 처리
         else if (res.data.response && res.data.response.type === "needs_more_info") {
-          // needs_more_info 응답의 경우 response.message를 우선 사용
+        // needs_more_info 응답의 경우 response.message를 우선 사용
           const messageContent = res.data.response.message || res.data.message;
           const assistantMessage = {
             role: "assistant",
@@ -231,28 +231,28 @@ export default function ChatBot({ projectId, onError }) {
         // 일반 응답 메시지 추가
         else {
           const messageContent = res.data.message || res.data.response?.message;
-          const assistantMessage = {
-            role: "assistant",
-            content: messageContent,
-            agentType: res.data.agentType || res.data.agent_type, // 백엔드 응답 형식에 맞춤
-            response: res.data.response,
-            id: Date.now() + 2,
-          };
-          
-          // 진행 상황 메시지 제거하고 최종 응답 추가 (중복 방지)
-          setMessages((prev) => {
-            const filtered = prev.filter((msg) => !msg.isProgress);
-            // 이미 같은 내용의 메시지가 있는지 확인
-            const isDuplicate = filtered.some(
-              (msg) => msg.role === "assistant" && 
-                       msg.content === assistantMessage.content &&
-                       msg.agentType === assistantMessage.agentType
-            );
-            if (!isDuplicate) {
-              return [...filtered, assistantMessage];
-            }
-            return filtered;
-          });
+        const assistantMessage = {
+          role: "assistant",
+          content: messageContent,
+          agentType: res.data.agentType || res.data.agent_type, // 백엔드 응답 형식에 맞춤
+          response: res.data.response,
+          id: Date.now() + 2,
+        };
+        
+        // 진행 상황 메시지 제거하고 최종 응답 추가 (중복 방지)
+        setMessages((prev) => {
+          const filtered = prev.filter((msg) => !msg.isProgress);
+          // 이미 같은 내용의 메시지가 있는지 확인
+          const isDuplicate = filtered.some(
+            (msg) => msg.role === "assistant" && 
+                     msg.content === assistantMessage.content &&
+                     msg.agentType === assistantMessage.agentType
+          );
+          if (!isDuplicate) {
+            return [...filtered, assistantMessage];
+          }
+          return filtered;
+        });
         }
         
         setConversationId(res.data.conversationId);
@@ -415,7 +415,7 @@ export default function ChatBot({ projectId, onError }) {
         }
         // needs_more_info 응답 처리
         else if (res.data.response && res.data.response.type === "needs_more_info") {
-          // needs_more_info 응답의 경우 response.message를 우선 사용
+        // needs_more_info 응답의 경우 response.message를 우선 사용
           const messageContent = res.data.response.message || res.data.message;
           const assistantMessage = {
             role: "assistant",
@@ -432,28 +432,28 @@ export default function ChatBot({ projectId, onError }) {
         // 일반 응답 메시지 추가
         else {
           const messageContent = res.data.message || res.data.response?.message;
-          const assistantMessage = {
-            role: "assistant",
-            content: messageContent,
-            agentType: res.data.agentType || res.data.agent_type, // 백엔드 응답 형식에 맞춤
-            response: res.data.response,
-            id: Date.now() + 2,
-          };
-          
-          // 진행 상황 메시지 제거하고 최종 응답 추가 (중복 방지)
-          setMessages((prev) => {
-            const filtered = prev.filter((msg) => !msg.isProgress);
-            // 이미 같은 내용의 메시지가 있는지 확인
-            const isDuplicate = filtered.some(
-              (msg) => msg.role === "assistant" && 
-                       msg.content === assistantMessage.content &&
-                       msg.agentType === assistantMessage.agentType
-            );
-            if (!isDuplicate) {
-              return [...filtered, assistantMessage];
-            }
-            return filtered;
-          });
+        const assistantMessage = {
+          role: "assistant",
+          content: messageContent,
+          agentType: res.data.agentType || res.data.agent_type, // 백엔드 응답 형식에 맞춤
+          response: res.data.response,
+          id: Date.now() + 2,
+        };
+        
+        // 진행 상황 메시지 제거하고 최종 응답 추가 (중복 방지)
+        setMessages((prev) => {
+          const filtered = prev.filter((msg) => !msg.isProgress);
+          // 이미 같은 내용의 메시지가 있는지 확인
+          const isDuplicate = filtered.some(
+            (msg) => msg.role === "assistant" && 
+                     msg.content === assistantMessage.content &&
+                     msg.agentType === assistantMessage.agentType
+          );
+          if (!isDuplicate) {
+            return [...filtered, assistantMessage];
+          }
+          return filtered;
+        });
         }
         
         setConversationId(res.data.conversationId);

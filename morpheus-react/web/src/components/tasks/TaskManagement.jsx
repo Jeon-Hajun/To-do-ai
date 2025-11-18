@@ -21,11 +21,16 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Card,
+  CardContent,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchProjectMembers } from "../../api/projects";
 import {
@@ -41,11 +46,14 @@ import TaskAdd from "./TaskAdd";
 import { normalizeStatus, getStatusDisplay } from "../../utils/taskStatus";
 
 export default function TaskManagement({ projectId }) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const queryClient = useQueryClient();
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [statusMenuAnchor, setStatusMenuAnchor] = useState(null);
   const [assignMenuAnchor, setAssignMenuAnchor] = useState(null);
+  const [actionMenuAnchor, setActionMenuAnchor] = useState(null);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [aiRecommendationOpen, setAiRecommendationOpen] = useState(false);
   const [aiRecommendationData, setAiRecommendationData] = useState(null);
@@ -203,6 +211,18 @@ export default function TaskManagement({ projectId }) {
 
   const handleEditTask = (task) => {
     setEditingTask(task);
+    setActionMenuAnchor(null);
+    setSelectedTaskId(null);
+  };
+
+  const handleActionMenuClick = (event, taskId) => {
+    setActionMenuAnchor(event.currentTarget);
+    setSelectedTaskId(taskId);
+  };
+
+  const handleActionMenuClose = () => {
+    setActionMenuAnchor(null);
+    setSelectedTaskId(null);
   };
 
   const handleSaveTask = async (taskData) => {
@@ -306,7 +326,14 @@ export default function TaskManagement({ projectId }) {
 
   return (
     <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+      <Box sx={{ 
+        display: "flex", 
+        flexDirection: { xs: "column", md: "row" },
+        gap: { xs: 1, md: 2 },
+        justifyContent: "space-between", 
+        alignItems: { xs: "stretch", md: "center" }, 
+        mb: { xs: 2, md: 3 } 
+      }}>
         {unassignedTasks.length > 0 && (
           <Button
             variant="contained"
@@ -314,6 +341,8 @@ export default function TaskManagement({ projectId }) {
             startIcon={<AutoAwesomeIcon />}
             onClick={handleBatchAiAssignment}
             disabled={batchAssignmentLoading}
+            fullWidth={isMobile}
+            size={isMobile ? "small" : "medium"}
           >
             {batchAssignmentLoading ? "AI 분석 중..." : `모든 미할당 Task AI 할당 (${unassignedTasks.length}개)`}
           </Button>
@@ -323,46 +352,49 @@ export default function TaskManagement({ projectId }) {
           color="primary"
           startIcon={<AddIcon />}
           onClick={() => setAddModalOpen(true)}
+          fullWidth={isMobile}
+          size={isMobile ? "small" : "medium"}
         >
           새 태스크 추가
         </Button>
       </Box>
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>제목</TableCell>
-              <TableCell>상태</TableCell>
-              <TableCell>담당자</TableCell>
-              <TableCell>마감일</TableCell>
-              <TableCell align="right">작업</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {tasks.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    등록된 태스크가 없습니다.
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              tasks.map((task) => {
-                const assignedMember = task.assignedUserId
-                  ? getMemberById(task.assignedUserId)
-                  : null;
-                const status = normalizeStatus(task.status);
+      {isMobile ? (
+        // 모바일: 카드 형태
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+          {tasks.length === 0 ? (
+            <Box sx={{ py: 4, textAlign: "center" }}>
+              <Typography variant="body2" color="text.secondary">
+                등록된 태스크가 없습니다.
+              </Typography>
+            </Box>
+          ) : (
+            tasks.map((task) => {
+              const assignedMember = task.assignedUserId
+                ? getMemberById(task.assignedUserId)
+                : null;
+              const status = normalizeStatus(task.status);
 
-                return (
-                  <TableRow key={task.id} hover>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight="medium">
-                        {task.title}
+              return (
+                <Card key={task.id} sx={{ p: 1.5 }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
+                    <Typography variant="body1" fontWeight="medium" sx={{ flex: 1, fontSize: "0.9rem" }}>
+                      {task.title}
+                    </Typography>
+                    <IconButton
+                      size="small"
+                      onClick={(e) => handleActionMenuClick(e, task.id)}
+                      sx={{ ml: 1 }}
+                    >
+                      <MoreVertIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                  
+                  <Stack spacing={1}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 50, fontSize: "0.75rem" }}>
+                        상태:
                       </Typography>
-                    </TableCell>
-                    <TableCell>
                       <Chip
                         label={getStatusDisplay(status)}
                         color={
@@ -376,19 +408,23 @@ export default function TaskManagement({ projectId }) {
                         }
                         size="small"
                         onClick={(e) => handleStatusClick(e, task.id)}
-                        sx={{ cursor: "pointer" }}
+                        sx={{ cursor: "pointer", fontSize: "0.7rem" }}
                       />
-                    </TableCell>
-                    <TableCell>
+                    </Box>
+                    
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 50, fontSize: "0.75rem" }}>
+                        담당자:
+                      </Typography>
                       {assignedMember ? (
-                        <Stack direction="row" spacing={1} alignItems="center">
+                        <Stack direction="row" spacing={0.5} alignItems="center">
                           <Box
                             component="img"
                             src={getProfileImageSrc(assignedMember.profileImage, true)}
                             alt={assignedMember.nickname || assignedMember.email}
                             sx={{
-                              width: 24,
-                              height: 24,
+                              width: 20,
+                              height: 20,
                               borderRadius: "50%",
                               objectFit: "cover",
                             }}
@@ -397,10 +433,10 @@ export default function TaskManagement({ projectId }) {
                               e.target.nextSibling.style.display = "flex";
                             }}
                           />
-                          <Box sx={{ display: "none", width: 24, height: 24, borderRadius: "50%", bgcolor: "primary.main", alignItems: "center", justifyContent: "center", color: "white", fontSize: "0.75rem" }}>
+                          <Box sx={{ display: "none", width: 20, height: 20, borderRadius: "50%", bgcolor: "primary.main", alignItems: "center", justifyContent: "center", color: "white", fontSize: "0.65rem" }}>
                             {(assignedMember.nickname || assignedMember.email || "?")[0]}
                           </Box>
-                          <Typography variant="body2">
+                          <Typography variant="body2" sx={{ fontSize: "0.75rem" }}>
                             {assignedMember.nickname || assignedMember.email}
                           </Typography>
                         </Stack>
@@ -409,51 +445,152 @@ export default function TaskManagement({ projectId }) {
                           size="small"
                           variant="outlined"
                           onClick={(e) => handleAssignClick(e, task.id)}
+                          sx={{ fontSize: "0.7rem", py: 0.25, px: 1 }}
                         >
                           할당하기
                         </Button>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      {task.dueDate ? (
-                        <Typography variant="body2">
-                          {new Date(task.dueDate).toLocaleDateString("ko-KR", {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                          })}
+                    </Box>
+                    
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 50, fontSize: "0.75rem" }}>
+                        마감일:
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontSize: "0.75rem" }}>
+                        {task.dueDate
+                          ? new Date(task.dueDate).toLocaleDateString("ko-KR", {
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                            })
+                          : "미설정"}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Card>
+              );
+            })
+          )}
+        </Box>
+      ) : (
+        // 데스크톱: 테이블 형태
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>제목</TableCell>
+                <TableCell>상태</TableCell>
+                <TableCell>담당자</TableCell>
+                <TableCell>마감일</TableCell>
+                <TableCell align="right">작업</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {tasks.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      등록된 태스크가 없습니다.
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                tasks.map((task) => {
+                  const assignedMember = task.assignedUserId
+                    ? getMemberById(task.assignedUserId)
+                    : null;
+                  const status = normalizeStatus(task.status);
+
+                  return (
+                    <TableRow key={task.id} hover>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight="medium">
+                          {task.title}
                         </Typography>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          미설정
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell align="right">
-                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={getStatusDisplay(status)}
+                          color={
+                            status === "done"
+                              ? "success"
+                              : status === "in_progress"
+                              ? "warning"
+                              : status === "cancelled"
+                              ? "error"
+                              : "default"
+                          }
+                          size="small"
+                          onClick={(e) => handleStatusClick(e, task.id)}
+                          sx={{ cursor: "pointer" }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {assignedMember ? (
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Box
+                              component="img"
+                              src={getProfileImageSrc(assignedMember.profileImage, true)}
+                              alt={assignedMember.nickname || assignedMember.email}
+                              sx={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: "50%",
+                                objectFit: "cover",
+                              }}
+                              onError={(e) => {
+                                e.target.style.display = "none";
+                                e.target.nextSibling.style.display = "flex";
+                              }}
+                            />
+                            <Box sx={{ display: "none", width: 24, height: 24, borderRadius: "50%", bgcolor: "primary.main", alignItems: "center", justifyContent: "center", color: "white", fontSize: "0.75rem" }}>
+                              {(assignedMember.nickname || assignedMember.email || "?")[0]}
+                            </Box>
+                            <Typography variant="body2">
+                              {assignedMember.nickname || assignedMember.email}
+                            </Typography>
+                          </Stack>
+                        ) : (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={(e) => handleAssignClick(e, task.id)}
+                          >
+                            할당하기
+                          </Button>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {task.dueDate ? (
+                          <Typography variant="body2">
+                            {new Date(task.dueDate).toLocaleDateString("ko-KR", {
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                            })}
+                          </Typography>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            미설정
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell align="right">
                         <IconButton
                           size="small"
-                          color="primary"
-                          onClick={() => handleEditTask(task)}
+                          onClick={(e) => handleActionMenuClick(e, task.id)}
                         >
-                          <EditIcon fontSize="small" />
+                          <MoreVertIcon fontSize="small" />
                         </IconButton>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleDeleteTask(task.id)}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Stack>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
 
       {/* 상태 변경 메뉴 */}
       <Menu
@@ -488,6 +625,41 @@ export default function TaskManagement({ projectId }) {
             {member.nickname || member.email}
           </MenuItem>
         ))}
+      </Menu>
+
+      {/* 작업 메뉴 (수정/삭제) */}
+      <Menu
+        anchorEl={actionMenuAnchor}
+        open={Boolean(actionMenuAnchor)}
+        onClose={handleActionMenuClose}
+      >
+        {selectedTaskId && (
+          <>
+            <MenuItem
+              onClick={() => {
+                const task = tasks.find((t) => t.id === selectedTaskId);
+                if (task) {
+                  handleEditTask(task);
+                }
+              }}
+            >
+              <EditIcon sx={{ mr: 1, fontSize: "1rem" }} />
+              수정
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                if (selectedTaskId) {
+                  handleDeleteTask(selectedTaskId);
+                  handleActionMenuClose();
+                }
+              }}
+              sx={{ color: "error.main" }}
+            >
+              <DeleteIcon sx={{ mr: 1, fontSize: "1rem" }} />
+              삭제
+            </MenuItem>
+          </>
+        )}
       </Menu>
 
       {/* 태스크 추가 모달 */}

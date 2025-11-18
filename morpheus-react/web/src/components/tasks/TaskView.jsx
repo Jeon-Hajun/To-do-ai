@@ -5,7 +5,7 @@ import List from "./List";
 import TaskManagement from "./TaskManagement";
 
 export default function TaskView({ projectId }) {
-  const [viewMode, setViewMode] = useState("user"); // "user" 또는 "task"
+  const [viewMode, setViewMode] = useState("task"); // "user" 또는 "task"
 
   const handleViewChange = (event, newView) => {
     if (newView !== null) {
@@ -15,14 +15,20 @@ export default function TaskView({ projectId }) {
 
   return (
     <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-        <Typography variant="h6">태스크 관리</Typography>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: { xs: 2, md: 3 } }}>
+        <Typography variant="h6" sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>태스크 관리</Typography>
         <ToggleButtonGroup
           value={viewMode}
           exclusive
           onChange={handleViewChange}
           aria-label="보기 모드"
           size="small"
+          sx={{ 
+            '& .MuiToggleButton-root': {
+              fontSize: { xs: '0.7rem', sm: '0.875rem', md: '0.875rem' },
+              px: { xs: 1, sm: 1.5, md: 2 },
+            }
+          }}
         >
           <ToggleButton value="user" aria-label="사용자별 보기">
             사용자별 보기

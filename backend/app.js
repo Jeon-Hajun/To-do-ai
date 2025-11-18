@@ -26,7 +26,11 @@ app.use(helmet());
 // CORS_ORIGIN=http://localhost:5175,http://220.69.240.143:5175 (여러 개는 쉼표로 구분)
 const getDefaultCorsOrigin = () => {
   const port = process.env.VITE_PORT || '5175';
-  return [`http://localhost:${port}`];
+  return [
+    `http://localhost:${port}`,           // 웹 브라우저 개발 환경
+    `http://127.0.0.1:${port}`,          // 실제 안드로이드 기기 (adb reverse 사용 시)
+    `http://10.0.2.2:${port}`            // 안드로이드 에뮬레이터
+  ];
 };
 
 const allowedOrigins = process.env.CORS_ORIGIN 
