@@ -582,55 +582,59 @@ export default function ChatBot({ projectId, onError }) {
           </Box>
         )}
 
-            {!loadingHistory && messages.length === 0 && (
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  height: "100%",
-                  color: "text.secondary",
-                  p: 3,
-                }}
-              >
-                <Typography variant="h6" sx={{ mb: 3, fontWeight: "bold", fontSize: { xs: "1rem", md: "1.25rem" } }}>
-                  안녕하세요! 프로젝트 관리 AI 어시스턴트입니다.
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 3, textAlign: "center", fontSize: { xs: "0.8rem", md: "0.875rem" } }}>
-                  아래 버튼을 클릭하여 바로 질문하거나, 직접 입력할 수 있습니다:
-                </Typography>
-                <Box sx={{ width: "100%", maxWidth: { xs: "100%", md: 600 } }}>
-                  <Stack spacing={1.5} direction="row" flexWrap="wrap" justifyContent="center" useFlexGap>
-                    {suggestionButtons.map((btn, index) => (
-                      <Button
-                        key={index}
-                        variant="outlined"
-                        onClick={() => handleSuggestionClick(btn.query)}
-                        disabled={loading || !projectId || loadingHistory}
-                        sx={{
-                          borderRadius: 3,
-                          px: { xs: 1.5, md: 2 },
-                          py: { xs: 0.75, md: 1 },
-                          textTransform: "none",
-                          fontSize: { xs: "0.75rem", md: "0.875rem" },
-                          borderColor: "primary.main",
-                          color: "primary.main",
-                          "&:hover": {
-                            bgcolor: "primary.main",
-                            color: "primary.contrastText",
-                            borderColor: "primary.main",
-                          },
-                        }}
-                        startIcon={<span>{btn.icon}</span>}
-                      >
-                        {btn.text}
-                      </Button>
-                    ))}
-                  </Stack>
-                </Box>
-              </Box>
-            )}
+        {!loadingHistory && messages.length === 0 && (
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "flex-start",
+              color: "text.secondary",
+              p: { xs: 2, md: 3 },
+              gap: { xs: 1.5, md: 2 },
+              width: "100%",
+            }}
+          >
+            <Typography
+              variant="h6"
+              sx={{ fontWeight: "bold", fontSize: { xs: "1rem", md: "1.25rem" }, textAlign: "center" }}
+            >
+              안녕하세요! 프로젝트 관리 AI 어시스턴트입니다.
+            </Typography>
+            <Typography variant="body2" sx={{ textAlign: "center", fontSize: { xs: "0.8rem", md: "0.875rem" } }}>
+              아래 버튼을 클릭하여 바로 질문하거나, 직접 입력할 수 있습니다:
+            </Typography>
+            <Box sx={{ width: "100%", maxWidth: { xs: "100%", md: 600 } }}>
+              <Stack spacing={1.5} direction="row" flexWrap="wrap" justifyContent="center" useFlexGap>
+                {suggestionButtons.map((btn, index) => (
+                  <Button
+                    key={index}
+                    variant="outlined"
+                    onClick={() => handleSuggestionClick(btn.query)}
+                    disabled={loading || !projectId || loadingHistory}
+                    sx={{
+                      borderRadius: 3,
+                      px: { xs: 1.5, md: 2 },
+                      py: { xs: 0.75, md: 1 },
+                      textTransform: "none",
+                      fontSize: { xs: "0.75rem", md: "0.875rem" },
+                      borderColor: "primary.main",
+                      color: "primary.main",
+                      "&:hover": {
+                        bgcolor: "primary.main",
+                        color: "primary.contrastText",
+                        borderColor: "primary.main",
+                      },
+                    }}
+                    startIcon={<span>{btn.icon}</span>}
+                  >
+                    {btn.text}
+                  </Button>
+                ))}
+              </Stack>
+            </Box>
+          </Box>
+        )}
 
         {!loadingHistory &&
           messages.map((message) => (
