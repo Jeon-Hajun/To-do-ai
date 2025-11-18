@@ -1049,9 +1049,10 @@ exports.chat = async function(req, res, next) {
             [projectId],
             function(err, rows) {
               if (err) {
+                console.error('[AI Controller] chat - Task 조회 오류:', err);
                 resolve([]);
               } else {
-                resolve(rows.map(t => ({
+                const taskList = rows.map(t => ({
                   id: t.id,
                   title: t.title,
                   description: t.description,
@@ -1059,7 +1060,15 @@ exports.chat = async function(req, res, next) {
                   dueDate: t.due_date,
                   createdAt: t.created_at,
                   tags: t.tags ? t.tags.split(',') : []
-                })));
+                }));
+                console.log('[AI Controller] chat - Task 조회 완료:', taskList.length, '개');
+                if (taskList.length > 0) {
+                  console.log('[AI Controller] chat - Task 샘플 (최대 3개):', 
+                    taskList.slice(0, 3).map(t => `ID:${t.id} "${t.title}"`).join(', '));
+                } else {
+                  console.warn('[AI Controller] chat - ⚠️ 프로젝트에 Task가 없습니다!');
+                }
+                resolve(taskList);
               }
             }
           );
@@ -1112,6 +1121,13 @@ exports.chat = async function(req, res, next) {
         
         // AI 백엔드로 요청 전달
         console.log('[AI Controller] chat - AI 백엔드로 요청 전송:', AI_BACKEND_URL);
+        console.log('[AI Controller] chat - Context 요약:', {
+          tasksCount: tasks.length,
+          commitsCount: commits.length,
+          issuesCount: issues.length,
+          membersCount: projectMembersWithTags.length,
+          hasGithubRepo: !!project.github_repo
+        });
         const aiResponse = await axios.post(
           `${AI_BACKEND_URL}/api/ai/chat`,
           {
