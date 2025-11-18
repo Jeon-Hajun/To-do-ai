@@ -35,7 +35,7 @@ import {
   assignTask,
   updateTaskStatus,
 } from "../../api/tasks";
-import { getTaskAssignmentRecommendation } from "../../api/ai";
+import { getTaskAssignmentRecommendation, getBatchTaskAssignmentRecommendations } from "../../api/ai";
 import { getProfileImageSrc } from "../../utils/profileImage";
 import TaskAdd from "./TaskAdd";
 import { normalizeStatus, getStatusDisplay } from "../../utils/taskStatus";
@@ -51,6 +51,11 @@ export default function TaskManagement({ projectId }) {
   const [aiRecommendationData, setAiRecommendationData] = useState(null);
   const [aiRecommendationLoading, setAiRecommendationLoading] = useState(false);
   const [aiRecommendationTaskId, setAiRecommendationTaskId] = useState(null);
+  
+  // 일괄 할당 관련 state
+  const [batchAssignmentOpen, setBatchAssignmentOpen] = useState(false);
+  const [batchAssignmentData, setBatchAssignmentData] = useState(null);
+  const [batchAssignmentLoading, setBatchAssignmentLoading] = useState(false);
 
   // 프로젝트 멤버 조회
   const { data: members = [], isLoading: membersLoading } = useQuery({
@@ -215,6 +220,82 @@ export default function TaskManagement({ projectId }) {
     return members.find((m) => m.id === userId);
   };
 
+  // 미할당 Task 목록
+  const unassignedTasks = tasks.filter((task) => !task.assignedUserId);
+
+  // 일괄 할당 요청
+  const handleBatchAiAssignment = async () => {
+    if (unassignedTasks.length === 0) {
+      alert("할당할 미할당 Task가 없습니다.");
+      return;
+    }
+
+    setBatchAssignmentOpen(true);
+    setBatchAssignmentLoading(true);
+    setBatchAssignmentData(null);
+
+    try {
+      const result = await getBatchTaskAssignmentRecommendations(projectId);
+      if (result.success && result.data) {
+        setBatchAssignmentData(result.data);
+      } else {
+        setBatchAssignmentData({
+          error: result.error?.message || "일괄 할당 추천을 받을 수 없습니다.",
+        });
+      }
+    } catch (err) {
+      console.error("일괄 할당 추천 요청 실패:", err);
+      setBatchAssignmentData({
+        error: err.message || "일괄 할당 추천 요청 중 오류가 발생했습니다.",
+      });
+    } finally {
+      setBatchAssignmentLoading(false);
+    }
+  };
+
+  // 일괄 할당 실행
+  const handleBatchAssign = async () => {
+    if (!batchAssignmentData?.recommendations || batchAssignmentData.recommendations.length === 0) {
+      alert("할당할 추천이 없습니다.");
+      return;
+    }
+
+    const confirmMessage = `총 ${batchAssignmentData.recommendations.length}개의 Task를 할당하시겠습니까?`;
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+    const errors = [];
+
+    for (const rec of batchAssignmentData.recommendations) {
+      try {
+        await assignTask(rec.taskId, rec.recommendedUserId);
+        successCount++;
+      } catch (err) {
+        failCount++;
+        errors.push({
+          taskTitle: rec.taskTitle,
+          error: err.message || "할당 실패",
+        });
+        console.error(`Task ${rec.taskId} 할당 실패:`, err);
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
+    setBatchAssignmentOpen(false);
+    setBatchAssignmentData(null);
+
+    if (failCount === 0) {
+      alert(`모든 Task(${successCount}개)가 성공적으로 할당되었습니다.`);
+    } else {
+      alert(
+        `할당 완료: ${successCount}개 성공, ${failCount}개 실패\n\n실패한 Task:\n${errors.map((e) => `- ${e.taskTitle}: ${e.error}`).join("\n")}`
+      );
+    }
+  };
+
   if (membersLoading || tasksLoading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
@@ -225,7 +306,18 @@ export default function TaskManagement({ projectId }) {
 
   return (
     <Box>
-      <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", mb: 3 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+        {unassignedTasks.length > 0 && (
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AutoAwesomeIcon />}
+            onClick={handleBatchAiAssignment}
+            disabled={batchAssignmentLoading}
+          >
+            {batchAssignmentLoading ? "AI 분석 중..." : `모든 미할당 Task AI 할당 (${unassignedTasks.length}개)`}
+          </Button>
+        )}
         <Button
           variant="contained"
           color="primary"
@@ -313,24 +405,13 @@ export default function TaskManagement({ projectId }) {
                           </Typography>
                         </Stack>
                       ) : (
-                        <Stack direction="row" spacing={1}>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={(e) => handleAssignClick(e, task.id)}
-                          >
-                            할당하기
-                          </Button>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="secondary"
-                            startIcon={<AutoAwesomeIcon />}
-                            onClick={() => handleAiRecommendationClick(task.id)}
-                          >
-                            AI 추천
-                          </Button>
-                        </Stack>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={(e) => handleAssignClick(e, task.id)}
+                        >
+                          할당하기
+                        </Button>
                       )}
                     </TableCell>
                     <TableCell>
@@ -575,6 +656,146 @@ export default function TaskManagement({ projectId }) {
               disabled={assignMutation.isPending}
             >
               {assignMutation.isPending ? "할당 중..." : "할당하기"}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
+
+      {/* 일괄 할당 결과 모달 */}
+      <Dialog
+        open={batchAssignmentOpen}
+        onClose={() => {
+          setBatchAssignmentOpen(false);
+          setBatchAssignmentData(null);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>일괄 Task 할당 추천 결과</DialogTitle>
+        <DialogContent>
+          {batchAssignmentLoading ? (
+            <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+              <CircularProgress />
+              <Typography variant="body2" sx={{ ml: 2 }}>
+                AI가 모든 미할당 Task를 분석 중입니다...
+              </Typography>
+            </Box>
+          ) : batchAssignmentData?.error ? (
+            <Typography color="error">{batchAssignmentData.error}</Typography>
+          ) : batchAssignmentData ? (
+            <Box>
+              <Typography variant="body1" gutterBottom>
+                총 {batchAssignmentData.totalTasks}개 중 {batchAssignmentData.successCount}개 추천 완료
+                {batchAssignmentData.errorCount > 0 && `, ${batchAssignmentData.errorCount}개 실패`}
+              </Typography>
+              
+              {batchAssignmentData.recommendations && batchAssignmentData.recommendations.length > 0 && (
+                <Box sx={{ mt: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    추천 결과
+                  </Typography>
+                  <TableContainer component={Paper} sx={{ mt: 2 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Task</TableCell>
+                          <TableCell>추천 담당자</TableCell>
+                          <TableCell>이유</TableCell>
+                          <TableCell>신뢰도</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {batchAssignmentData.recommendations.map((rec) => {
+                          const recommendedMember = getMemberById(rec.recommendedUserId);
+                          return (
+                            <TableRow key={rec.taskId}>
+                              <TableCell>
+                                <Typography variant="body2" fontWeight="medium">
+                                  {rec.taskTitle}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                {recommendedMember ? (
+                                  <Stack direction="row" spacing={1} alignItems="center">
+                                    <Box
+                                      component="img"
+                                      src={getProfileImageSrc(recommendedMember.profileImage, true)}
+                                      alt={recommendedMember.nickname || recommendedMember.email}
+                                      sx={{
+                                        width: 32,
+                                        height: 32,
+                                        borderRadius: "50%",
+                                        objectFit: "cover",
+                                      }}
+                                    />
+                                    <Typography variant="body2">
+                                      {recommendedMember.nickname || recommendedMember.email}
+                                    </Typography>
+                                  </Stack>
+                                ) : (
+                                  <Typography variant="body2" color="text.secondary">
+                                    사용자 ID: {rec.recommendedUserId}
+                                  </Typography>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" color="text.secondary">
+                                  {rec.reason || "이유 없음"}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={rec.confidence || "medium"}
+                                  size="small"
+                                  color={
+                                    rec.confidence === "high"
+                                      ? "success"
+                                      : rec.confidence === "medium"
+                                      ? "warning"
+                                      : "default"
+                                  }
+                                />
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              )}
+              
+              {batchAssignmentData.errors && batchAssignmentData.errors.length > 0 && (
+                <Box sx={{ mt: 3 }}>
+                  <Typography variant="h6" gutterBottom color="error">
+                    실패한 Task ({batchAssignmentData.errors.length}개)
+                  </Typography>
+                  <Box sx={{ mt: 1 }}>
+                    {batchAssignmentData.errors.map((err, idx) => (
+                      <Typography key={idx} variant="body2" color="error" sx={{ mb: 0.5 }}>
+                        - {err.taskTitle}: {err.error}
+                      </Typography>
+                    ))}
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setBatchAssignmentOpen(false);
+            setBatchAssignmentData(null);
+          }}>
+            닫기
+          </Button>
+          {batchAssignmentData?.recommendations && batchAssignmentData.recommendations.length > 0 && (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleBatchAssign}
+            >
+              전체 할당하기 ({batchAssignmentData.recommendations.length}개)
             </Button>
           )}
         </DialogActions>

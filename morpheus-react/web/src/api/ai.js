@@ -260,3 +260,50 @@ export const getTaskAssignmentRecommendation = async (projectId, taskId = null) 
   return result;
 };
 
+/**
+ * 일괄 Task 할당 추천 받기
+ * @param {number} projectId - 프로젝트 ID
+ * @returns {Promise<Object>} { success, data: { recommendations, errors, totalTasks, successCount, errorCount, message }, error }
+ */
+export const getBatchTaskAssignmentRecommendations = async (projectId) => {
+  console.log('[AI API] getBatchTaskAssignmentRecommendations 호출:', { projectId });
+  
+  if (!projectId) {
+    console.error('[AI API] getBatchTaskAssignmentRecommendations - projectId 없음');
+    return { success: false, error: { message: "프로젝트 ID 필요" } };
+  }
+  
+  // 일괄 할당 요청 메시지
+  const message = "모든 미할당 task를 한번에 할당해줘";
+  
+  const result = await callApi("post", `${API_URL}/chat`, {
+    projectId,
+    message,
+    conversationHistory: []
+  });
+  
+  console.log('[AI API] getBatchTaskAssignmentRecommendations 결과:', { 
+    success: result.success, 
+    hasData: !!result.data,
+    agentType: result.data?.agent_type,
+    hasError: !!result.error
+  });
+  
+  // 응답 형식 변환 (chat 응답을 일괄 할당 추천 응답 형식으로)
+  if (result.success && result.data?.response?.type === 'batch_task_assignment') {
+    return {
+      success: true,
+      data: {
+        recommendations: result.data.response.recommendations || [],
+        errors: result.data.response.errors || [],
+        totalTasks: result.data.response.totalTasks || 0,
+        successCount: result.data.response.successCount || 0,
+        errorCount: result.data.response.errorCount || 0,
+        message: result.data.response.message || result.data.message
+      }
+    };
+  }
+  
+  return result;
+};
+

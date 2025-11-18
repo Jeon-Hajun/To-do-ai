@@ -139,7 +139,26 @@ def route_to_agent(agent_type, context, call_llm_func, user_message=None):
     elif agent_type == "task_completion_agent":
         return execute_task_completion_agent(context, call_llm_func, user_message)
     elif agent_type == "task_assignment_agent":
+        # 일괄 할당 요청인지 확인
+        if user_message:
+            user_message_lower = user_message.lower()
+            batch_keywords = ['모든', '전체', '일괄', '한번에', '모두', 'all', 'batch', 'bulk']
+            task_keywords = ['task', '작업', '할일', '태스크']
+            assign_keywords = ['할당', 'assign', '배정']
+            
+            is_batch_request = (
+                any(keyword in user_message_lower for keyword in batch_keywords) and
+                any(keyword in user_message_lower for keyword in task_keywords) and
+                any(keyword in user_message_lower for keyword in assign_keywords)
+            )
+            
+            if is_batch_request:
+                print(f"[Agent Router] 일괄 Task 할당 요청 감지: {user_message}")
+                return execute_batch_task_assignment_agent(context, call_llm_func, user_message)
+        
         return execute_task_assignment_agent(context, call_llm_func, user_message)
+    elif agent_type == "batch_task_assignment_agent":
+        return execute_batch_task_assignment_agent(context, call_llm_func, user_message)
     elif agent_type == "general_qa_agent":
         return execute_general_qa_agent(context, call_llm_func, user_message)
     else:
@@ -1741,4 +1760,156 @@ def execute_task_assignment_agent(context, call_llm_func, user_message=None):
                 "message": "Task 할당 추천 중 오류가 발생했습니다."
             }
         }
+
+def execute_batch_task_assignment_agent(context, call_llm_func, user_message=None):
+    """여러 Task를 한번에 할당 추천하는 agent 실행"""
+    import json
+    
+    project_members_with_tags = context.get('projectMembersWithTags', [])
+    unassigned_tasks = context.get('unassignedTasks', [])
+    tasks = context.get('tasks', []) or context.get('currentTasks', [])
+    
+    print(f"[Agent Router] 일괄 Task 할당 - 미할당 Task 수: {len(unassigned_tasks) if unassigned_tasks else 0}")
+    print(f"[Agent Router] 일괄 Task 할당 - 프로젝트 멤버 수: {len(project_members_with_tags) if project_members_with_tags else 0}")
+    
+    # 미할당 Task가 없으면 에러
+    if not unassigned_tasks or len(unassigned_tasks) == 0:
+        return {
+            "agent_type": "batch_task_assignment_agent",
+            "error": "미할당 Task가 없습니다.",
+            "response": {
+                "type": "error",
+                "message": "할당할 미할당 Task가 없습니다."
+            }
+        }
+    
+    # 프로젝트 멤버 검증
+    if not project_members_with_tags or len(project_members_with_tags) == 0:
+        return {
+            "agent_type": "batch_task_assignment_agent",
+            "error": "프로젝트 멤버 정보가 필요합니다.",
+            "response": {
+                "type": "error",
+                "message": "프로젝트 멤버 정보가 없어 Task 할당 추천을 할 수 없습니다."
+            }
+        }
+    
+    # 멤버가 1명만 있으면 모든 Task를 그 멤버에게 할당
+    if len(project_members_with_tags) == 1:
+        single_member = project_members_with_tags[0]
+        recommendations = []
+        for task in unassigned_tasks:
+            recommendations.append({
+                "taskId": task.get('id'),
+                "taskTitle": task.get('title', ''),
+                "recommendedUserId": single_member.get('userId'),
+                "reason": f"프로젝트에 멤버가 1명뿐이므로 {single_member.get('nickname', 'Unknown')}님에게 할당합니다.",
+                "confidence": "high",
+                "matchScore": 100
+            })
+        
+        return {
+            "agent_type": "batch_task_assignment_agent",
+            "response": {
+                "type": "batch_task_assignment",
+                "recommendations": recommendations,
+                "totalTasks": len(unassigned_tasks),
+                "message": f"프로젝트에 멤버가 1명뿐이므로 모든 미할당 Task({len(unassigned_tasks)}개)를 {single_member.get('nickname', 'Unknown')}님에게 할당합니다."
+            }
+        }
+    
+    # 여러 Task에 대해 각각 추천 수행
+    recommendations = []
+    errors = []
+    
+    for task in unassigned_tasks:
+        task_id = task.get('id')
+        task_title = task.get('title', '')
+        task_description = task.get('description', '')
+        task_tags = task.get('tags', [])
+        
+        print(f"[Agent Router] 일괄 Task 할당 - Task 처리 중: {task_title} (ID: {task_id})")
+        
+        try:
+            # 개별 Task에 대한 context 생성
+            task_context = context.copy()
+            task_context['taskTitle'] = task_title
+            task_context['taskDescription'] = task_description
+            task_context['taskTags'] = task_tags
+            task_context['taskId'] = task_id
+            
+            # 개별 Task 할당 추천 수행
+            result = execute_task_assignment_agent(
+                context=task_context,
+                call_llm_func=call_llm_func,
+                user_message=None
+            )
+            
+            if result.get('error'):
+                errors.append({
+                    "taskId": task_id,
+                    "taskTitle": task_title,
+                    "error": result.get('error')
+                })
+                continue
+            
+            response = result.get('response', {})
+            if response.get('type') == 'task_assignment':
+                recommendations.append({
+                    "taskId": task_id,
+                    "taskTitle": task_title,
+                    "recommendedUserId": response.get('recommendedUserId'),
+                    "reason": response.get('reason', ''),
+                    "confidence": response.get('confidence', 'medium'),
+                    "matchScore": response.get('matchScore', 0),
+                    "requiredSkills": response.get('requiredSkills', []),
+                    "alternativeUsers": response.get('alternativeUsers', [])
+                })
+            else:
+                errors.append({
+                    "taskId": task_id,
+                    "taskTitle": task_title,
+                    "error": "추천 결과를 받을 수 없습니다."
+                })
+        except Exception as e:
+            print(f"[Agent Router] 일괄 Task 할당 - Task {task_id} 처리 실패: {e}")
+            errors.append({
+                "taskId": task_id,
+                "taskTitle": task_title,
+                "error": str(e)
+            })
+    
+    # 결과 메시지 생성
+    message_parts = []
+    message_parts.append(f"📋 **일괄 Task 할당 추천 완료**")
+    message_parts.append(f"")
+    message_parts.append(f"**처리된 Task**: {len(recommendations)}개")
+    if errors:
+        message_parts.append(f"**실패한 Task**: {len(errors)}개")
+    
+    if recommendations:
+        message_parts.append(f"")
+        message_parts.append(f"**추천 결과**:")
+        for i, rec in enumerate(recommendations, 1):
+            recommended_user = next(
+                (m for m in project_members_with_tags if m.get('userId') == rec.get('recommendedUserId')),
+                None
+            )
+            user_name = recommended_user.get('nickname', 'Unknown') if recommended_user else 'Unknown'
+            message_parts.append(f"{i}. **{rec.get('taskTitle', 'Unknown')}** → {user_name}님")
+    
+    message = "\n".join(message_parts)
+    
+    return {
+        "agent_type": "batch_task_assignment_agent",
+        "response": {
+            "type": "batch_task_assignment",
+            "recommendations": recommendations,
+            "errors": errors,
+            "totalTasks": len(unassigned_tasks),
+            "successCount": len(recommendations),
+            "errorCount": len(errors),
+            "message": message
+        }
+    }
 
