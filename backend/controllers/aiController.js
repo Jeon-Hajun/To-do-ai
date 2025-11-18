@@ -1066,16 +1066,28 @@ exports.chat = async function(req, res, next) {
         });
         
         // 프로젝트 멤버들의 Tag 정보 수집 (Task 할당을 위해)
+        // owner도 포함하여 조회 (project_members에 없을 수 있음)
         const projectMembersWithTags = await new Promise((resolve, reject) => {
           db.all(
-            `SELECT u.id as user_id, u.nickname, 
-                    GROUP_CONCAT(ut.tag) as tags
-             FROM project_members pm
-             JOIN users u ON pm.user_id = u.id
+            `SELECT DISTINCT u.id as user_id, u.nickname, 
+                    GROUP_CONCAT(DISTINCT ut.tag) as tags
+             FROM (
+               -- project_members 테이블의 멤버
+               SELECT pm.user_id
+               FROM project_members pm
+               WHERE pm.project_id = ?
+               
+               UNION
+               
+               -- owner (project_members에 없을 수 있음)
+               SELECT p.owner_id as user_id
+               FROM projects p
+               WHERE p.id = ?
+             ) all_members
+             JOIN users u ON all_members.user_id = u.id
              LEFT JOIN user_tags ut ON u.id = ut.user_id
-             WHERE pm.project_id = ?
              GROUP BY u.id, u.nickname`,
-            [projectId],
+            [projectId, projectId],
             function(err, rows) {
               if (err) {
                 console.error('[AI Controller] chat - 프로젝트 멤버 조회 오류:', err);
@@ -1084,11 +1096,13 @@ exports.chat = async function(req, res, next) {
                 const members = rows.map(r => ({
                   userId: r.user_id,
                   nickname: r.nickname,
-                  tags: r.tags ? r.tags.split(',') : []
+                  tags: r.tags ? r.tags.split(',').filter(t => t) : []  // 빈 태그 제거
                 }));
                 console.log('[AI Controller] chat - 프로젝트 멤버 조회 완료:', members.length, '명');
                 if (members.length === 0) {
                   console.warn('[AI Controller] chat - ⚠️ 프로젝트 멤버가 없습니다!');
+                } else {
+                  console.log('[AI Controller] chat - 멤버 목록:', members.map(m => `${m.nickname}(${m.userId})`).join(', '));
                 }
                 resolve(members);
               }
