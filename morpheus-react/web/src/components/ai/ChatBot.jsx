@@ -535,7 +535,7 @@ export default function ChatBot({ projectId, onError }) {
   };
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: { xs: 300, md: 500 } }}>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", flex: 1, minHeight: 0 }}>
       {/* 헤더 */}
       <Box
         sx={{
