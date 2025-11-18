@@ -1506,13 +1506,26 @@ def execute_task_assignment_agent(context, call_llm_func, user_message=None):
         }
     
     # 프로젝트 멤버 검증
-    if not project_members_with_tags or len(project_members_with_tags) == 0:
+    print(f"[Agent Router] Task 할당 - 멤버 검증: project_members_with_tags={project_members_with_tags}, type={type(project_members_with_tags)}")
+    if not project_members_with_tags:
+        print(f"[Agent Router] Task 할당 - ⚠️ project_members_with_tags가 None 또는 빈 값")
         return {
             "agent_type": "task_assignment_agent",
             "error": "프로젝트 멤버 정보가 필요합니다.",
             "response": {
                 "type": "error",
-                "message": "프로젝트 멤버 정보가 없어 Task 할당 추천을 할 수 없습니다."
+                "message": "프로젝트 멤버 정보가 없어 Task 할당 추천을 할 수 없습니다. 프로젝트에 멤버를 추가해주세요."
+            }
+        }
+    
+    if len(project_members_with_tags) == 0:
+        print(f"[Agent Router] Task 할당 - ⚠️ project_members_with_tags가 빈 배열")
+        return {
+            "agent_type": "task_assignment_agent",
+            "error": "프로젝트 멤버 정보가 필요합니다.",
+            "response": {
+                "type": "error",
+                "message": "프로젝트에 멤버가 없습니다. 프로젝트에 멤버를 추가한 후 다시 시도해주세요."
             }
         }
     
