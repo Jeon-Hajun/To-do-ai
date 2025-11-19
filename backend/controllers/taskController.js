@@ -634,7 +634,7 @@ exports.assign = function(req, res, next) {
 
 // 작업 삭제
 exports.delete = function(req, res, next) {
-  const { id } = req.body;
+  const { id } = req.query;
   const userId = req.user.userId;
   
   // 입력 검증
