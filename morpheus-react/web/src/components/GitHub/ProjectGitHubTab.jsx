@@ -96,7 +96,7 @@ export default function ProjectGitHubTab({ projectId, githubRepo: initialGithubR
     setConnectError(null);
     
     try {
-      // PM to the AM 구조에 맞게 updateProject 사용
+      // PM Agent 구조에 맞게 updateProject 사용
       const res = await updateProject({
         projectId,
         update: {

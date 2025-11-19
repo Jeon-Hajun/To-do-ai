@@ -1,6 +1,6 @@
-# To-do-ai-agent
+# PM Agent
 
-To-do app + AI agent project by team Wasabi
+PM 업무 자동화를 위한 AI 에이전트 플랫폼 (Team Wasabi)
 
 기본적인 웹 애플리케이션 개발을 위한 프로젝트 템플릿입니다.
 
@@ -8,7 +8,7 @@ To-do app + AI agent project by team Wasabi
 
 ```
 project/
-├── morpheus-react/          # 프론트엔드 (모피어스 리액트)
+├── morpheus-react/          # PM Agent 하이브리드 프론트엔드 (Morpheus + React)
 ├── backend/                 # 백엔드 (Node.js + Express)
 ├── ai-backend/              # AI 백엔드 (Flask)
 └── document/                # 문서

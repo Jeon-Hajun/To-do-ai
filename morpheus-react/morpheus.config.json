@@ -2,6 +2,6 @@
   "legacyJsOutPut": "web/public/js",
   "projectName": "iitp_swedu",
   "androidPackageName": "mcore.edu.asdf",
-  "androidAppName": "asdf",
+  "androidAppName": "PM Agent",
   "applicationId": "mcore.edu"
 }

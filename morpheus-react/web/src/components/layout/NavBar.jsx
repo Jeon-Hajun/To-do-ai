@@ -59,7 +59,7 @@ export default function Navbar({ isMobileLayout }) {
               variant="h6"
               sx={{ flexGrow: 1, textAlign: "center", fontWeight: 700 }}
             >
-              PM to the AM
+              PM Agent
             </Typography>
             <Box width={36} />
           </Toolbar>
@@ -184,7 +184,7 @@ export default function Navbar({ isMobileLayout }) {
             fontWeight: 700,
           }}
         >
-          PM to the AM
+          PM Agent
         </Typography>
 
         <Box display="flex" alignItems="center" gap={1} ml="auto">
