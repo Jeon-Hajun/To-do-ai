@@ -781,9 +781,7 @@ export default function ChatBot({ projectId, onError }) {
                     )}
                   </Box>
                 ) : (
-                  <Typography variant="body1" component="div" sx={{ fontSize: { xs: "0.875rem", md: "1rem" } }}>
-                    {message.content}
-                  </Typography>
+                  <MarkdownRenderer content={message.content} />
                 )}
                 {message.agentType && !message.isProgress && (
                   <Chip
