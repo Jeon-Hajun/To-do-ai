@@ -150,6 +150,23 @@ export default function SignupPage() {
           ← 뒤로
         </Button>
 
+        <Box
+          component="img"
+          src="/app-logo.png"
+          alt="PM Agent"
+          onError={(e) => {
+            console.error('로고 이미지 로드 실패:', e);
+          }}
+          sx={{
+            width: 120,
+            height: 'auto',
+            mx: 'auto',
+            mb: 2,
+            objectFit: 'contain',
+            display: 'block',
+          }}
+        />
+
         <Typography
           variant="h5"
           sx={{ 

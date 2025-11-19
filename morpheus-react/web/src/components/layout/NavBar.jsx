@@ -55,6 +55,21 @@ export default function Navbar({ isMobileLayout }) {
             <IconButton edge="start" color="inherit" onClick={() => setDrawerOpen(true)}>
               <MenuIcon />
             </IconButton>
+            <Box
+              component="img"
+              src="/app-logo.png"
+              alt="PM Agent"
+              onError={(e) => {
+                console.error('로고 이미지 로드 실패:', e);
+              }}
+              sx={{
+                height: 32,
+                width: 'auto',
+                mr: 1,
+                objectFit: 'contain',
+                display: 'block',
+              }}
+            />
             <Typography
               variant="h6"
               sx={{ flexGrow: 1, textAlign: "center", fontWeight: 700 }}
@@ -67,9 +82,25 @@ export default function Navbar({ isMobileLayout }) {
 
         <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
           <Box sx={{ width: 250 }}>
-            <Typography variant="h6" sx={{ p: 2 }}>
-              Navigation
-            </Typography>
+            <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box
+                component="img"
+                src="/app-logo.png"
+                alt="PM Agent"
+                onError={(e) => {
+                  console.error('로고 이미지 로드 실패:', e);
+                }}
+                sx={{
+                  height: 32,
+                  width: 'auto',
+                  objectFit: 'contain',
+                  display: 'block',
+                }}
+              />
+              <Typography variant="h6">
+                Navigation
+              </Typography>
+            </Box>
             <Divider />
             <List>
               {navLinks.map((link) => (
@@ -131,6 +162,21 @@ export default function Navbar({ isMobileLayout }) {
   return (
     <AppBar position="fixed">
       <Toolbar sx={{ minHeight: APPBAR_HEIGHT, px: { xs: 1, sm: 2, md: 3 } }}>
+        <Box
+          component="img"
+          src="/app-logo.png"
+          alt="PM Agent"
+          onError={(e) => {
+            console.error('로고 이미지 로드 실패:', e);
+          }}
+          sx={{
+            height: 40,
+            width: 'auto',
+            mr: 2,
+            objectFit: 'contain',
+            display: 'block',
+          }}
+        />
         <Box display="flex" gap={2}>
           {navLinks.map((link) => {
             const isSelected = location.pathname === link.path;

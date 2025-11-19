@@ -91,6 +91,22 @@ export default function Login() {
           boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
         }}
       >
+        <Box
+          component="img"
+          src="/app-logo.png"
+          alt="PM Agent"
+          onError={(e) => {
+            console.error('로고 이미지 로드 실패:', e);
+          }}
+          sx={{
+            width: 120,
+            height: 'auto',
+            mx: 'auto',
+            mb: 2,
+            objectFit: 'contain',
+            display: 'block',
+          }}
+        />
         <CardHeader
           title={
             <Typography
