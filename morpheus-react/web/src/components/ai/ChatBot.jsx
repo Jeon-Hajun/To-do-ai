@@ -182,8 +182,8 @@ export default function ChatBot({ projectId, onError }) {
         if (progressMessages.length > 0) {
           // 진행 메시지들을 모두 추가 (최근 3개만 표시)
           setMessages((prev) => {
-            // 기존 진행 메시지 제거
-            const filtered = prev.filter(msg => !msg.isProgress || msg.id === progressMessageId);
+            // 기존 진행 메시지 모두 제거 (progressMessageId 포함)
+            const filtered = prev.filter(msg => !msg.isProgress);
             
             // 새로운 진행 메시지들 추가 (모든 메시지 표시)
             const recentProgressMessages = progressMessages.map((msg, idx) => ({
@@ -383,8 +383,8 @@ export default function ChatBot({ projectId, onError }) {
         if (progressMessages.length > 0) {
           // 진행 메시지들을 모두 추가 (최근 3개만 표시)
           setMessages((prev) => {
-            // 기존 진행 메시지 제거
-            const filtered = prev.filter(msg => !msg.isProgress || msg.id === progressMessageId);
+            // 기존 진행 메시지 모두 제거 (progressMessageId 포함)
+            const filtered = prev.filter(msg => !msg.isProgress);
             
             // 새로운 진행 메시지들 추가 (모든 메시지 표시)
             const recentProgressMessages = progressMessages.map((msg, idx) => ({
