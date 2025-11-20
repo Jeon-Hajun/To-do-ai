@@ -1269,23 +1269,8 @@ def execute_task_completion_agent(context, call_llm_func, user_message=None):
                 print(f"[Agent Router] Task 완료 확인 - Task 제목으로 찾음: {task_title}")
                 break
     
-    # 3. user_message에서 Task ID 또는 번호 추출 시도 (우선순위 3)
+    # 3. user_message에서 Task ID 추출 시도 (우선순위 3) - 명확한 ID만 처리
     if not task and user_message and tasks:
-        # 번호 패턴 (예: "1번", "2번 task", "첫 번째")
-        number_patterns = [
-            r'(\d+)\s*번',
-            r'(\d+)\s*번째',
-            r'(\d+)\s*번\s*task',
-            r'(\d+)\s*번\s*작업'
-        ]
-        for pattern in number_patterns:
-            match = re.search(pattern, user_message, re.IGNORECASE)
-            if match:
-                number = int(match.group(1))
-                # 이전 대화에서 matched_tasks가 있었는지 확인 (context에서 가져올 수 없으므로 일단 스킵)
-                # 대신 일반 task ID 패턴으로 처리
-                break
-        
         # Task ID 패턴 (예: "Task 123", "#123", "id: 123")
         task_id_patterns = [
             r'(?:task|작업|할일)\s*[#:]?\s*(\d+)',
@@ -1306,28 +1291,111 @@ def execute_task_completion_agent(context, call_llm_func, user_message=None):
                 if task:
                     break
     
-    # 4. user_message에서 Task 제목 매칭 시도 (우선순위 4)
-    if not task and user_message and tasks:
-        user_message_lower = user_message.lower()
-        matched_tasks = []
-        for t in tasks[:20]:  # 최대 20개까지 확인
-            task_title_lower = t.get('title', '').lower()
-            if task_title_lower and task_title_lower in user_message_lower:
-                matched_tasks.append((len(task_title_lower), t))
+    # Task를 찾지 못한 경우 - LLM에게 task list를 주고 매칭되는 task를 찾도록 함
+    if not task:
+        if not tasks or len(tasks) == 0:
+            return {
+                "agent_type": "task_completion_agent",
+                "error": "Task 정보가 필요합니다.",
+                "response": {
+                    "type": "error",
+                    "message": "프로젝트에 Task가 없습니다."
+                }
+            }
         
-        if matched_tasks:
-            # 가장 긴 매칭 선택 (더 정확함)
-            matched_tasks.sort(reverse=True, key=lambda x: x[0])
+        # LLM에게 task list와 사용자 메시지를 주고 매칭되는 task를 찾도록 요청
+        task_list_text = "다음은 프로젝트의 Task 목록입니다:\n\n"
+        for idx, t in enumerate(tasks[:30], 1):  # 최대 30개까지 표시
+            task_status = t.get('status', 'todo')
+            status_kr = {
+                'todo': '대기',
+                'in_progress': '진행중',
+                'done': '완료'
+            }.get(task_status, task_status)
+            task_list_text += f"{idx}. [ID: {t.get('id', 'N/A')}] {t.get('title', '제목 없음')} (상태: {status_kr})\n"
+            if t.get('description'):
+                task_list_text += f"   설명: {t.get('description', '')[:100]}\n"
+        
+        prompt = f"""사용자가 Task 완료 확인을 요청했습니다. 다음 Task 목록에서 사용자 메시지와 매칭되는 Task를 찾아주세요.
+
+{task_list_text}
+
+사용자 메시지: "{user_message}"
+
+위 Task 목록을 검토하고, 사용자 메시지와 가장 관련이 있는 Task를 찾아주세요.
+- Task ID를 명시한 경우 해당 ID의 Task를 선택하세요.
+- Task 제목이나 설명과 관련이 있는 Task를 선택하세요.
+- 여러 Task가 매칭될 수 있다면 모두 나열하세요.
+
+다음 JSON 형식으로 응답하세요:
+{{
+    "matched_task_ids": [1, 2, 3],  // 매칭된 Task ID 목록
+    "reason": "매칭 이유 설명",
+    "task_count": 2  // 매칭된 Task 개수
+}}
+
+매칭된 Task가 없으면:
+{{
+    "matched_task_ids": [],
+    "reason": "매칭되는 Task를 찾을 수 없습니다.",
+    "task_count": 0
+}}"""
+
+        system_prompt = "Task 매칭 전문가. 사용자 메시지와 Task 목록을 비교하여 관련된 Task를 찾습니다. 반드시 한국어로만 응답. JSON만 응답."
+        
+        try:
+            content = call_llm_func(prompt, system_prompt)
             
-            # 여러 task가 매칭된 경우 사용자에게 선택지 제공
-            if len(matched_tasks) > 1:
-                # 매칭된 task가 2개 이상이면 사용자에게 선택지 제공
+            # JSON 파싱
+            if '```json' in content:
+                content = content.split('```json')[1].split('```')[0].strip()
+            elif '```' in content:
+                content = content.split('```')[1].split('```')[0].strip()
+            
+            content = content.strip()
+            if '{' in content:
+                content = content[content.find('{'):]
+            if '}' in content:
+                content = content[:content.rfind('}')+1]
+            
+            match_result = json.loads(content)
+            matched_task_ids = match_result.get('matched_task_ids', [])
+            task_count = match_result.get('task_count', 0)
+            reason = match_result.get('reason', '')
+            
+            if task_count == 0:
+                return {
+                    "agent_type": "task_completion_agent",
+                    "response": {
+                        "type": "needs_more_info",
+                        "message": f"사용자 메시지와 매칭되는 Task를 찾을 수 없습니다.\n\n{task_list_text}\n\nTask ID나 제목을 명확히 지정해주세요."
+                    }
+                }
+            elif task_count == 1:
+                # 단일 매칭인 경우 해당 task 선택
+                matched_id = matched_task_ids[0]
+                for t in tasks:
+                    if t.get('id') == matched_id or str(t.get('id')) == str(matched_id):
+                        task = t
+                        task_title = t.get('title', '')
+                        task_description = t.get('description', '')
+                        print(f"[Agent Router] Task 완료 확인 - LLM이 Task ID {matched_id} 선택: {task_title}")
+                        break
+            else:
+                # 여러 task가 매칭된 경우 사용자에게 선택지 제공
+                matched_task_list = []
+                for matched_id in matched_task_ids[:10]:  # 최대 10개만 표시
+                    for t in tasks:
+                        if t.get('id') == matched_id or str(t.get('id')) == str(matched_id):
+                            matched_task_list.append(t)
+                            break
+                
                 task_list = []
-                for idx, (_, t) in enumerate(matched_tasks[:10], 1):  # 최대 10개만 표시
+                for idx, t in enumerate(matched_task_list, 1):
                     task_list.append(f"{idx}. {t.get('title', '제목 없음')} (ID: {t.get('id', 'N/A')})")
                 
                 message_parts = [
-                    f"다음 {len(matched_tasks)}개의 Task가 매칭되었습니다:",
+                    f"다음 {len(matched_task_list)}개의 Task가 매칭되었습니다:",
                     "",
                 ]
                 message_parts.extend(task_list)
@@ -1342,24 +1410,29 @@ def execute_task_completion_agent(context, call_llm_func, user_message=None):
                     "response": {
                         "type": "needs_more_info",
                         "message": "\n".join(message_parts),
-                        "matched_tasks": [{"id": t.get('id'), "title": t.get('title', '')} for _, t in matched_tasks[:10]]
+                        "matched_tasks": [{"id": t.get('id'), "title": t.get('title', '')} for t in matched_task_list]
                     }
                 }
-            else:
-                # 단일 매칭인 경우 바로 선택
-                task = matched_tasks[0][1]
-                task_title = task.get('title', '')
-                task_description = task.get('description', '')
-                print(f"[Agent Router] Task 완료 확인 - 메시지에서 Task 제목 매칭: {task_title}")
+        
+        except Exception as e:
+            print(f"[Agent Router] Task 완료 확인 - LLM 매칭 실패: {e}")
+            return {
+                "agent_type": "task_completion_agent",
+                "error": "Task 매칭 실패",
+                "response": {
+                    "type": "error",
+                    "message": f"Task를 찾는 중 오류가 발생했습니다. Task ID를 명시해주세요. 예: 'Task 123 완료 확인'"
+                }
+            }
     
-    # Task를 찾지 못한 경우
+    # Task를 찾지 못한 경우 (LLM 매칭 후에도 task가 없는 경우)
     if not task:
         return {
             "agent_type": "task_completion_agent",
             "error": "Task 정보가 필요합니다.",
             "response": {
                 "type": "error",
-                "message": "Task 정보가 제공되지 않았습니다. Task 제목을 명시해주세요. 예: 'SQL 인젝션 예방 task 완료되어?' 또는 'Task 123 완료 확인'"
+                "message": "Task를 찾을 수 없습니다. Task ID를 명시해주세요. 예: 'Task 123 완료 확인'"
             }
         }
     
