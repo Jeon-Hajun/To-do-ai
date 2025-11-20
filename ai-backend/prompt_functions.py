@@ -1145,10 +1145,15 @@ def create_task_completion_followup_prompt(context, previous_result, user_messag
         return "Task 정보가 필요합니다."
     
     # 읽은 파일 정보 추가 (실제 코드 분석 강조)
+    task_title = task.get('title', '') if task else ''
     files_context = ""
     if read_files:
         files_context = "\n\n## ⚠️ 실제 코드 파일 내용 (반드시 이 내용을 기반으로 분석하세요):\n"
-        files_context += "커밋 메시지가 아닌 **실제 코드 파일 내용**을 확인하여 Task 완료 여부를 판단하세요.\n\n"
+        files_context += f"**중요**: 아래 파일 내용에서 Task 제목 \"{task_title}\"와 **직접 관련된 부분만** 찾아서 분석하세요.\n"
+        files_context += f"- 파일에 Task 제목 \"{task_title}\"와 관련 없는 다른 기능의 코드가 있어도 **완전히 무시**하세요.\n"
+        files_context += f"- 예: Task 제목이 \"유저 로그인 기능\"인 경우, 로그인, 인증, 회원가입 관련 코드만 찾으세요.\n"
+        files_context += f"- Task 할당, 멤버 조회, 디버깅 로그 등 다른 기능의 코드는 **절대 근거로 사용하지 마세요**.\n\n"
+        
         for file_info in read_files:
             path = file_info.get('path', '')
             content = file_info.get('content', '')
@@ -1160,13 +1165,19 @@ def create_task_completion_followup_prompt(context, previous_result, user_messag
             if truncated:
                 files_context += f"*(파일이 잘림, 전체 {len(content.split(chr(10)))}줄 중 일부만 표시)\n"
             files_context += f"```\n{content_preview}\n```\n\n"
+            files_context += f"**위 파일에서 Task 제목 \"{task_title}\"와 직접 관련된 함수/코드만 찾으세요.**\n\n"
             files_context += "---\n\n"
     
     base_prompt = create_followup_completion_prompt(task, previous_result, commits, projectDescription)
     
     if read_files:
-        return base_prompt + files_context + "\n\n**위 실제 코드 파일 내용을 반드시 확인하여 Task 완료 여부를 판단하세요.**\n" + \
-               "커밋 메시지나 코드 변경사항(patch)만으로 판단하지 말고, 실제 파일 내용에서 기능이 구현되어 있는지 확인하세요."
+        return base_prompt + files_context + f"\n\n**⚠️ 최종 확인**:\n" + \
+               f"1. 위 실제 코드 파일 내용을 확인하세요.\n" + \
+               f"2. 파일 내용에서 Task 제목 \"{task_title}\"와 **직접 관련된 부분만** 찾으세요.\n" + \
+               f"3. evidence에는 Task 제목 \"{task_title}\"와 직접 관련된 증거만 포함하세요.\n" + \
+               f"4. 다른 기능(예: Task 할당, 멤버 조회 등)과 관련된 코드는 **절대 근거로 사용하지 마세요**.\n" + \
+               f"5. 파일 경로와 함께 해당 파일의 어떤 함수/코드가 Task와 관련있는지 명시하세요.\n" + \
+               f"예: \"backend/controllers/userController.js의 login 함수에서 로그인 API 구현 확인\""
     else:
         return base_prompt
 

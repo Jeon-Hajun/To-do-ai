@@ -1497,22 +1497,27 @@ def execute_task_completion_agent(context, call_llm_func, user_message=None):
                 print(f"[Agent Router] Task 완료 확인 - 근거 재분석 시작 (시도 {reanalysis_count + 1}/{max_reanalysis_attempts})")
                 
                 # 재분석 프롬프트 생성
-                reanalysis_prompt = f"""이전에 생성한 근거 중 일부가 Task 제목 "{task_title}"와 관련이 없습니다.
+                reanalysis_prompt = f"""⚠️ **중요**: 이전에 생성한 근거 중 일부가 Task 제목 "{task_title}"와 관련이 없습니다.
 
 ## Task 정보
 제목: {task_title}
 설명: {task_description}
 
-## 관련 없는 근거 (제거해야 함)
+## 관련 없는 근거 (제거해야 함 - 절대 포함하지 마세요)
 {chr(10).join([f"- {ev}" for ev in irrelevant_evidence])}
 
-## 관련 있는 근거 (유지)
+## 관련 있는 근거 (유지 가능)
 {chr(10).join([f"- {ev}" for ev in verification_result.get('relevant_evidence', [])])}
 
-위 Task 제목 "{task_title}"와 직접적으로 관련된 근거만 다시 생성하세요.
-- 다른 Task나 다른 기능과 관련된 근거는 절대 포함하지 마세요.
-- Task 제목의 핵심 키워드가 근거에 포함되어야 합니다.
-- 예: Task 제목이 "유저 로그인 기능"인 경우, 로그인, 인증, 회원가입 관련 근거만 포함하세요.
+위 Task 제목 "{task_title}"와 **직접적으로 관련된 근거만** 다시 생성하세요.
+
+**엄격한 규칙**:
+1. Task 제목 "{task_title}"의 핵심 키워드가 근거에 포함되어야 합니다.
+2. 예: Task 제목이 "유저 로그인 기능"인 경우:
+   - ✅ 포함: "로그인 API 구현", "로그인 함수", "인증 로직", "회원가입 후 로그인"
+   - ❌ 제외: "Task 할당", "멤버 조회", "프로젝트 멤버 검증", "디버깅 로그"
+3. evidence 형식: "파일경로: Task 제목 '{task_title}'와 관련된 구체적인 함수/코드 설명"
+4. 예: "backend/controllers/userController.js: login 함수에서 로그인 API(/api/auth/login) 구현 확인"
 
 다음 JSON 형식으로 응답하세요:
 {{
@@ -1520,7 +1525,7 @@ def execute_task_completion_agent(context, call_llm_func, user_message=None):
   "completionPercentage": {final_result.get('completionPercentage', 0)},
   "confidence": "{final_result.get('confidence', 'low')}",
   "reason": "재분석 결과를 한국어로 설명. Task 제목 '{task_title}'와 직접 관련된 내용만 설명하세요.",
-  "evidence": ["Task 제목 '{task_title}'와 직접 관련된 증거1", "Task 제목 '{task_title}'와 직접 관련된 증거2", ...],
+  "evidence": ["파일경로: Task 제목 '{task_title}'와 직접 관련된 구체적인 증거1", "파일경로: Task 제목 '{task_title}'와 직접 관련된 구체적인 증거2", ...],
   "recommendation": "{final_result.get('recommendation', '')}",
   "locationFound": "{final_result.get('locationFound', '')}",
   "implementationStatus": "{final_result.get('implementationStatus', '')}"

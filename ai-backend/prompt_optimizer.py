@@ -565,13 +565,16 @@ SHA: {commit.get('sha', '')[:8]}
 - evidence의 각 항목은 Task 제목 "{task_title}"의 요구사항을 구현한 구체적인 증거여야 합니다.
 - 예를 들어, Task 제목이 "유저 로그인 기능"이라면, 로그인 관련 코드 변경사항만 evidence에 포함하세요.
 - Task 할당, 멤버 검증, 디버깅 로그 등 다른 기능과 관련된 근거는 포함하지 마세요.
+- evidence 형식: "파일경로: Task 제목 '{task_title}'와 관련된 구체적인 함수/코드 설명"
+- 예: "backend/controllers/userController.js: login 함수에서 로그인 API(/api/auth/login) 구현 확인"
+- 예: "morpheus-react/web/src/pages/Login.jsx: 로그인 폼 컴포넌트 구현 확인"
 
 {{
   "isCompleted": true 또는 false,
   "completionPercentage": 0-100,
   "confidence": "high|medium|low",
   "reason": "단계별 분석 과정을 한국어로 상세히 설명 (예상 위치 확인 결과, 기능 구현 여부, 코드 분석 결과, 최종 판단 근거). Task 제목 '{task_title}'와 직접 관련된 내용만 설명하세요.",
-  "evidence": ["Task 제목 '{task_title}'와 직접 관련된 증거1 (예: '로그인 API 엔드포인트(/api/auth/login) 구현 확인')", "Task 제목 '{task_title}'와 직접 관련된 증거2", ...],
+  "evidence": ["파일경로: Task 제목 '{task_title}'와 직접 관련된 구체적인 증거1 (예: 'backend/controllers/userController.js: login 함수에서 로그인 API 구현 확인')", "파일경로: Task 제목 '{task_title}'와 직접 관련된 구체적인 증거2", ...],
   "recommendation": "추천사항을 한국어로 작성",
   "locationFound": "Task 제목 '{task_title}'의 기능이 실제로 구현된 위치 (예: 'backend/controllers/authController.js')",
   "implementationStatus": "완전 구현|부분 구현|미구현"
