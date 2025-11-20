@@ -7,6 +7,9 @@ html, body {
   padding: 0;
   width: 100%;
   height: 100%;
+  /* 확대/축소 방지 (더블탭 줌 방지) */
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
 }
 
 body {
@@ -15,6 +18,9 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* 확대/축소 방지 */
+  -ms-touch-action: manipulation;
+  touch-action: manipulation;
 }
 
 #root {
