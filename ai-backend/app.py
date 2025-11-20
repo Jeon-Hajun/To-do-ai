@@ -18,7 +18,7 @@ from prompt_optimizer import (
     create_project_creation_prompt,
     create_task_assignment_prompt
 )
-from agent_router import classify_intent, route_to_agent
+from agent_router import process_chat_message
 
 # Load environment variables
 load_dotenv()
@@ -603,29 +603,18 @@ def chat():
             else:
                 return call_ollama(prompt, system_prompt, max_tokens=2000)
         
-        # 1. 의도 분류
-        print('[AI Backend] chat - 의도 분류 시작')
-        # 프로젝트 컨텍스트 요약 정보 전달
-        project_context_summary = {
-            'projectDescription': context.get('projectDescription', ''),
-            'commits': context.get('commits', [])[:10],  # 최근 10개만
-            'tasks': context.get('tasks', [])[:10],  # 최근 10개만
-            'issues': context.get('issues', [])[:10]  # 최근 10개만
-        }
-        intent_result = classify_intent(user_message, conversation_history, call_llm, project_context_summary)
-        agent_type = intent_result.get('agent_type', 'general_qa_agent')
-        confidence = intent_result.get('confidence', 'medium')
+        # 의도 분류 + Agent 실행 (통합)
+        print('[AI Backend] chat - 메시지 처리 시작')
+        result = process_chat_message(user_message, conversation_history, context, call_llm)
         
-        print(f'[AI Backend] chat - 선택된 agent: {agent_type}, 신뢰도: {confidence}')
+        agent_type = result.get('agent_type', 'general_qa_agent')
+        confidence = result.get('confidence', 'medium')
+        intent_classification = result.get('intent_classification', {})
         
-        # 2. Agent 실행
-        print(f'[AI Backend] chat - {agent_type} 실행 시작')
-        agent_result = route_to_agent(agent_type, context, call_llm, user_message)
-        
-        # 3. 에러 처리 (GITHUB_REQUIRED 등)
-        if 'error' in agent_result:
-            error_code = agent_result.get('error')
-            error_response = agent_result.get('response', {})
+        # 에러 처리 (GITHUB_REQUIRED 등)
+        if 'error' in result:
+            error_code = result.get('error')
+            error_response = result.get('response', {})
             error_message = error_response.get('message', '알 수 없는 오류가 발생했습니다.')
             
             print(f'[AI Backend] chat - 에러 발생: {error_code}')
@@ -647,18 +636,18 @@ def chat():
                 'response': error_response
             }), 500
         
-        # 4. 정상 응답 구성
+        # 정상 응답 구성
         response = {
             'agent_type': agent_type,
             'intent_classification': {
                 'confidence': confidence,
-                'reason': intent_result.get('reason', ''),
-                'extracted_info': intent_result.get('extracted_info', {})
+                'reason': intent_classification.get('reason', ''),
+                'extracted_info': intent_classification.get('extracted_info', {})
             },
-            'response': agent_result.get('response', {}),
-            'message': agent_result.get('response', {}).get('message', '응답을 생성했습니다.'),
-            'progress_messages': agent_result.get('progress_messages', []),  # 진행 상황 메시지 추가
-            'analysis_steps': agent_result.get('analysis_steps', 1)  # 분석 단계 수 추가
+            'response': result.get('response', {}),
+            'message': result.get('response', {}).get('message', '응답을 생성했습니다.'),
+            'progress_messages': result.get('progress_messages', []),  # 진행 상황 메시지 추가
+            'analysis_steps': result.get('analysis_steps', 1)  # 분석 단계 수 추가
         }
         
         print(f'[AI Backend] chat - 응답 생성 완료 (진행 메시지: {len(response.get("progress_messages", []))}개)')

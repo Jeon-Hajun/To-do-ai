@@ -32,25 +32,51 @@ from prompt_functions import (
     create_task_assignment_followup_prompt
 )
 
-def classify_intent(user_message, conversation_history, call_llm_func, project_context=None):
+def check_github_required(agent_type):
     """
-    사용자 질의의 의도를 분석하여 적절한 agent 타입을 반환합니다.
+    에이전트 타입에 따라 GitHub 연동이 필요한지 확인
+    
+    Returns:
+        bool: GitHub 연동이 필요하면 True
+    """
+    github_required_agents = [
+        "progress_analysis_agent",
+        "task_completion_agent"
+    ]
+    return agent_type in github_required_agents
+
+def process_chat_message(user_message, conversation_history, context, call_llm_func):
+    """
+    사용자 메시지를 분석하여 적절한 agent를 선택하고 실행합니다.
+    (의도 분류 + 라우팅 통합)
     
     Args:
         user_message: 사용자 메시지
         conversation_history: 대화 히스토리 리스트
+        context: agent 실행에 필요한 컨텍스트
         call_llm_func: LLM 호출 함수 (prompt, system_prompt) -> content
-        project_context: 프로젝트 컨텍스트 정보 (선택사항)
     
     Returns:
         dict: {
             "agent_type": "task_suggestion_agent|progress_analysis_agent|task_completion_agent|general_qa_agent",
             "confidence": "high|medium|low",
             "reason": "...",
-            "extracted_info": {...}
+            "intent_classification": {...},
+            "response": {...},
+            ...
         }
     """
-    prompt = create_intent_classification_prompt(user_message, conversation_history, project_context)
+    # 프로젝트 컨텍스트 요약 정보 준비
+    project_context_summary = {
+        'projectDescription': context.get('projectDescription', ''),
+        'commits': context.get('commits', [])[:10],  # 최근 10개만
+        'tasks': context.get('tasks', [])[:10],  # 최근 10개만
+        'issues': context.get('issues', [])[:10]  # 최근 10개만
+    }
+    
+    # 1. 의도 분류
+    print('[Agent Router] 의도 분류 시작')
+    prompt = create_intent_classification_prompt(user_message, conversation_history, project_context_summary)
     system_prompt = "의도 분류 전문가. 사용자 질의를 분석하여 적절한 agent를 선택합니다. 반드시 한국어로만 응답. JSON만 응답."
     
     try:
@@ -68,55 +94,34 @@ def classify_intent(user_message, conversation_history, call_llm_func, project_c
         if '}' in content:
             content = content[:content.rfind('}')+1]
         
-        result = json.loads(content)
+        intent_result = json.loads(content)
         
         # 기본값 설정
-        if 'agent_type' not in result:
-            result['agent_type'] = 'general_qa_agent'
-        if 'confidence' not in result:
-            result['confidence'] = 'medium'
+        if 'agent_type' not in intent_result:
+            intent_result['agent_type'] = 'general_qa_agent'
+        if 'confidence' not in intent_result:
+            intent_result['confidence'] = 'medium'
         
-        return result
+        agent_type = intent_result.get('agent_type', 'general_qa_agent')
+        confidence = intent_result.get('confidence', 'medium')
+        
+        print(f'[Agent Router] 선택된 agent: {agent_type}, 신뢰도: {confidence}')
+        
     except Exception as e:
         print(f"[Agent Router] 의도 분류 실패: {e}")
-        # 기본값 반환
-        return {
-            "agent_type": "general_qa_agent",
-            "confidence": "low",
+        # 기본값 사용
+        agent_type = 'general_qa_agent'
+        confidence = 'low'
+        intent_result = {
+            "agent_type": agent_type,
+            "confidence": confidence,
             "reason": f"의도 분류 실패: {str(e)}",
             "extracted_info": {}
         }
-
-def check_github_required(agent_type):
-    """
-    에이전트 타입에 따라 GitHub 연동이 필요한지 확인
     
-    Returns:
-        bool: GitHub 연동이 필요하면 True
-    """
-    github_required_agents = [
-        "progress_analysis_agent",
-        "task_completion_agent"
-    ]
-    return agent_type in github_required_agents
-
-def route_to_agent(agent_type, context, call_llm_func, user_message=None):
-    """
-    선택된 agent에 따라 적절한 프롬프트를 생성하고 실행합니다.
-    
-    Args:
-        agent_type: agent 타입
-        context: agent 실행에 필요한 컨텍스트
-        call_llm_func: LLM 호출 함수
-        user_message: 사용자 메시지 (general_qa_agent인 경우 필요)
-    
-    Returns:
-        dict: agent 실행 결과
-    """
-    
-    # GitHub 연동 필요 여부 확인
+    # 2. GitHub 연동 필요 여부 확인
     if check_github_required(agent_type):
-        github_repo = context.get('githubRepo', '')
+        github_repo = context.get('githubRepo', '') or context.get('github_repo', '')
         if not github_repo or github_repo.strip() == '':
             agent_name = {
                 "progress_analysis_agent": "진행도 분석",
@@ -125,6 +130,8 @@ def route_to_agent(agent_type, context, call_llm_func, user_message=None):
             
             return {
                 "agent_type": agent_type,
+                "confidence": confidence,
+                "intent_classification": intent_result,
                 "error": "GITHUB_REQUIRED",
                 "response": {
                     "type": "error",
@@ -132,12 +139,16 @@ def route_to_agent(agent_type, context, call_llm_func, user_message=None):
                 }
             }
     
+    # 3. Agent 실행
+    print(f'[Agent Router] {agent_type} 실행 시작')
+    agent_result = None
+    
     if agent_type == "task_suggestion_agent":
-        return execute_task_suggestion_agent(context, call_llm_func, user_message)
+        agent_result = execute_task_suggestion_agent(context, call_llm_func, user_message)
     elif agent_type == "progress_analysis_agent":
-        return execute_progress_analysis_agent(context, call_llm_func, user_message)
+        agent_result = execute_progress_analysis_agent(context, call_llm_func, user_message)
     elif agent_type == "task_completion_agent":
-        return execute_task_completion_agent(context, call_llm_func, user_message)
+        agent_result = execute_task_completion_agent(context, call_llm_func, user_message)
     elif agent_type == "task_assignment_agent":
         # 일괄 할당 요청인지 확인
         if user_message:
@@ -154,18 +165,33 @@ def route_to_agent(agent_type, context, call_llm_func, user_message=None):
             
             if is_batch_request:
                 print(f"[Agent Router] 일괄 Task 할당 요청 감지: {user_message}")
-                return execute_batch_task_assignment_agent(context, call_llm_func, user_message)
-        
-        return execute_task_assignment_agent(context, call_llm_func, user_message)
+                agent_result = execute_batch_task_assignment_agent(context, call_llm_func, user_message)
+            else:
+                agent_result = execute_task_assignment_agent(context, call_llm_func, user_message)
+        else:
+            agent_result = execute_task_assignment_agent(context, call_llm_func, user_message)
     elif agent_type == "batch_task_assignment_agent":
-        return execute_batch_task_assignment_agent(context, call_llm_func, user_message)
+        agent_result = execute_batch_task_assignment_agent(context, call_llm_func, user_message)
     elif agent_type == "general_qa_agent":
-        return execute_general_qa_agent(context, call_llm_func, user_message)
+        agent_result = execute_general_qa_agent(context, call_llm_func, user_message)
     else:
-        return {
+        agent_result = {
             "error": f"알 수 없는 agent 타입: {agent_type}",
             "agent_type": agent_type
         }
+    
+    # 4. 결과 통합
+    result = {
+        "agent_type": agent_type,
+        "confidence": confidence,
+        "intent_classification": intent_result,
+    }
+    
+    # agent_result의 모든 필드를 결과에 추가
+    if agent_result:
+        result.update(agent_result)
+    
+    return result
 
 def check_task_suggestion_info_sufficiency(context, user_message):
     """
