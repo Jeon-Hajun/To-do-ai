@@ -1200,6 +1200,7 @@ exports.chat = async function(req, res, next) {
               tasks: tasks,
               currentTasks: tasks,
               unassignedTasks: unassignedTasks,  // 미할당 Task 목록 추가
+              task: explicitTask || null,  // 명시적 Task 객체 전달 (우선순위 1)
               taskId: taskId || null,  // 명시적 taskId 전달
               taskTitle: explicitTask ? explicitTask.title : null,  // 명시적 Task 제목
               taskDescription: explicitTask ? explicitTask.description : null,  // 명시적 Task 설명

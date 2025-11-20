@@ -1215,17 +1215,85 @@ def execute_progress_analysis_agent(context, call_llm_func, user_message=None):
 
 def execute_task_completion_agent(context, call_llm_func, user_message=None):
     """Task 완료 확인 agent 실행 (다단계 분석)"""
-    task = context.get('task')
+    import re
     
+    # Task 정보 추출 (task_assignment_agent와 동일한 로직)
+    task = context.get('task')  # 직접 전달된 task 객체
+    task_title = context.get('taskTitle', '')
+    task_description = context.get('taskDescription', '')
+    task_id = context.get('taskId')
+    tasks = context.get('tasks', []) or context.get('currentTasks', [])
+    
+    # 1. context에서 직접 Task 객체 가져오기 (우선순위 1)
+    if not task and task_id and tasks:
+        for t in tasks:
+            if t.get('id') == task_id or str(t.get('id')) == str(task_id):
+                task = t
+                task_title = t.get('title', '')
+                task_description = t.get('description', '')
+                print(f"[Agent Router] Task 완료 확인 - Task ID {task_id}로 Task 찾음: {task_title}")
+                break
+    
+    # 2. taskTitle로 Task 찾기 (우선순위 2)
+    if not task and task_title and tasks:
+        for t in tasks:
+            if t.get('title', '').lower() == task_title.lower():
+                task = t
+                task_description = t.get('description', '')
+                print(f"[Agent Router] Task 완료 확인 - Task 제목으로 찾음: {task_title}")
+                break
+    
+    # 3. user_message에서 Task ID 추출 시도 (우선순위 3)
+    if not task and user_message and tasks:
+        task_id_patterns = [
+            r'(?:task|작업|할일)\s*[#:]?\s*(\d+)',
+            r'#(\d+)',
+            r'id[:\s]+(\d+)'
+        ]
+        for pattern in task_id_patterns:
+            match = re.search(pattern, user_message, re.IGNORECASE)
+            if match:
+                found_id = int(match.group(1))
+                for t in tasks:
+                    if t.get('id') == found_id or str(t.get('id')) == str(found_id):
+                        task = t
+                        task_title = t.get('title', '')
+                        task_description = t.get('description', '')
+                        print(f"[Agent Router] Task 완료 확인 - 메시지에서 Task ID {found_id} 추출: {task_title}")
+                        break
+                if task:
+                    break
+    
+    # 4. user_message에서 Task 제목 매칭 시도 (우선순위 4)
+    if not task and user_message and tasks:
+        user_message_lower = user_message.lower()
+        matched_tasks = []
+        for t in tasks[:20]:  # 최대 20개까지 확인
+            task_title_lower = t.get('title', '').lower()
+            if task_title_lower and task_title_lower in user_message_lower:
+                matched_tasks.append((len(task_title_lower), t))
+        
+        if matched_tasks:
+            # 가장 긴 매칭 선택 (더 정확함)
+            matched_tasks.sort(reverse=True, key=lambda x: x[0])
+            task = matched_tasks[0][1]
+            task_title = task.get('title', '')
+            task_description = task.get('description', '')
+            print(f"[Agent Router] Task 완료 확인 - 메시지에서 Task 제목 매칭: {task_title}")
+    
+    # Task를 찾지 못한 경우
     if not task:
         return {
             "agent_type": "task_completion_agent",
             "error": "Task 정보가 필요합니다.",
             "response": {
                 "type": "error",
-                "message": "Task 정보가 제공되지 않았습니다. Task 제목을 명시해주세요."
+                "message": "Task 정보가 제공되지 않았습니다. Task 제목을 명시해주세요. 예: 'SQL 인젝션 예방 task 완료되어?' 또는 'Task 123 완료 확인'"
             }
         }
+    
+    # task 객체를 context에 추가
+    context['task'] = task
     
     system_prompt = """당신은 코드 리뷰 전문가입니다. Task 완료 여부를 판단합니다.
 
