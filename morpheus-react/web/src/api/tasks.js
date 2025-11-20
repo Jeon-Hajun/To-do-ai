@@ -13,7 +13,27 @@ export const fetchTasksByProject = async (projectId) => {
     headers: getAuthHeader(),
     withCredentials: true,
   });
-  return res.data.data.tasks;
+  
+  // 응답 구조 확인 및 안전한 처리
+  if (!res.data) {
+    console.error('[API] fetchTasksByProject - 응답 데이터 없음:', res);
+    return [];
+  }
+  
+  if (!res.data.success) {
+    console.error('[API] fetchTasksByProject - API 실패:', res.data);
+    throw new Error(res.data.error?.message || 'Task 목록 조회에 실패했습니다.');
+  }
+  
+  // 다양한 응답 형식 지원
+  const tasks = res.data.data?.tasks || res.data.tasks || res.data.data || [];
+  
+  if (!Array.isArray(tasks)) {
+    console.error('[API] fetchTasksByProject - tasks가 배열이 아님:', tasks);
+    return [];
+  }
+  
+  return tasks;
 };
 
 // Task 상세 조회

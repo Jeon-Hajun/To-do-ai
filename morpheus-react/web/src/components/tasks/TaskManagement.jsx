@@ -73,10 +73,18 @@ export default function TaskManagement({ projectId }) {
   });
 
   // Task 조회
-  const { data: tasks = [], isLoading: tasksLoading } = useQuery({
+  const { 
+    data: tasks = [], 
+    isLoading: tasksLoading, 
+    isError: tasksError, 
+    error: tasksErrorData 
+  } = useQuery({
     queryKey: ["tasks", projectId],
     queryFn: () => fetchTasksByProject(projectId),
     enabled: !!projectId,
+    onError: (error) => {
+      console.error('[TaskManagement] Task 조회 실패:', error);
+    },
   });
 
   // Task 삭제
@@ -362,7 +370,23 @@ export default function TaskManagement({ projectId }) {
       {isMobile ? (
         // 모바일: 카드 형태
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-          {tasks.length === 0 ? (
+          {tasksLoading ? (
+            <Box sx={{ py: 4, textAlign: "center" }}>
+              <CircularProgress size={24} />
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                태스크를 불러오는 중...
+              </Typography>
+            </Box>
+          ) : tasksError ? (
+            <Box sx={{ py: 4, textAlign: "center" }}>
+              <Typography variant="body2" color="error" sx={{ mb: 1 }}>
+                태스크를 불러오는데 실패했습니다.
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {tasksErrorData?.message || "알 수 없는 오류가 발생했습니다."}
+              </Typography>
+            </Box>
+          ) : tasks.length === 0 ? (
             <Box sx={{ py: 4, textAlign: "center" }}>
               <Typography variant="body2" color="text.secondary">
                 등록된 태스크가 없습니다.
@@ -479,7 +503,27 @@ export default function TaskManagement({ projectId }) {
               </TableRow>
             </TableHead>
             <TableBody>
-              {tasks.length === 0 ? (
+              {tasksLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                    <CircularProgress size={24} />
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                      태스크를 불러오는 중...
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : tasksError ? (
+                <TableRow>
+                  <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                    <Typography variant="body2" color="error" sx={{ mb: 1 }}>
+                      태스크를 불러오는데 실패했습니다.
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {tasksErrorData?.message || "알 수 없는 오류가 발생했습니다."}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : tasks.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
                     <Typography variant="body2" color="text.secondary">
