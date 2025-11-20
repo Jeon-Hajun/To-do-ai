@@ -11,9 +11,10 @@ from prompt_optimizer import (
     create_optimized_progress_prompt,
     create_initial_completion_prompt,
     create_followup_completion_prompt,
-    create_task_assignment_prompt
+    create_task_assignment_prompt,
+    create_evidence_verification_prompt
 )
-from multi_step_agent import execute_multi_step_agent
+from multi_step_agent import execute_multi_step_agent, verify_evidence_relevance
 from prompt_functions import (
     create_task_suggestion_initial_prompt,
     create_task_suggestion_followup_prompt,
@@ -1466,6 +1467,105 @@ def execute_task_completion_agent(context, call_llm_func, user_message=None):
                 final_result = all_steps[-1]
             else:
                 final_result = {}
+        
+        # 근거 검증 단계 추가
+        evidence = final_result.get('evidence', [])
+        task_title = task.get('title', '')
+        task_description = task.get('description', '')
+        max_reanalysis_attempts = 2
+        reanalysis_count = 0
+        
+        # evidence가 있는 경우에만 검증 수행
+        if evidence:
+            print(f"[Agent Router] Task 완료 확인 - 근거 검증 시작: {len(evidence)}개 근거")
+            verification_result = verify_evidence_relevance(
+                task_title=task_title,
+                task_description=task_description,
+                evidence=evidence,
+                call_llm_func=call_llm_func
+            )
+            
+            is_relevant = verification_result.get('is_relevant', True)
+            relevance_score = verification_result.get('relevance_score', 100)
+            irrelevant_evidence = verification_result.get('irrelevant_evidence', [])
+            needs_reanalysis = verification_result.get('needs_reanalysis', False)
+            
+            print(f"[Agent Router] Task 완료 확인 - 근거 검증 결과: 관련성={is_relevant}, 점수={relevance_score}, 재분석 필요={needs_reanalysis}")
+            
+            # 관련 없는 근거가 있거나 재분석이 필요한 경우
+            if needs_reanalysis and reanalysis_count < max_reanalysis_attempts:
+                print(f"[Agent Router] Task 완료 확인 - 근거 재분석 시작 (시도 {reanalysis_count + 1}/{max_reanalysis_attempts})")
+                
+                # 재분석 프롬프트 생성
+                reanalysis_prompt = f"""이전에 생성한 근거 중 일부가 Task 제목 "{task_title}"와 관련이 없습니다.
+
+## Task 정보
+제목: {task_title}
+설명: {task_description}
+
+## 관련 없는 근거 (제거해야 함)
+{chr(10).join([f"- {ev}" for ev in irrelevant_evidence])}
+
+## 관련 있는 근거 (유지)
+{chr(10).join([f"- {ev}" for ev in verification_result.get('relevant_evidence', [])])}
+
+위 Task 제목 "{task_title}"와 직접적으로 관련된 근거만 다시 생성하세요.
+- 다른 Task나 다른 기능과 관련된 근거는 절대 포함하지 마세요.
+- Task 제목의 핵심 키워드가 근거에 포함되어야 합니다.
+- 예: Task 제목이 "유저 로그인 기능"인 경우, 로그인, 인증, 회원가입 관련 근거만 포함하세요.
+
+다음 JSON 형식으로 응답하세요:
+{{
+  "isCompleted": {str(final_result.get('isCompleted', False)).lower()},
+  "completionPercentage": {final_result.get('completionPercentage', 0)},
+  "confidence": "{final_result.get('confidence', 'low')}",
+  "reason": "재분석 결과를 한국어로 설명. Task 제목 '{task_title}'와 직접 관련된 내용만 설명하세요.",
+  "evidence": ["Task 제목 '{task_title}'와 직접 관련된 증거1", "Task 제목 '{task_title}'와 직접 관련된 증거2", ...],
+  "recommendation": "{final_result.get('recommendation', '')}",
+  "locationFound": "{final_result.get('locationFound', '')}",
+  "implementationStatus": "{final_result.get('implementationStatus', '')}"
+}}"""
+                
+                system_prompt_reanalysis = """당신은 코드 리뷰 전문가입니다. Task 완료 여부를 판단합니다.
+
+중요 규칙:
+1. 반드시 한국어로만 응답하세요.
+2. JSON 형식으로만 응답하세요.
+3. Task 제목과 직접 관련된 근거만 생성하세요. 다른 Task는 무시하세요."""
+                
+                try:
+                    reanalysis_content = call_llm_func(reanalysis_prompt, system_prompt_reanalysis)
+                    
+                    # JSON 파싱
+                    if '```json' in reanalysis_content:
+                        reanalysis_content = reanalysis_content.split('```json')[1].split('```')[0].strip()
+                    elif '```' in reanalysis_content:
+                        reanalysis_content = reanalysis_content.split('```')[1].split('```')[0].strip()
+                    
+                    reanalysis_content = reanalysis_content.strip()
+                    if '{' in reanalysis_content:
+                        reanalysis_content = reanalysis_content[reanalysis_content.find('{'):]
+                    if '}' in reanalysis_content:
+                        reanalysis_content = reanalysis_content[:reanalysis_content.rfind('}')+1]
+                    
+                    reanalysis_result = json.loads(reanalysis_content)
+                    
+                    # 재분석 결과로 evidence 업데이트
+                    final_result['evidence'] = reanalysis_result.get('evidence', verification_result.get('relevant_evidence', []))
+                    if reanalysis_result.get('reason'):
+                        final_result['reason'] = reanalysis_result.get('reason')
+                    
+                    print(f"[Agent Router] Task 완료 확인 - 근거 재분석 완료: {len(final_result.get('evidence', []))}개 근거")
+                    reanalysis_count += 1
+                except Exception as e:
+                    print(f"[Agent Router] Task 완료 확인 - 근거 재분석 실패: {e}")
+                    # 재분석 실패 시 관련 있는 근거만 사용
+                    final_result['evidence'] = verification_result.get('relevant_evidence', evidence)
+            else:
+                # 관련 있는 근거만 사용
+                if irrelevant_evidence:
+                    print(f"[Agent Router] Task 완료 확인 - 관련 없는 근거 제거: {len(irrelevant_evidence)}개")
+                    final_result['evidence'] = verification_result.get('relevant_evidence', evidence)
         
         # 사용자 친화적인 상세 메시지 생성
         is_completed = final_result.get('isCompleted', False)

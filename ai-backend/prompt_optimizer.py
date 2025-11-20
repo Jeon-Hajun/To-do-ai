@@ -438,6 +438,10 @@ def create_initial_completion_prompt(task, commits, projectDescription):
 ## 응답 형식
 다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
 
+⚠️ **중요**: evidence 필드에는 반드시 Task 제목 "{task_title}"와 직접적으로 관련된 근거만 포함하세요.
+- 다른 Task의 내용이나 다른 기능과 관련된 근거는 절대 포함하지 마세요.
+- evidence의 각 항목은 Task 제목 "{task_title}"의 요구사항을 구현한 구체적인 증거여야 합니다.
+
 **충분한 정보가 있을 때:**
 {{
   "needsMoreInfo": false,
@@ -445,7 +449,7 @@ def create_initial_completion_prompt(task, commits, projectDescription):
   "completionPercentage": 0-100,
   "confidence": "high|medium|low",
   "reason": "분석 결과를 한국어로 설명",
-  "evidence": ["증거1", "증거2"],
+  "evidence": ["Task 제목 '{task_title}'와 직접 관련된 증거1 (예: '로그인 API 엔드포인트 구현 확인')", "Task 제목 '{task_title}'와 직접 관련된 증거2"],
   "recommendation": "추천사항"
 }}
 
@@ -520,25 +524,29 @@ SHA: {commit.get('sha', '')[:8]}
 
 ## 2차 분석: 추가 탐색 및 최종 판단
 
+⚠️ **중요**: 반드시 Task 제목 "{task_title}"와 설명 "{task_description}"만 분석하세요. 다른 Task나 다른 기능은 완전히 무시하세요.
+
 이전 분석에서 예상한 위치({initial_analysis.get('expectedLocation', 'N/A')})를 중심으로 다음을 수행하세요:
 
 1. **예상 위치 확인**:
    - 예상 위치 "{initial_analysis.get('expectedLocation', 'N/A')}"에 해당하는 파일이 커밋에 포함되어 있는가?
    - 해당 파일의 코드 변경사항을 상세히 분석하세요.
+   - ⚠️ Task 제목 "{task_title}"와 관련된 코드 변경사항만 확인하세요.
 
 2. **기능 구현 여부 판단**:
-   - 예상 위치에 기능이 **완전히 구현**되어 있는가? → 완료
-   - 예상 위치에 기능이 **부분적으로 구현**되어 있는가? → 진행 중
-   - 예상 위치에 기능이 **없는가**? → 미구현
-   - 다른 위치에 기능이 구현되어 있는가? → 위치 확인 필요
+   - Task 제목 "{task_title}"의 요구사항이 예상 위치에 **완전히 구현**되어 있는가? → 완료
+   - Task 제목 "{task_title}"의 요구사항이 예상 위치에 **부분적으로 구현**되어 있는가? → 진행 중
+   - Task 제목 "{task_title}"의 요구사항이 예상 위치에 **없는가**? → 미구현
+   - Task 제목 "{task_title}"의 요구사항이 다른 위치에 구현되어 있는가? → 위치 확인 필요
 
 3. **코드 변경사항 상세 분석**:
-   - 추가된 코드가 Task 요구사항을 구현하는가?
-   - 수정된 코드가 Task 설명을 반영하는가?
-   - 코드 변경사항이 Task의 목적을 달성하는가?
+   - 추가된 코드가 Task 제목 "{task_title}"의 요구사항을 구현하는가?
+   - 수정된 코드가 Task 설명 "{task_description}"을 반영하는가?
+   - 코드 변경사항이 Task 제목 "{task_title}"의 목적을 달성하는가?
+   - ⚠️ 다른 Task나 다른 기능과 관련된 코드 변경사항은 무시하세요.
 
 4. **최종 판단**:
-   - Task 완료 여부 결정
+   - Task 제목 "{task_title}"의 완료 여부 결정
    - 완료도 결정
    - 신뢰도 결정
 
@@ -547,16 +555,94 @@ SHA: {commit.get('sha', '')[:8]}
 
 ## 응답 형식
 다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
+
+⚠️ **중요**: evidence 필드에는 반드시 Task 제목 "{task_title}"와 직접적으로 관련된 근거만 포함하세요.
+- 다른 Task의 내용이나 다른 기능과 관련된 근거는 절대 포함하지 마세요.
+- evidence의 각 항목은 Task 제목 "{task_title}"의 요구사항을 구현한 구체적인 증거여야 합니다.
+- 예를 들어, Task 제목이 "유저 로그인 기능"이라면, 로그인 관련 코드 변경사항만 evidence에 포함하세요.
+- Task 할당, 멤버 검증, 디버깅 로그 등 다른 기능과 관련된 근거는 포함하지 마세요.
+
 {{
   "isCompleted": true 또는 false,
   "completionPercentage": 0-100,
   "confidence": "high|medium|low",
-  "reason": "단계별 분석 과정을 한국어로 상세히 설명 (예상 위치 확인 결과, 기능 구현 여부, 코드 분석 결과, 최종 판단 근거)",
-  "evidence": ["증거1 (예: '예상 위치 backend/services/githubService.js에서 GitHub API 호출 방식 변경 확인')", "증거2", ...],
+  "reason": "단계별 분석 과정을 한국어로 상세히 설명 (예상 위치 확인 결과, 기능 구현 여부, 코드 분석 결과, 최종 판단 근거). Task 제목 '{task_title}'와 직접 관련된 내용만 설명하세요.",
+  "evidence": ["Task 제목 '{task_title}'와 직접 관련된 증거1 (예: '로그인 API 엔드포인트(/api/auth/login) 구현 확인')", "Task 제목 '{task_title}'와 직접 관련된 증거2", ...],
   "recommendation": "추천사항을 한국어로 작성",
-  "locationFound": "기능이 실제로 구현된 위치 (예: 'backend/services/githubService.js')",
+  "locationFound": "Task 제목 '{task_title}'의 기능이 실제로 구현된 위치 (예: 'backend/controllers/authController.js')",
   "implementationStatus": "완전 구현|부분 구현|미구현"
 }}"""
+    
+    return prompt
+
+def create_evidence_verification_prompt(task_title, task_description, evidence, previous_analysis=None):
+    """
+    근거 검증을 위한 프롬프트 생성
+    Task 제목, 설명, 생성된 evidence를 비교하여 관련성 평가
+    
+    Args:
+        task_title: Task 제목
+        task_description: Task 설명
+        evidence: 검증할 근거 리스트
+        previous_analysis: 이전 분석 결과 (선택사항)
+    
+    Returns:
+        검증 프롬프트 문자열
+    """
+    evidence_text = "\n".join([f"{i+1}. {ev}" for i, ev in enumerate(evidence)]) if evidence else "근거 없음"
+    
+    previous_context = ""
+    if previous_analysis:
+        previous_context = f"""
+## 이전 분석 결과
+{previous_analysis.get('reason', 'N/A')}
+예상 구현 위치: {previous_analysis.get('expectedLocation', 'N/A')}
+"""
+    
+    prompt = f"""당신은 Task 완료 근거 검증 전문가입니다. 생성된 근거(evidence)가 Task 제목과 설명과 직접적으로 관련이 있는지 검증하세요.
+
+⚠️ 중요: 반드시 한국어로만 응답하세요.
+
+## 분석 대상 Task
+제목: {task_title}
+설명: {task_description}
+{previous_context}
+## 검증할 근거 목록
+{evidence_text}
+
+## 검증 기준
+1. **직접 관련성**: 각 근거가 Task 제목 "{task_title}"와 직접적으로 관련이 있는가?
+   - 예: Task 제목이 "유저 로그인 기능"인 경우, "로그인 API 구현", "로그인 페이지 추가", "인증 토큰 처리" 등은 관련 있음
+   - 예: Task 제목이 "유저 로그인 기능"인 경우, "Task 할당 기능", "멤버 검증 로직", "디버깅 로그 추가" 등은 관련 없음
+
+2. **설명 일치성**: 각 근거가 Task 설명 "{task_description}"의 요구사항을 반영하는가?
+
+3. **기능 일치성**: 근거가 언급하는 기능이 Task 제목에서 요구하는 기능과 일치하는가?
+
+## 검증 규칙
+- Task 제목과 직접 관련 없는 근거는 irrelevant_evidence에 포함
+- 다른 Task나 다른 기능과 관련된 근거는 무조건 irrelevant_evidence
+- Task 제목의 핵심 키워드(예: "로그인", "인증", "회원가입" 등)가 근거에 포함되어야 함
+- 관련성 점수(relevance_score)는 관련 있는 근거의 비율로 계산 (0-100)
+- 관련 없는 근거가 1개라도 있으면 재분석이 필요합니다
+
+## 응답 형식
+다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
+{{
+  "is_relevant": true 또는 false,
+  "relevance_score": 0-100,
+  "relevant_evidence": ["관련 있는 근거1", "관련 있는 근거2"],
+  "irrelevant_evidence": ["관련 없는 근거1", "관련 없는 근거2"],
+  "needs_reanalysis": true 또는 false,
+  "reason": "검증 결과를 한국어로 상세히 설명 (왜 관련이 있거나 없는지, 재분석이 필요한지, Task 제목 '{task_title}'와 어떻게 관련이 있는지)"
+}}
+
+규칙:
+- relevance_score가 70 이상이면 is_relevant: true
+- irrelevant_evidence가 1개 이상이면 needs_reanalysis: true
+- 모든 근거가 관련 없으면 is_relevant: false, needs_reanalysis: true
+- 관련 없는 근거가 있으면 반드시 재분석이 필요합니다
+"""
     
     return prompt
 

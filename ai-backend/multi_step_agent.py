@@ -133,6 +133,124 @@ def evaluate_information_sufficiency(
             "reason": f"평가 중 오류 발생: {str(e)}"
         }
 
+def verify_evidence_relevance(
+    task_title: str,
+    task_description: str,
+    evidence: List[str],
+    call_llm_func: Callable
+) -> Dict[str, Any]:
+    """
+    Task 완료 근거(evidence)가 Task 제목과 설명과 관련성이 있는지 검증
+    
+    Args:
+        task_title: Task 제목
+        task_description: Task 설명
+        evidence: 검증할 근거 리스트
+        call_llm_func: LLM 호출 함수
+    
+    Returns:
+        {
+            "is_relevant": bool,
+            "relevance_score": float (0-100),
+            "relevant_evidence": List[str],
+            "irrelevant_evidence": List[str],
+            "needs_reanalysis": bool,
+            "reason": str
+        }
+    """
+    if not evidence:
+        return {
+            "is_relevant": False,
+            "relevance_score": 0,
+            "relevant_evidence": [],
+            "irrelevant_evidence": [],
+            "needs_reanalysis": True,
+            "reason": "근거가 없습니다."
+        }
+    
+    evidence_text = "\n".join([f"{i+1}. {ev}" for i, ev in enumerate(evidence)])
+    
+    verification_prompt = f"""당신은 Task 완료 근거 검증 전문가입니다. 생성된 근거(evidence)가 Task 제목과 설명과 직접적으로 관련이 있는지 검증하세요.
+
+⚠️ 중요: 반드시 한국어로만 응답하세요.
+
+## 분석 대상 Task
+제목: {task_title}
+설명: {task_description}
+
+## 검증할 근거 목록
+{evidence_text}
+
+## 검증 기준
+1. **직접 관련성**: 각 근거가 Task 제목 "{task_title}"와 직접적으로 관련이 있는가?
+   - 예: Task 제목이 "유저 로그인 기능"인 경우, "로그인 API 구현", "로그인 페이지 추가" 등은 관련 있음
+   - 예: Task 제목이 "유저 로그인 기능"인 경우, "Task 할당 기능", "멤버 검증 로직" 등은 관련 없음
+
+2. **설명 일치성**: 각 근거가 Task 설명 "{task_description}"의 요구사항을 반영하는가?
+
+3. **기능 일치성**: 근거가 언급하는 기능이 Task 제목에서 요구하는 기능과 일치하는가?
+
+## 검증 규칙
+- Task 제목과 직접 관련 없는 근거는 irrelevant_evidence에 포함
+- 다른 Task나 다른 기능과 관련된 근거는 무조건 irrelevant_evidence
+- Task 제목의 핵심 키워드(예: "로그인", "인증", "회원가입" 등)가 근거에 포함되어야 함
+- 관련성 점수(relevance_score)는 관련 있는 근거의 비율로 계산 (0-100)
+
+## 응답 형식
+다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
+{{
+  "is_relevant": true 또는 false,
+  "relevance_score": 0-100,
+  "relevant_evidence": ["관련 있는 근거1", "관련 있는 근거2"],
+  "irrelevant_evidence": ["관련 없는 근거1", "관련 없는 근거2"],
+  "needs_reanalysis": true 또는 false,
+  "reason": "검증 결과를 한국어로 설명 (왜 관련이 있거나 없는지, 재분석이 필요한지)"
+}}
+
+규칙:
+- relevance_score가 70 이상이면 is_relevant: true
+- irrelevant_evidence가 1개 이상이면 needs_reanalysis: true
+- 모든 근거가 관련 없으면 is_relevant: false, needs_reanalysis: true
+"""
+    
+    system_prompt = "Task 완료 근거 검증 전문가. 근거와 Task 제목의 관련성을 엄격하게 평가합니다. 반드시 한국어로만 응답. JSON만 응답."
+    
+    try:
+        content = call_llm_func(verification_prompt, system_prompt)
+        
+        # JSON 파싱
+        if '```json' in content:
+            content = content.split('```json')[1].split('```')[0].strip()
+        elif '```' in content:
+            content = content.split('```')[1].split('```')[0].strip()
+        
+        content = content.strip()
+        if '{' in content:
+            content = content[content.find('{'):]
+        if '}' in content:
+            content = content[:content.rfind('}')+1]
+        
+        verification_result = json.loads(content)
+        
+        # 기본값 설정
+        if 'is_relevant' not in verification_result:
+            verification_result['is_relevant'] = verification_result.get('relevance_score', 0) >= 70
+        if 'needs_reanalysis' not in verification_result:
+            verification_result['needs_reanalysis'] = len(verification_result.get('irrelevant_evidence', [])) > 0
+        
+        return verification_result
+    except Exception as e:
+        print(f"[Multi-Step Agent] 근거 검증 실패: {e}")
+        # 에러 발생 시 기본값 반환 (재분석 필요로 판단)
+        return {
+            "is_relevant": False,
+            "relevance_score": 0,
+            "relevant_evidence": [],
+            "irrelevant_evidence": evidence,
+            "needs_reanalysis": True,
+            "reason": f"검증 중 오류 발생: {str(e)}"
+        }
+
 def list_directory_contents(
     github_repo: str,
     github_token: Optional[str],
