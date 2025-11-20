@@ -602,79 +602,84 @@ def execute_multi_step_agent(
                     except:
                         continue
         
-        # Task 완료 확인 에이전트: 1단계 결과에서 expectedLocation 추출하여 파일 읽기
-        if step_number == 1 and agent_type == "task_completion_agent" and github_repo:
-            # 1단계 결과에서 expectedLocation 추출
-            if current_result and current_result.get('expectedLocation'):
-                expected_location = current_result.get('expectedLocation', '')
-                print(f"[Multi-Step Agent] Task 완료 확인 - 예상 위치: {expected_location}")
-                progress_messages.append(f"📄 예상 위치의 파일을 읽는 중: {expected_location}")
+        # Task 완료 확인 에이전트: 진행도 분석과 유사한 단계별 파일 읽기
+        if agent_type == "task_completion_agent" and github_repo:
+            task = context.get('task', {})
+            task_title = task.get('title', '').lower()
+            
+            # 2단계: 1단계 결과에서 expectedLocation 추출하여 파일 읽기
+            if step_number == 2:
+                step1_result = all_steps[0] if len(all_steps) > 0 else {}
+                expected_location = step1_result.get('expectedLocation', '')
                 
-                # expectedLocation에서 파일 경로 추출 및 관련 파일 찾기
-                files_to_read = []
-                
-                # expectedLocation이 파일 경로인 경우
-                if expected_location and (expected_location.endswith(('.js', '.jsx', '.ts', '.tsx', '.py'))):
-                    files_to_read.append(expected_location)
-                
-                # Task 제목에서 키워드 추출하여 관련 파일 찾기
-                task = context.get('task', {})
-                task_title = task.get('title', '').lower()
-                task_description = task.get('description', '').lower()
-                
-                # 키워드 기반 파일 경로 추론
-                if '로그인' in task_title or 'login' in task_title or '인증' in task_title or 'auth' in task_title:
-                    files_to_read.extend([
-                        "backend/routes/user.js",
-                        "backend/controllers/userController.js",
-                        "backend/middleware/auth.js",
-                        "morpheus-react/web/src/pages/Login.jsx",
-                        "morpheus-react/web/src/api/user.js"
-                    ])
-                elif 'github' in task_title or 'git' in task_title:
-                    files_to_read.extend([
-                        "backend/routes/github.js",
-                        "backend/controllers/githubController.js",
-                        "backend/services/githubService.js",
-                        "morpheus-react/web/src/api/github.js"
-                    ])
-                elif 'task' in task_title or '작업' in task_title:
-                    files_to_read.extend([
-                        "backend/routes/task.js",
-                        "backend/controllers/taskController.js",
-                        "morpheus-react/web/src/api/task.js",
-                        "morpheus-react/web/src/components/tasks/TaskManagement.jsx"
-                    ])
-                elif 'ai' in task_title or '에이전트' in task_title:
-                    files_to_read.extend([
-                        "backend/routes/ai.js",
-                        "backend/controllers/aiController.js",
-                        "ai-backend/agent_router.py",
-                        "morpheus-react/web/src/api/ai.js"
-                    ])
-                
-                # 중복 제거 및 최대 10개로 제한 (간결하게)
-                files_to_read = list(set(files_to_read))[:10]
-                
-                # 파일 읽기
-                for file_path in files_to_read:
-                    if file_path not in [f.get('path', '') for f in accumulated_files]:
-                        try:
-                            file_contents = get_file_contents(github_repo, github_token, [file_path], max_lines_per_file=300)
-                            if file_contents and file_contents[0].get('content'):
-                                accumulated_files.append({
-                                    "path": file_path,
-                                    "content": file_contents[0]['content'],
-                                    "truncated": file_contents[0].get('truncated', False)
-                                })
-                                progress_messages.append(f"✅ {file_path} 파일을 읽었습니다.")
-                                context['readFiles'] = accumulated_files
-                        except Exception as e:
-                            print(f"[Multi-Step Agent] Task 완료 확인 - 파일 읽기 실패 ({file_path}): {e}")
-                            continue
-                
-                if accumulated_files:
-                    print(f"[Multi-Step Agent] Task 완료 확인 - {len(accumulated_files)}개 파일 읽기 완료")
+                if expected_location:
+                    print(f"[Multi-Step Agent] Task 완료 확인 - 2단계: 예상 위치의 파일 읽기: {expected_location}")
+                    progress_messages.append(f"📄 2단계: 예상 위치의 파일을 읽는 중...")
+                    
+                    # expectedLocation에서 파일 경로 추출 및 관련 파일 찾기
+                    files_to_read = []
+                    
+                    # expectedLocation이 파일 경로인 경우
+                    if expected_location.endswith(('.js', '.jsx', '.ts', '.tsx', '.py')):
+                        files_to_read.append(expected_location)
+                    
+                    # Task 제목에서 키워드 추출하여 관련 파일 찾기
+                    if '로그인' in task_title or 'login' in task_title or '인증' in task_title or 'auth' in task_title:
+                        files_to_read.extend([
+                            "backend/routes/user.js",
+                            "backend/controllers/userController.js",
+                            "backend/middleware/auth.js",
+                            "morpheus-react/web/src/pages/Login.jsx",
+                            "morpheus-react/web/src/api/user.js"
+                        ])
+                    elif 'github' in task_title or 'git' in task_title:
+                        files_to_read.extend([
+                            "backend/routes/github.js",
+                            "backend/controllers/githubController.js",
+                            "backend/services/githubService.js",
+                            "morpheus-react/web/src/api/github.js"
+                        ])
+                    elif 'task' in task_title or '작업' in task_title:
+                        files_to_read.extend([
+                            "backend/routes/task.js",
+                            "backend/controllers/taskController.js",
+                            "morpheus-react/web/src/api/task.js",
+                            "morpheus-react/web/src/components/tasks/TaskManagement.jsx"
+                        ])
+                    elif 'ai' in task_title or '에이전트' in task_title:
+                        files_to_read.extend([
+                            "backend/routes/ai.js",
+                            "backend/controllers/aiController.js",
+                            "ai-backend/agent_router.py",
+                            "morpheus-react/web/src/api/ai.js"
+                        ])
+                    
+                    # 중복 제거 및 최대 10개로 제한 (간결하게)
+                    files_to_read = list(set(files_to_read))[:10]
+                    
+                    # 파일 읽기
+                    read_count = 0
+                    for file_path in files_to_read:
+                        if file_path not in [f.get('path', '') for f in accumulated_files]:
+                            try:
+                                file_contents = get_file_contents(github_repo, github_token, [file_path], max_lines_per_file=400)
+                                if file_contents and file_contents[0].get('content'):
+                                    accumulated_files.append({
+                                        "path": file_path,
+                                        "content": file_contents[0]['content'],
+                                        "truncated": file_contents[0].get('truncated', False)
+                                    })
+                                    progress_messages.append(f"✅ {file_path} 파일을 읽었습니다.")
+                                    context['readFiles'] = accumulated_files
+                                    read_count += 1
+                            except Exception as e:
+                                print(f"[Multi-Step Agent] Task 완료 확인 - 파일 읽기 실패 ({file_path}): {e}")
+                                continue
+                    
+                    if read_count > 0:
+                        print(f"[Multi-Step Agent] Task 완료 확인 - 2단계: {read_count}개 파일 읽기 완료")
+                    else:
+                        progress_messages.append("⚠️ 예상 위치의 파일을 찾지 못했습니다.")
         
         # 2단계 완료 후 필요한 파일 목록 생성 (논리적 파일 탐색)
         if step_number == 2 and agent_type == "progress_analysis_agent" and github_repo:
@@ -865,68 +870,29 @@ def execute_multi_step_agent(
             files_to_read = evaluation.get('files_to_read', [])
             commits_to_analyze = evaluation.get('commits_to_analyze', [])
             
-            # Task 완료 확인 에이전트: 2단계에서 예상 위치의 파일 읽기
-            if agent_type == "task_completion_agent" and github_repo and step_number == 2:
-                # 1단계 결과에서 expectedLocation 확인
-                step1_result = all_steps[0] if len(all_steps) > 0 else {}
-                expected_location = step1_result.get('expectedLocation', '')
-                
-                if expected_location and not accumulated_files:
-                    print(f"[Multi-Step Agent] Task 완료 확인 - 2단계에서 파일 읽기: {expected_location}")
-                    progress_messages.append(f"📄 예상 위치의 파일을 읽는 중: {expected_location}")
-                    
-                    # expectedLocation 기반 파일 경로 추론
-                    files_to_read = []
-                    
-                    # expectedLocation이 파일 경로인 경우
-                    if expected_location.endswith(('.js', '.jsx', '.ts', '.tsx', '.py')):
-                        files_to_read.append(expected_location)
-                    
-                    # 디렉토리인 경우 해당 디렉토리의 파일 목록 가져오기
-                    elif '/' in expected_location:
-                        try:
-                            dir_files = list_directory_contents(github_repo, github_token, expected_location)
-                            files_to_read.extend(dir_files[:5])  # 최대 5개만
-                        except:
-                            pass
-                    
-                    # Task 제목 기반 추가 파일 추론
-                    task = context.get('task', {})
-                    task_title = task.get('title', '').lower()
-                    
-                    if '로그인' in task_title or 'login' in task_title:
-                        files_to_read.extend([
-                            "backend/routes/user.js",
-                            "backend/controllers/userController.js"
-                        ])
-                    elif 'github' in task_title:
-                        files_to_read.extend([
-                            "backend/routes/github.js",
-                            "backend/controllers/githubController.js"
-                        ])
-                    
-                    # 중복 제거 및 최대 8개로 제한
-                    files_to_read = list(set(files_to_read))[:8]
-                    
-                    # 파일 읽기
-                    for file_path in files_to_read:
-                        if file_path not in [f.get('path', '') for f in accumulated_files]:
-                            try:
-                                file_contents = get_file_contents(github_repo, github_token, [file_path], max_lines_per_file=300)
-                                if file_contents and file_contents[0].get('content'):
-                                    accumulated_files.append({
-                                        "path": file_path,
-                                        "content": file_contents[0]['content'],
-                                        "truncated": file_contents[0].get('truncated', False)
-                                    })
-                                    progress_messages.append(f"✅ {file_path} 파일을 읽었습니다.")
-                                    context['readFiles'] = accumulated_files
-                            except Exception as e:
-                                print(f"[Multi-Step Agent] Task 완료 확인 - 파일 읽기 실패 ({file_path}): {e}")
-                                continue
-                    
-                    if accumulated_files:
-                        print(f"[Multi-Step Agent] Task 완료 확인 - {len(accumulated_files)}개 파일 읽기 완료")
+            # Task 완료 확인 에이전트: 3단계 이상에서 추가 파일 읽기 (필요시)
+            if agent_type == "task_completion_agent" and github_repo and step_number >= 3:
+                # evaluation에서 제안한 추가 파일 읽기
+                if files_to_read:
+                    additional_files = files_to_read[:5]  # 최대 5개만
+                    if additional_files:
+                        progress_messages.append(f"📄 추가 파일을 읽는 중... ({len(additional_files)}개)")
+                        
+                        for file_path in additional_files:
+                            if file_path not in [f.get('path', '') for f in accumulated_files]:
+                                try:
+                                    file_contents = get_file_contents(github_repo, github_token, [file_path], max_lines_per_file=400)
+                                    if file_contents and file_contents[0].get('content'):
+                                        accumulated_files.append({
+                                            "path": file_path,
+                                            "content": file_contents[0]['content'],
+                                            "truncated": file_contents[0].get('truncated', False)
+                                        })
+                                        progress_messages.append(f"✅ {file_path} 파일을 읽었습니다.")
+                                        context['readFiles'] = accumulated_files
+                                except Exception as e:
+                                    print(f"[Multi-Step Agent] Task 완료 확인 - 추가 파일 읽기 실패 ({file_path}): {e}")
+                                    continue
             
             # 진행도 분석의 경우 소스코드 구조 파악을 위한 추가 파일 읽기
             if agent_type == "progress_analysis_agent" and github_repo:
