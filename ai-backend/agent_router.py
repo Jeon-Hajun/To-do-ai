@@ -1508,9 +1508,12 @@ def execute_task_completion_agent(context, call_llm_func, user_message=None):
             message_parts.append(f"## 📋 Task 정보")
             message_parts.append(f"")
             message_parts.append(f"**제목**: {task.get('title', '제목 없음')}")
+            message_parts.append(f"")
             if task.get('description'):
                 message_parts.append(f"**설명**: {task.get('description', '')}")
+                message_parts.append(f"")
             message_parts.append(f"**현재 상태**: {status_kr} ({task_status})")
+            message_parts.append(f"")
             message_parts.append(f"**Task ID**: {task.get('id', 'N/A')}")
             message_parts.append(f"")
             message_parts.append(f"---")
