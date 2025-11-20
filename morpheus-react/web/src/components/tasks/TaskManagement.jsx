@@ -413,41 +413,34 @@ export default function TaskManagement({ projectId }) {
                     </Box>
                     
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 50, fontSize: "0.75rem" }}>
-                        담당자:
-                      </Typography>
                       {assignedMember ? (
-                        <Stack direction="row" spacing={0.5} alignItems="center">
-                          <Box
-                            component="img"
-                            src={getProfileImageSrc(assignedMember.profileImage, true)}
-                            alt={assignedMember.nickname || assignedMember.email}
-                            sx={{
-                              width: 20,
-                              height: 20,
-                              borderRadius: "50%",
-                              objectFit: "cover",
-                            }}
-                            onError={(e) => {
-                              e.target.style.display = "none";
-                              e.target.nextSibling.style.display = "flex";
-                            }}
-                          />
-                          <Box sx={{ display: "none", width: 20, height: 20, borderRadius: "50%", bgcolor: "primary.main", alignItems: "center", justifyContent: "center", color: "white", fontSize: "0.65rem" }}>
-                            {(assignedMember.nickname || assignedMember.email || "?")[0]}
-                          </Box>
-                          <Typography variant="body2" sx={{ fontSize: "0.75rem" }}>
-                            {assignedMember.nickname || assignedMember.email}
-                          </Typography>
-                        </Stack>
-                      ) : (
+                        <Box
+                          component="img"
+                          src={getProfileImageSrc(assignedMember.profileImage, true)}
+                          alt={assignedMember.nickname || assignedMember.email}
+                          sx={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                          }}
+                          onError={(e) => {
+                            e.target.style.display = "none";
+                            e.target.nextSibling.style.display = "flex";
+                          }}
+                        />
+                      ) : null}
+                      <Box sx={{ display: assignedMember ? "none" : "flex", width: 24, height: 24, borderRadius: "50%", bgcolor: "primary.main", alignItems: "center", justifyContent: "center", color: "white", fontSize: "0.7rem" }}>
+                        {(assignedMember?.nickname || assignedMember?.email || "?")[0]}
+                      </Box>
+                      {!assignedMember && (
                         <Button
                           size="small"
                           variant="outlined"
                           onClick={(e) => handleAssignClick(e, task.id)}
                           sx={{ fontSize: "0.7rem", py: 0.25, px: 1 }}
                         >
-                          할당하기
+                          할당
                         </Button>
                       )}
                     </Box>

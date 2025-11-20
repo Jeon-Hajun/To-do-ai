@@ -1482,72 +1482,84 @@ def execute_task_completion_agent(context, call_llm_func, user_message=None):
             'low': '낮음'
         }.get(confidence, confidence)
         
+        # 전체 task 확인 여부 확인 (context에 여러 task가 있는 경우 간단하게 출력)
+        tasks_count = len(context.get('tasks', []) or context.get('currentTasks', []))
+        is_batch_check = tasks_count > 1 and user_message and any(keyword in user_message.lower() for keyword in ['전체', '모든', 'all', '모두', '일괄'])
+        
         # 상세 메시지 구성
         message_parts = []
         
-        # 1. Task 정보 먼저 표시
-        task_status = task.get('status', 'todo')
-        status_kr = {
-            'todo': '대기',
-            'in_progress': '진행중',
-            'done': '완료'
-        }.get(task_status, task_status)
-        
-        message_parts.append(f"## 📋 Task 정보")
-        message_parts.append(f"")
-        message_parts.append(f"**제목**: {task.get('title', '제목 없음')}")
-        if task.get('description'):
-            message_parts.append(f"**설명**: {task.get('description', '')}")
-        message_parts.append(f"**현재 상태**: {status_kr} ({task_status})")
-        message_parts.append(f"**Task ID**: {task.get('id', 'N/A')}")
-        message_parts.append(f"")
-        message_parts.append(f"---")
-        message_parts.append(f"")
-        
-        # 2. 완료 상태 표시
-        if is_completed:
-            message_parts.append(f"✅ **Task 완료 상태: 완료됨**")
+        if is_batch_check:
+            # 전체 task 확인 시 간단하게 출력 (1줄 미만)
+            if is_completed:
+                message_parts.append(f"✅ **{task.get('title', '제목 없음')}**: 완료됨 ({completion_pct}%)")
+            else:
+                message_parts.append(f"⏳ **{task.get('title', '제목 없음')}**: 진행 중 ({completion_pct}%)")
         else:
-            message_parts.append(f"⏳ **Task 완료 상태: 진행 중**")
-        
-        message_parts.append(f"")
-        message_parts.append(f"**완성도**: {completion_pct}%")
-        message_parts.append(f"**신뢰도**: {confidence_kr}")
-        message_parts.append(f"")
-        
-        # 3. 완료 근거 및 설명
-        if evidence:
-            message_parts.append(f"**✅ 완료 근거**:")
-            for i, ev in enumerate(evidence[:5], 1):  # 최대 5개
-                message_parts.append(f"{i}. {ev}")
+            # 기본 task 완료 확인 - 상세 정보 표시
+            # 1. Task 정보 먼저 표시
+            task_status = task.get('status', 'todo')
+            status_kr = {
+                'todo': '대기',
+                'in_progress': '진행중',
+                'done': '완료'
+            }.get(task_status, task_status)
+            
+            message_parts.append(f"## 📋 Task 정보")
             message_parts.append(f"")
-        
-        if related_commits:
-            message_parts.append(f"**📝 관련 커밋**: {len(related_commits)}개 발견")
-            for commit in related_commits[:3]:  # 최대 3개
-                commit_msg = commit.get('message', '')[:80]
-                message_parts.append(f"- {commit_msg}")
+            message_parts.append(f"**제목**: {task.get('title', '제목 없음')}")
+            if task.get('description'):
+                message_parts.append(f"**설명**: {task.get('description', '')}")
+            message_parts.append(f"**현재 상태**: {status_kr} ({task_status})")
+            message_parts.append(f"**Task ID**: {task.get('id', 'N/A')}")
             message_parts.append(f"")
-        
-        # 4. 부족한 부분 검증
-        if missing_requirements:
-            message_parts.append(f"**⚠️ 부족한 요구사항 (검증 결과)**:")
-            for i, req in enumerate(missing_requirements[:5], 1):  # 최대 5개
-                message_parts.append(f"{i}. {req}")
+            message_parts.append(f"---")
             message_parts.append(f"")
-        elif not is_completed and completion_pct < 100:
-            # 완료되지 않았지만 missing_requirements가 없는 경우
-            message_parts.append(f"**⚠️ 검증 결과**:")
-            message_parts.append(f"- Task가 완전히 완료되지 않았습니다. (완성도: {completion_pct}%)")
-            message_parts.append(f"- 추가 작업이 필요할 수 있습니다.")
+            
+            # 2. 완료 상태 표시
+            if is_completed:
+                message_parts.append(f"✅ **Task 완료 상태: 완료됨**")
+            else:
+                message_parts.append(f"⏳ **Task 완료 상태: 진행 중**")
+            
             message_parts.append(f"")
-        
-        # 5. 개선 제안
-        if recommendations:
-            message_parts.append(f"**💡 개선 제안**:")
-            for i, rec in enumerate(recommendations[:5], 1):  # 최대 5개
-                message_parts.append(f"{i}. {rec}")
+            message_parts.append(f"**완성도**: {completion_pct}%")
+            message_parts.append(f"**신뢰도**: {confidence_kr}")
             message_parts.append(f"")
+            
+            # 3. 완료 근거 및 설명
+            if evidence:
+                message_parts.append(f"**✅ 완료 근거**:")
+                for i, ev in enumerate(evidence[:5], 1):  # 최대 5개
+                    message_parts.append(f"{i}. {ev}")
+                message_parts.append(f"")
+            
+            if related_commits:
+                message_parts.append(f"**📝 관련 커밋**: {len(related_commits)}개 발견")
+                for commit in related_commits[:3]:  # 최대 3개
+                    commit_msg = commit.get('message', '')[:80]
+                    message_parts.append(f"- {commit_msg}")
+                message_parts.append(f"")
+            
+            # 4. 부족한 부분 검증
+            if missing_requirements:
+                message_parts.append(f"**⚠️ 부족한 요구사항 (검증 결과)**:")
+                for i, req in enumerate(missing_requirements[:5], 1):  # 최대 5개
+                    message_parts.append(f"{i}. {req}")
+                message_parts.append(f"")
+            elif not is_completed and completion_pct < 100:
+                # 완료되지 않았지만 missing_requirements가 없는 경우
+                message_parts.append(f"**⚠️ 검증 결과**:")
+                message_parts.append(f"- Task가 완전히 완료되지 않았습니다. (완성도: {completion_pct}%)")
+                message_parts.append(f"- 추가 작업이 필요할 수 있습니다.")
+                message_parts.append(f"")
+            
+            # 5. 개선 제안
+            if recommendations:
+                message_parts.append(f"**💡 개선 제안**:")
+                for i, rec in enumerate(recommendations[:5], 1):  # 최대 5개
+                    message_parts.append(f"{i}. {rec}")
+                message_parts.append(f"")
         
         message = "\n".join(message_parts)
         
