@@ -1148,10 +1148,28 @@ def create_task_completion_followup_prompt(context, previous_result, user_messag
     task_title = task.get('title', '') if task else ''
     files_context = ""
     if read_files:
+        # Task 제목에서 핵심 키워드 추출
+        task_keywords = []
+        if '로그인' in task_title or 'login' in task_title or '인증' in task_title or 'auth' in task_title or '회원가입' in task_title:
+            task_keywords = ['login', 'Login', '인증', 'auth', 'authenticate', 'signin', '로그인', '회원가입', 'signup', 'register']
+        elif 'github' in task_title.lower() or 'git' in task_title.lower():
+            task_keywords = ['github', 'GitHub', 'git', '연동']
+        elif 'task' in task_title.lower() or '작업' in task_title:
+            task_keywords = ['task', 'Task', '작업']
+        elif 'ai' in task_title.lower() or '에이전트' in task_title:
+            task_keywords = ['ai', 'AI', 'agent', '에이전트']
+        
         files_context = "\n\n## ⚠️ 실제 코드 파일 내용 (반드시 이 내용을 기반으로 분석하세요):\n"
-        files_context += f"**중요**: 아래 파일 내용에서 Task 제목 \"{task_title}\"와 **직접 관련된 부분만** 찾아서 분석하세요.\n"
+        files_context += f"**매우 중요**: 아래 파일 내용에서 Task 제목 \"{task_title}\"와 **직접 관련된 부분만** 찾아서 분석하세요.\n\n"
+        files_context += f"**Task 제목 핵심 키워드**: {', '.join(task_keywords) if task_keywords else task_title}\n\n"
+        files_context += f"**분석 규칙**:\n"
+        files_context += f"- 파일 내용에서 위 핵심 키워드가 포함된 함수/코드만 찾으세요.\n"
+        if task_keywords:
+            files_context += f"- 예: \"{task_keywords[0]}\" 키워드가 있는 함수 (예: `function {task_keywords[0]}()`, `const handle{task_keywords[0].capitalize()} =` 등)\n"
         files_context += f"- 파일에 Task 제목 \"{task_title}\"와 관련 없는 다른 기능의 코드가 있어도 **완전히 무시**하세요.\n"
-        files_context += f"- 예: Task 제목이 \"유저 로그인 기능\"인 경우, 로그인, 인증, 회원가입 관련 코드만 찾으세요.\n"
+        files_context += f"- 예: Task 제목이 \"유저 로그인 기능\"인 경우:\n"
+        files_context += f"  * ✅ 찾아야 할 것: login, Login, 인증, auth 등의 키워드가 있는 함수/코드\n"
+        files_context += f"  * ❌ 무시해야 할 것: task, Task, 할당, assign, 멤버, member 등 다른 기능의 코드\n"
         files_context += f"- Task 할당, 멤버 조회, 디버깅 로그 등 다른 기능의 코드는 **절대 근거로 사용하지 마세요**.\n\n"
         
         for file_info in read_files:

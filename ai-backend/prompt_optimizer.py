@@ -532,9 +532,15 @@ SHA: {commit.get('sha', '')[:8]}
 
 1. **실제 코드 파일 분석** (가장 중요):
    - 아래에 제공된 실제 파일 내용을 확인하세요.
-   - 파일 내용에서 Task 제목 "{task_title}"의 요구사항이 구현되어 있는지 확인하세요.
-   - 예: "로그인 기능" → 로그인 API 엔드포인트, 로그인 함수, 인증 로직 등이 실제로 구현되어 있는가?
-   - 예: "GitHub 연동" → GitHub API 호출 함수, GitHub 서비스 로직 등이 실제로 구현되어 있는가?
+   - ⚠️ **파일 내용에서 Task 제목 "{task_title}"의 핵심 키워드와 직접 관련된 함수/코드만 찾으세요.**
+   - Task 제목 "{task_title}"의 핵심 키워드: {task_title.split() if task_title else []}
+   - 예: Task 제목이 "유저 로그인 기능"인 경우:
+     * ✅ 찾아야 할 것: login, Login, 인증, auth, authenticate, signin, 로그인 등의 키워드가 있는 함수/코드
+     * ❌ 무시해야 할 것: task, Task, 할당, assign, 멤버, member, 프로젝트, project 등 다른 기능의 코드
+   - 예: Task 제목이 "GitHub 연동"인 경우:
+     * ✅ 찾아야 할 것: github, GitHub, git, 연동 등의 키워드가 있는 함수/코드
+     * ❌ 무시해야 할 것: login, task, user 등 다른 기능의 코드
+   - ⚠️ **파일에 Task 제목과 관련 없는 다른 기능의 코드가 있어도 완전히 무시하세요.**
    - ⚠️ 실제 코드를 읽어서 확인하세요. 커밋 메시지만으로 판단하지 마세요.
 
 2. **기능 구현 여부 판단**:
@@ -543,11 +549,16 @@ SHA: {commit.get('sha', '')[:8]}
    - 실제 코드 파일에서 Task 제목 "{task_title}"의 요구사항이 **없는가**? → 미구현
    - 다른 파일에 구현되어 있는가? → 위치 확인 필요
 
-3. **코드 내용 상세 분석**:
-   - 실제 파일 내용에서 Task 제목 "{task_title}"의 요구사항을 구현하는 함수/코드가 있는가?
+3. **코드 내용 상세 분석** (매우 중요):
+   - 실제 파일 내용에서 Task 제목 "{task_title}"의 핵심 키워드({task_title.split() if task_title else []})가 포함된 함수/코드를 찾으세요.
+   - 예: Task 제목이 "유저 로그인 기능"인 경우:
+     * 파일에서 "login", "Login", "인증", "auth", "authenticate" 등의 키워드가 있는 함수를 찾으세요.
+     * 예: `function login()`, `const handleLogin =`, `router.post('/login'`, `loginUser` 등
+     * ❌ "task", "Task", "assign", "할당", "member", "멤버" 등의 키워드는 완전히 무시하세요.
    - 실제 파일 내용에서 Task 설명 "{task_description}"을 반영하는 로직이 있는가?
    - 실제 코드가 Task 제목 "{task_title}"의 목적을 달성하는가?
-   - ⚠️ 다른 Task나 다른 기능과 관련된 코드는 무시하세요.
+   - ⚠️ **다른 Task나 다른 기능과 관련된 코드는 절대 근거로 사용하지 마세요.**
+   - ⚠️ **파일 경로가 Task 제목과 관련이 있어도, 파일 내용에 Task 제목과 관련 없는 코드만 있다면 그 파일은 근거로 사용하지 마세요.**
 
 4. **최종 판단**:
    - Task 제목 "{task_title}"의 완료 여부 결정
@@ -560,14 +571,27 @@ SHA: {commit.get('sha', '')[:8]}
 ## 응답 형식
 다음 JSON 형식으로만 응답하세요 (반드시 한국어로):
 
-⚠️ **중요**: evidence 필드에는 반드시 Task 제목 "{task_title}"와 직접적으로 관련된 근거만 포함하세요.
-- 다른 Task의 내용이나 다른 기능과 관련된 근거는 절대 포함하지 마세요.
-- evidence의 각 항목은 Task 제목 "{task_title}"의 요구사항을 구현한 구체적인 증거여야 합니다.
-- 예를 들어, Task 제목이 "유저 로그인 기능"이라면, 로그인 관련 코드 변경사항만 evidence에 포함하세요.
-- Task 할당, 멤버 검증, 디버깅 로그 등 다른 기능과 관련된 근거는 포함하지 마세요.
-- evidence 형식: "파일경로: Task 제목 '{task_title}'와 관련된 구체적인 함수/코드 설명"
-- 예: "backend/controllers/userController.js: login 함수에서 로그인 API(/api/auth/login) 구현 확인"
-- 예: "morpheus-react/web/src/pages/Login.jsx: 로그인 폼 컴포넌트 구현 확인"
+⚠️ **매우 중요**: evidence 필드에는 반드시 Task 제목 "{task_title}"와 직접적으로 관련된 근거만 포함하세요.
+
+**evidence 생성 규칙**:
+1. **핵심 키워드 확인**: evidence에 Task 제목의 핵심 키워드({task_title.split() if task_title else []})가 포함되어야 합니다.
+   - 예: Task 제목이 "유저 로그인 기능"인 경우, evidence에 "로그인", "login", "인증", "auth" 등의 키워드가 포함되어야 합니다.
+   - ❌ "task", "Task", "할당", "assign", "멤버", "member" 등의 키워드는 절대 포함하지 마세요.
+
+2. **파일 경로와 함수명 명시**: evidence 형식은 "파일경로: 구체적인 함수/코드 설명"이어야 합니다.
+   - 예: "backend/controllers/userController.js: login 함수에서 로그인 API(/api/auth/login) 구현 확인"
+   - 예: "morpheus-react/web/src/pages/Login.jsx: Login 컴포넌트에서 로그인 폼 구현 확인"
+   - ❌ 잘못된 예: "backend/controllers/aiController.js: 프로젝트 멤버 검증 로직 확인" (로그인과 무관)
+
+3. **엄격한 필터링**:
+   - 다른 Task의 내용이나 다른 기능과 관련된 근거는 절대 포함하지 마세요.
+   - Task 할당, 멤버 검증, 디버깅 로그 등 다른 기능과 관련된 근거는 포함하지 마세요.
+   - 파일 경로가 Task 제목과 관련이 있어도, 파일 내용에 Task 제목과 관련 없는 코드만 있다면 그 파일은 근거로 사용하지 마세요.
+
+4. **검증**: 생성한 evidence를 다시 확인하세요.
+   - 각 evidence에 Task 제목 "{task_title}"의 핵심 키워드가 포함되어 있는가?
+   - 각 evidence가 Task 제목 "{task_title}"의 요구사항을 구현한 구체적인 증거인가?
+   - 다른 기능(예: Task 할당, 멤버 조회)과 관련된 내용이 포함되어 있지 않은가?
 
 {{
   "isCompleted": true 또는 false,
