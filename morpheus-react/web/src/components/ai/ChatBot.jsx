@@ -24,9 +24,10 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
 import AddIcon from "@mui/icons-material/Add";
 import { sendChatMessage, clearConversation, getChatHistory } from "../../api/ai";
-import { createTask } from "../../api/tasks";
+import { createTask, updateTaskStatus } from "../../api/tasks";
 import { useQueryClient } from "@tanstack/react-query";
 import MarkdownRenderer from "../common/MarkdownRenderer";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
@@ -44,6 +45,7 @@ export default function ChatBot({ projectId, onError }) {
   const [resultData, setResultData] = useState(null);
   const [addingTasks, setAddingTasks] = useState(new Set());
   const [addedTasks, setAddedTasks] = useState(new Set()); // 추가된 Task 추적
+  const [completingTasks, setCompletingTasks] = useState(new Set()); // 완료 처리 중인 Task 추적
   const messagesEndRef = useRef(null);
 
   // 초기 제안 질문들
@@ -779,6 +781,52 @@ export default function ChatBot({ projectId, onError }) {
                         })}
                       </Box>
                     )}
+                  </Box>
+                ) : (message.agentType === "task_completion_agent" ||
+                      (message.response && message.response.type === "task_completion")) ? (
+                  <Box>
+                    <MarkdownRenderer content={message.content} />
+                    {message.response && message.response.result && (() => {
+                      const result = message.response.result;
+                      const taskId = result.taskId;
+                      const isCompleted = result.isCompleted || false;
+                      
+                      // 완료되었고 Task ID가 있으면 완료 처리 버튼 표시
+                      if (isCompleted && taskId && !completingTasks.has(taskId)) {
+                        return (
+                          <Box sx={{ mt: 2 }}>
+                            <Button
+                              variant="contained"
+                              color="success"
+                              size="small"
+                              startIcon={completingTasks.has(taskId) ? <CircularProgress size={16} /> : <CheckCircleIcon />}
+                              onClick={async () => {
+                                try {
+                                  setCompletingTasks((prev) => new Set(prev).add(taskId));
+                                  await updateTaskStatus({ id: taskId, status: "done" });
+                                  queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
+                                  alert("Task가 완료 처리되었습니다.");
+                                } catch (err) {
+                                  console.error("Task 완료 처리 실패:", err);
+                                  alert(`Task 완료 처리 실패: ${err.message || "알 수 없는 오류"}`);
+                                } finally {
+                                  setCompletingTasks((prev) => {
+                                    const newSet = new Set(prev);
+                                    newSet.delete(taskId);
+                                    return newSet;
+                                  });
+                                }
+                              }}
+                              disabled={completingTasks.has(taskId)}
+                              sx={{ fontSize: { xs: "0.75rem", md: "0.875rem" } }}
+                            >
+                              {completingTasks.has(taskId) ? "처리 중..." : "Task 완료 처리"}
+                            </Button>
+                          </Box>
+                        );
+                      }
+                      return null;
+                    })()}
                   </Box>
                 ) : (
                   <MarkdownRenderer content={message.content} />

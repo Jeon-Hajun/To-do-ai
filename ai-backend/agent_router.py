@@ -1570,7 +1570,11 @@ def execute_task_completion_agent(context, call_llm_func, user_message=None):
             "agent_type": "task_completion_agent",
             "response": {
                 "type": "task_completion",
-                "result": final_result,
+                "result": {
+                    **final_result,
+                    "taskId": task.get('id'),
+                    "taskTitle": task.get('title', '')
+                },
                 "message": message
             },
             "analysis_steps": result.get('analysis_steps', 1),
