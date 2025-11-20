@@ -1269,8 +1269,24 @@ def execute_task_completion_agent(context, call_llm_func, user_message=None):
                 print(f"[Agent Router] Task 완료 확인 - Task 제목으로 찾음: {task_title}")
                 break
     
-    # 3. user_message에서 Task ID 추출 시도 (우선순위 3)
+    # 3. user_message에서 Task ID 또는 번호 추출 시도 (우선순위 3)
     if not task and user_message and tasks:
+        # 번호 패턴 (예: "1번", "2번 task", "첫 번째")
+        number_patterns = [
+            r'(\d+)\s*번',
+            r'(\d+)\s*번째',
+            r'(\d+)\s*번\s*task',
+            r'(\d+)\s*번\s*작업'
+        ]
+        for pattern in number_patterns:
+            match = re.search(pattern, user_message, re.IGNORECASE)
+            if match:
+                number = int(match.group(1))
+                # 이전 대화에서 matched_tasks가 있었는지 확인 (context에서 가져올 수 없으므로 일단 스킵)
+                # 대신 일반 task ID 패턴으로 처리
+                break
+        
+        # Task ID 패턴 (예: "Task 123", "#123", "id: 123")
         task_id_patterns = [
             r'(?:task|작업|할일)\s*[#:]?\s*(\d+)',
             r'#(\d+)',
@@ -1302,10 +1318,39 @@ def execute_task_completion_agent(context, call_llm_func, user_message=None):
         if matched_tasks:
             # 가장 긴 매칭 선택 (더 정확함)
             matched_tasks.sort(reverse=True, key=lambda x: x[0])
-            task = matched_tasks[0][1]
-            task_title = task.get('title', '')
-            task_description = task.get('description', '')
-            print(f"[Agent Router] Task 완료 확인 - 메시지에서 Task 제목 매칭: {task_title}")
+            
+            # 여러 task가 매칭된 경우 사용자에게 선택지 제공
+            if len(matched_tasks) > 1:
+                # 매칭된 task가 2개 이상이면 사용자에게 선택지 제공
+                task_list = []
+                for idx, (_, t) in enumerate(matched_tasks[:10], 1):  # 최대 10개만 표시
+                    task_list.append(f"{idx}. {t.get('title', '제목 없음')} (ID: {t.get('id', 'N/A')})")
+                
+                message_parts = [
+                    f"다음 {len(matched_tasks)}개의 Task가 매칭되었습니다:",
+                    "",
+                ]
+                message_parts.extend(task_list)
+                message_parts.extend([
+                    "",
+                    "확인하고 싶은 Task의 번호를 선택하거나, Task ID를 명시해주세요.",
+                    "예: '1번 task 완료 확인' 또는 'Task 123 완료 확인'"
+                ])
+                
+                return {
+                    "agent_type": "task_completion_agent",
+                    "response": {
+                        "type": "needs_more_info",
+                        "message": "\n".join(message_parts),
+                        "matched_tasks": [{"id": t.get('id'), "title": t.get('title', '')} for _, t in matched_tasks[:10]]
+                    }
+                }
+            else:
+                # 단일 매칭인 경우 바로 선택
+                task = matched_tasks[0][1]
+                task_title = task.get('title', '')
+                task_description = task.get('description', '')
+                print(f"[Agent Router] Task 완료 확인 - 메시지에서 Task 제목 매칭: {task_title}")
     
     # Task를 찾지 못한 경우
     if not task:
