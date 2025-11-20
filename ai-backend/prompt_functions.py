@@ -1144,17 +1144,31 @@ def create_task_completion_followup_prompt(context, previous_result, user_messag
     if not task:
         return "Task 정보가 필요합니다."
     
-    # 읽은 파일 정보 추가
+    # 읽은 파일 정보 추가 (실제 코드 분석 강조)
     files_context = ""
     if read_files:
-        files_context = "\n\n## 읽은 파일 내용:\n"
+        files_context = "\n\n## ⚠️ 실제 코드 파일 내용 (반드시 이 내용을 기반으로 분석하세요):\n"
+        files_context += "커밋 메시지가 아닌 **실제 코드 파일 내용**을 확인하여 Task 완료 여부를 판단하세요.\n\n"
         for file_info in read_files:
-            content = file_info.get('content', '')[:1000]  # 최대 1000자
-            files_context += f"파일: {file_info.get('path', '')}\n{content}\n---\n"
+            path = file_info.get('path', '')
+            content = file_info.get('content', '')
+            truncated = file_info.get('truncated', False)
+            
+            # 파일 내용을 더 많이 포함 (최대 2000자)
+            content_preview = content[:2000] if len(content) > 2000 else content
+            files_context += f"### 파일: {path}\n"
+            if truncated:
+                files_context += f"*(파일이 잘림, 전체 {len(content.split(chr(10)))}줄 중 일부만 표시)\n"
+            files_context += f"```\n{content_preview}\n```\n\n"
+            files_context += "---\n\n"
     
     base_prompt = create_followup_completion_prompt(task, previous_result, commits, projectDescription)
     
-    return base_prompt + files_context + "\n\n위 파일 내용을 참고하여 최종 판단하세요."
+    if read_files:
+        return base_prompt + files_context + "\n\n**위 실제 코드 파일 내용을 반드시 확인하여 Task 완료 여부를 판단하세요.**\n" + \
+               "커밋 메시지나 코드 변경사항(patch)만으로 판단하지 말고, 실제 파일 내용에서 기능이 구현되어 있는지 확인하세요."
+    else:
+        return base_prompt
 
 def create_general_qa_initial_prompt(context, user_message, read_files, analyzed_commits, step_number=1):
     """일반 QA 에이전트 초기 프롬프트"""
