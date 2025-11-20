@@ -14,7 +14,8 @@ def evaluate_information_sufficiency(
     current_result: Dict[str, Any],
     agent_type: str,
     call_llm_func: Callable,
-    step_number: int
+    step_number: int,
+    context: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     현재 분석 결과의 정보 충분성을 평가
@@ -56,6 +57,14 @@ def evaluate_information_sufficiency(
 - **동적 파일 검색**: 각 소제목에 따라 필요한 파일을 찾아 읽으세요. 예를 들어, 페이지가 없다고 판단되면 다른 UI 관련 파일들을 찾아보세요.
 
 ## Task 완료 확인 에이전트 특별 규칙:
+{f"- **Task 제목**: {context.get('task', {}).get('title', 'N/A')}" if context and context.get('task') else ""}
+{f"- **Task 설명**: {context.get('task', {}).get('description', 'N/A')}" if context and context.get('task') else ""}
+
+⚠️ **중요**: files_to_read에는 반드시 Task 제목과 직접 관련된 파일만 제안하세요.
+- Task 제목이 "유저 로그인 기능"인 경우: userController.js, Login.jsx, auth.js 등 로그인 관련 파일만
+- Task 제목이 "GitHub 연동"인 경우: githubController.js, githubService.js 등 GitHub 관련 파일만
+- Task 제목과 무관한 파일(예: aiController.js, agent_router.py 등)은 절대 제안하지 마세요.
+
 - Task 완료 확인은 **세부적인 코드 분석**이 핵심입니다. 커밋 메시지만으로 판단하지 말고 실제 코드 변경사항을 확인해야 합니다.
 - Task 제목과 설명에서 요구하는 기능이 **구체적으로 구현되었는지** 확인하세요.
 - **예상 구현 위치**: Task의 성격에 따라 예상되는 파일 위치를 추론하고, 해당 파일의 코드 변경사항을 상세히 분석하세요.
@@ -612,74 +621,83 @@ def execute_multi_step_agent(
                 step1_result = all_steps[0] if len(all_steps) > 0 else {}
                 expected_location = step1_result.get('expectedLocation', '')
                 
-                if expected_location:
-                    print(f"[Multi-Step Agent] Task 완료 확인 - 2단계: 예상 위치의 파일 읽기: {expected_location}")
-                    progress_messages.append(f"📄 2단계: 예상 위치의 파일을 읽는 중...")
-                    
-                    # expectedLocation에서 파일 경로 추출 및 관련 파일 찾기
-                    files_to_read = []
-                    
-                    # expectedLocation이 파일 경로인 경우
-                    if expected_location.endswith(('.js', '.jsx', '.ts', '.tsx', '.py')):
-                        files_to_read.append(expected_location)
-                    
-                    # Task 제목에서 키워드 추출하여 관련 파일 찾기
-                    if '로그인' in task_title or 'login' in task_title or '인증' in task_title or 'auth' in task_title:
-                        files_to_read.extend([
-                            "backend/routes/user.js",
-                            "backend/controllers/userController.js",
-                            "backend/middleware/auth.js",
-                            "morpheus-react/web/src/pages/Login.jsx",
-                            "morpheus-react/web/src/api/user.js"
-                        ])
-                    elif 'github' in task_title or 'git' in task_title:
-                        files_to_read.extend([
-                            "backend/routes/github.js",
-                            "backend/controllers/githubController.js",
-                            "backend/services/githubService.js",
-                            "morpheus-react/web/src/api/github.js"
-                        ])
-                    elif 'task' in task_title or '작업' in task_title:
-                        files_to_read.extend([
-                            "backend/routes/task.js",
-                            "backend/controllers/taskController.js",
-                            "morpheus-react/web/src/api/task.js",
-                            "morpheus-react/web/src/components/tasks/TaskManagement.jsx"
-                        ])
-                    elif 'ai' in task_title or '에이전트' in task_title:
-                        files_to_read.extend([
-                            "backend/routes/ai.js",
-                            "backend/controllers/aiController.js",
-                            "ai-backend/agent_router.py",
-                            "morpheus-react/web/src/api/ai.js"
-                        ])
-                    
-                    # 중복 제거 및 최대 10개로 제한 (간결하게)
-                    files_to_read = list(set(files_to_read))[:10]
-                    
-                    # 파일 읽기
-                    read_count = 0
-                    for file_path in files_to_read:
-                        if file_path not in [f.get('path', '') for f in accumulated_files]:
-                            try:
-                                file_contents = get_file_contents(github_repo, github_token, [file_path], max_lines_per_file=400)
-                                if file_contents and file_contents[0].get('content'):
-                                    accumulated_files.append({
-                                        "path": file_path,
-                                        "content": file_contents[0]['content'],
-                                        "truncated": file_contents[0].get('truncated', False)
-                                    })
-                                    progress_messages.append(f"✅ {file_path} 파일을 읽었습니다.")
-                                    context['readFiles'] = accumulated_files
-                                    read_count += 1
-                            except Exception as e:
-                                print(f"[Multi-Step Agent] Task 완료 확인 - 파일 읽기 실패 ({file_path}): {e}")
-                                continue
-                    
-                    if read_count > 0:
-                        print(f"[Multi-Step Agent] Task 완료 확인 - 2단계: {read_count}개 파일 읽기 완료")
-                    else:
-                        progress_messages.append("⚠️ 예상 위치의 파일을 찾지 못했습니다.")
+                print(f"[Multi-Step Agent] Task 완료 확인 - 2단계: 파일 읽기 시작 (Task: {task_title}, expectedLocation: {expected_location})")
+                progress_messages.append(f"📄 2단계: Task 제목 기반으로 관련 파일을 읽는 중...")
+                
+                # expectedLocation에서 파일 경로 추출 및 관련 파일 찾기
+                files_to_read = []
+                
+                # expectedLocation이 파일 경로인 경우
+                if expected_location and expected_location.endswith(('.js', '.jsx', '.ts', '.tsx', '.py')):
+                    files_to_read.append(expected_location)
+                
+                # Task 제목에서 키워드 추출하여 관련 파일 찾기 (expectedLocation이 없어도 실행)
+                if '로그인' in task_title or 'login' in task_title or '인증' in task_title or 'auth' in task_title or '회원가입' in task_title or 'signup' in task_title:
+                    files_to_read.extend([
+                        "backend/routes/user.js",
+                        "backend/controllers/userController.js",
+                        "backend/middleware/auth.js",
+                        "morpheus-react/web/src/pages/Login.jsx",
+                        "morpheus-react/web/src/api/user.js"
+                    ])
+                    print(f"[Multi-Step Agent] Task 완료 확인 - 로그인 관련 파일 추가")
+                elif 'github' in task_title or 'git' in task_title:
+                    files_to_read.extend([
+                        "backend/routes/github.js",
+                        "backend/controllers/githubController.js",
+                        "backend/services/githubService.js",
+                        "morpheus-react/web/src/api/github.js"
+                    ])
+                    print(f"[Multi-Step Agent] Task 완료 확인 - GitHub 관련 파일 추가")
+                elif 'task' in task_title or '작업' in task_title:
+                    files_to_read.extend([
+                        "backend/routes/task.js",
+                        "backend/controllers/taskController.js",
+                        "morpheus-react/web/src/api/task.js",
+                        "morpheus-react/web/src/components/tasks/TaskManagement.jsx"
+                    ])
+                    print(f"[Multi-Step Agent] Task 완료 확인 - Task 관련 파일 추가")
+                elif 'ai' in task_title or '에이전트' in task_title:
+                    files_to_read.extend([
+                        "backend/routes/ai.js",
+                        "backend/controllers/aiController.js",
+                        "ai-backend/agent_router.py",
+                        "morpheus-react/web/src/api/ai.js"
+                    ])
+                    print(f"[Multi-Step Agent] Task 완료 확인 - AI 관련 파일 추가")
+                
+                # 중복 제거 및 최대 10개로 제한 (간결하게)
+                files_to_read = list(set(files_to_read))[:10]
+                
+                print(f"[Multi-Step Agent] Task 완료 확인 - 읽을 파일 목록: {files_to_read}")
+                
+                # 파일 읽기
+                read_count = 0
+                for file_path in files_to_read:
+                    if file_path not in [f.get('path', '') for f in accumulated_files]:
+                        try:
+                            file_contents = get_file_contents(github_repo, github_token, [file_path], max_lines_per_file=400)
+                            if file_contents and file_contents[0].get('content'):
+                                accumulated_files.append({
+                                    "path": file_path,
+                                    "content": file_contents[0]['content'],
+                                    "truncated": file_contents[0].get('truncated', False)
+                                })
+                                progress_messages.append(f"✅ {file_path} 파일을 읽었습니다.")
+                                context['readFiles'] = accumulated_files
+                                read_count += 1
+                                print(f"[Multi-Step Agent] Task 완료 확인 - 파일 읽기 성공: {file_path}")
+                            else:
+                                print(f"[Multi-Step Agent] Task 완료 확인 - 파일 읽기 실패 (내용 없음): {file_path}")
+                        except Exception as e:
+                            print(f"[Multi-Step Agent] Task 완료 확인 - 파일 읽기 실패 ({file_path}): {e}")
+                            continue
+                
+                if read_count > 0:
+                    print(f"[Multi-Step Agent] Task 완료 확인 - 2단계: {read_count}개 파일 읽기 완료")
+                else:
+                    print(f"[Multi-Step Agent] Task 완료 확인 - 2단계: 파일 읽기 실패 (읽은 파일 없음)")
+                    progress_messages.append("⚠️ 예상 위치의 파일을 찾지 못했습니다.")
         
         # 2단계 완료 후 필요한 파일 목록 생성 (논리적 파일 탐색)
         if step_number == 2 and agent_type == "progress_analysis_agent" and github_repo:
@@ -855,7 +873,7 @@ def execute_multi_step_agent(
                 }
         
         # 정보 충분성 평가
-        evaluation = evaluate_information_sufficiency(current_result, agent_type, call_llm_func, step_number)
+        evaluation = evaluate_information_sufficiency(current_result, agent_type, call_llm_func, step_number, context)
         
         print(f"[Multi-Step Agent] {agent_type} - 평가 결과: 충분={evaluation.get('is_sufficient')}, 신뢰도={evaluation.get('confidence')}")
         
@@ -869,6 +887,58 @@ def execute_multi_step_agent(
         if evaluation.get('needs_more_info', False) and step_number < MAX_ANALYSIS_STEPS:
             files_to_read = evaluation.get('files_to_read', [])
             commits_to_analyze = evaluation.get('commits_to_analyze', [])
+            
+            # Task 완료 확인 에이전트: 제안된 파일을 Task 제목 기반으로 필터링
+            if agent_type == "task_completion_agent" and files_to_read:
+                task = context.get('task', {})
+                task_title = task.get('title', '').lower()
+                
+                # Task 제목 키워드 추출
+                task_keywords = []
+                if '로그인' in task_title or 'login' in task_title or '인증' in task_title or 'auth' in task_title or '회원가입' in task_title:
+                    task_keywords = ['user', 'login', 'auth', '인증', '로그인', '회원가입']
+                elif 'github' in task_title or 'git' in task_title:
+                    task_keywords = ['github', 'git']
+                elif 'task' in task_title or '작업' in task_title:
+                    task_keywords = ['task', '작업']
+                elif 'ai' in task_title or '에이전트' in task_title:
+                    task_keywords = ['ai', '에이전트', 'agent']
+                
+                # Task 제목과 관련 없는 파일 필터링
+                if task_keywords:
+                    filtered_files = []
+                    for file_path in files_to_read:
+                        file_path_lower = file_path.lower()
+                        # 파일 경로에 Task 키워드가 포함되어 있는지 확인
+                        if any(keyword in file_path_lower for keyword in task_keywords):
+                            filtered_files.append(file_path)
+                        else:
+                            print(f"[Multi-Step Agent] Task 완료 확인 - 파일 필터링: {file_path} (Task 제목 '{task_title}'와 무관)")
+                    
+                    if filtered_files:
+                        files_to_read = filtered_files
+                        print(f"[Multi-Step Agent] Task 완료 확인 - 필터링 후 파일 목록: {files_to_read}")
+                    else:
+                        print(f"[Multi-Step Agent] Task 완료 확인 - 모든 파일이 필터링됨, Task 제목 기반 파일 사용")
+                        # 필터링으로 모든 파일이 제거되면 Task 제목 기반 파일 사용
+                        if '로그인' in task_title or 'login' in task_title:
+                            files_to_read = [
+                                "backend/routes/user.js",
+                                "backend/controllers/userController.js",
+                                "backend/middleware/auth.js"
+                            ]
+                        elif 'github' in task_title:
+                            files_to_read = [
+                                "backend/routes/github.js",
+                                "backend/controllers/githubController.js"
+                            ]
+                        elif 'task' in task_title:
+                            files_to_read = [
+                                "backend/routes/task.js",
+                                "backend/controllers/taskController.js"
+                            ]
+                        else:
+                            files_to_read = []
             
             # Task 완료 확인 에이전트: 3단계 이상에서 추가 파일 읽기 (필요시)
             if agent_type == "task_completion_agent" and github_repo and step_number >= 3:
